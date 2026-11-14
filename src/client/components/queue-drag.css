@@ -1,0 +1,54 @@
+.queue-drag-handle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex-shrink: 0;
+  width: 44px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft);
+  color: var(--accent);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.queue-drag-handle span {
+  font-size: 10px;
+  font-weight: 600;
+}
+.queue-drag-handle:hover,
+.queue-drag-handle[aria-pressed='true'] {
+  border-color: var(--accent);
+}
+.queue-drag-handle[aria-pressed='true'] {
+  cursor: grabbing;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.queue-drag-handle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.queue-row[data-drag-source='true'] {
+  background: var(--soft);
+}
+.queue-row[data-drop-target='true'] {
+  box-shadow: inset 0 3px var(--accent);
+}
+.queue-row[data-drop-target='true'][data-drop-edge='after'] {
+  box-shadow: inset 0 -3px var(--accent);
+}
+.queue-drag-help {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 0 0 8px;
+}
+@media (max-width: 600px) {
+  .queue-row:has(.queue-drag-handle) {
+    column-gap: 8px;
+  }
+}

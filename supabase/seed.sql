@@ -1,0 +1,3 @@
+-- No production seed and no fictional songs. Create users using Supabase Auth.
+-- Operator: insert the UUID of an existing, non-anonymous admin into system_admins.
+-- insert into public.system_admins(user_id) values ('YOUR_AUTH_USER_UUID');

@@ -1,0 +1,103 @@
+.floating-vote {
+  position: fixed;
+  z-index: 38;
+  visibility: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--accent);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: 0 10px 40px #0005;
+}
+.floating-vote .reorder-voting {
+  border: 0;
+  padding: 16px;
+  margin: 0;
+  background: transparent;
+}
+.floating-vote .panel-title {
+  gap: 8px;
+  margin-bottom: 0;
+}
+.floating-vote .panel-title h3 {
+  font-size: 14px;
+  flex: 1;
+}
+.floating-vote .panel-title .button {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+.floating-vote .proposal-actions {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.floating-vote .proposal-actions .button {
+  flex: 1;
+  padding: 10px 8px;
+  font-size: 12px;
+}
+.floating-vote .proposal-actions svg {
+  flex-shrink: 0;
+}
+.floating-vote .reorder-voting p {
+  font-size: 12px;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+.floating-vote .vote-attention {
+  color: var(--accent);
+  font-weight: 700;
+}
+.vote-reminder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  width: 100%;
+  min-height: 60px;
+  text-align: left;
+}
+.vote-reminder > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.vote-reminder strong {
+  display: block;
+  font-size: 12px;
+}
+.vote-reminder small {
+  display: block;
+  font-size: 10px;
+  margin-top: 4px;
+  color: var(--muted);
+}
+.vote-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  background: var(--accent);
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .floating-vote {
+    animation: vote-appear 180ms ease-out;
+  }
+  @keyframes vote-appear {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+.reorder-help {
+  font-size: 12px;
+  margin: 0 0 16px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.floating-vote [hidden] {
+  display: none;
+}

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /room/
+Disallow: /rooms
+Disallow: /login
+Disallow: /join
