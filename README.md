@@ -12,6 +12,23 @@ Lượt tính năng biểu quyết đạt **135 unit/API/React tests, 35 databas
 Game có trang riêng, hỗ trợ 2–4 người, xúc xắc CSS 3D và hiệu ứng đi quân; chuyển qua lại vẫn giữ máy phát nhạc.
 Xem [cách chơi](docs/GAME.md) và [kiểm thử bản public](docs/GAME_PUBLIC_CHECK.md).
 
+**Gợi ý nhạc (đã public):** vào **Tìm & thêm bài**, để trống ô tìm kiếm để xem
+**Nghe lại cùng phòng** và **Khám phá nhạc mới**. Kết hợp lịch sử của phòng với nhạc phổ biến
+trên YouTube; có nút thêm bài, đổi gợi ý và tìm nhanh theo thể loại/kênh.
+Khám phá hiện 12 bài ban đầu, có **Xem thêm** và bộ lọc **Việt Nam / Mỹ / Hàn Quốc / Nhật Bản**.
+Tổng hợp loại trùng giữa các nguồn, tăng kho bài quen lên tối đa 24 bài và khám phá tối đa 120 bài;
+số lượng thực tế phụ thuộc nguồn nhạc và giới hạn của phòng.
+Xem [cách dùng và giới hạn](docs/RECOMMENDATIONS.md), [kiểm tra public qua HTTPS](docs/RECOMMENDATIONS_PUBLIC_CHECK.md).
+Đã phát hành tại https://roomtune.dzoanh.me ngày 16/11/2026.
+
+**Danh sách online/offline (đã public):** trong phòng, bấm nút **N online** ở
+thanh đầu để xem thành viên. Có tìm tên, lọc online/offline, vai trò và dấu **Bạn**;
+mất kết nối hiển thị trạng thái chưa xác định. Xem [hướng dẫn](docs/MEMBERS.md).
+
+**Tìm kiếm:** tự tìm sau khi ngừng gõ 650 ms, không cần Enter. Đã bỏ hai trần tìm kiếm
+riêng của ứng dụng và sửa lọc video theo quốc gia VN; quota YouTube và chống spam chung
+vẫn áp dụng. Xem [giới hạn hiện tại](docs/SEARCH_LIMITS.md).
+
 ## Chạy local
 
 Yêu cầu Node >=22.12, pnpm 11.25.0.

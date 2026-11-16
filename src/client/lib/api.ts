@@ -120,8 +120,16 @@ export async function api<T>(
           }
           continue;
         }
-        if (!response.ok)
-          throw new AppError(data?.error?.code ?? 'BACKEND_UNAVAILABLE', response.status);
+        if (!response.ok) {
+          const retryAfter = Number(response.headers.get('Retry-After'));
+          throw new AppError(
+            data?.error?.code ?? 'BACKEND_UNAVAILABLE',
+            response.status,
+            Number.isInteger(retryAfter) && retryAfter > 0 && retryAfter <= 86400
+              ? retryAfter
+              : undefined,
+          );
+        }
         if (data === null) throw new AppError('BACKEND_UNAVAILABLE', 503);
         return data as T;
       }

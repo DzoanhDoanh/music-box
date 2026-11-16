@@ -1,5 +1,107 @@
 # Kết quả kiểm thử — 13/11/2026
 
+## Phát hành gợi ý, thành viên và tìm kiếm — 16/11/2026, 19:19
+
+- **286 unit/API/React PASS / 30 files**; TypeScript, ESLint và Prettier đạt.
+- Room/session: **94 PASS, 2 SKIP** qua lượt đầy đủ và chạy lại hai ca tìm nhanh.
+  Hai ca ban đầu còn kỳ vọng `nhạc chill Việt`; đã sửa kỳ vọng thành từ khóa chuẩn hóa
+  `nhạc chill việt` rồi chạy lại đạt trên desktop/mobile. Hai layout skip ở mobile vì
+  project desktop đã chủ động quét các viewport tương ứng.
+- Game: **18 PASS, 2 SKIP**; gồm ván bốn người hoàn chỉnh, chơi lại, khôi phục kết nối,
+  layout và giữ iframe nhạc qua điều hướng. Hai ca skip có kiểm tra tương ứng ở desktop.
+- Build cô lập không đổi bản đang chạy. Sau đó chuyển đúng bundle `index-DoRsBGDO.js`
+  sang public, giữ các chunk cũ; scan **66 client artifacts PASS**. Preview PID 45396,
+  tunnel PID 23028 giữ nguyên. Bản khôi phục tại
+  `.roomtune/releases/search-members-20261116-191901/previous` (có secrets, ngoài Git/static).
+- HTTPS thật: trang nhạc/game, health và hash toàn bộ assets đúng; API bảo vệ trả 401,
+  origin lạ trả 403, đường dẫn cấu hình/server/debug trả 404.
+- [Tìm kiếm/link public](SEARCH_LINK_PUBLIC_CHECK.md) PASS: `bad` trả 12 bài;
+  video `-q_S27LbNKU` được enqueue thật. [Thành viên public](MEMBERS_PUBLIC_CHECK.md)
+  PASS: private Realtime, nhiều tab tính một người, offline/reconnect và mất membership.
+  Chỉ tạo/dọn phòng, tài khoản của lượt kiểm thử; không migrate DB hay sửa phòng người dùng.
+- Không kiểm chứng âm thanh trong lượt phát hành này. Báo cáo kéo bài lên khiến các bài
+  trước biến mất vẫn chưa xác định nguyên nhân; đợt này không sửa hoặc tuyên bố khắc phục lỗi đó.
+
+## Thành viên online/offline — 16/11/2026
+
+- **268 unit/API/React PASS / 28 files** trên mã cuối. Kiểm tra Presence theo từng ID,
+  nhiều tab tính một người, replay sau subscribe, trạng thái chưa xác định khi mất kết nối,
+  lọc theo membership, cách ly phòng/tài khoản và bỏ callback sau unmount/mất quyền.
+  Kiểm tra tìm tên không dấu, lọc đang mở và cập nhật danh sách; refresh không tạo thêm
+  channel hay phát Presence khi chỉ còn chat.
+- **4 browser PASS** desktop/mobile: cập nhật realtime qua Phoenix fixture và SDK thật,
+  nhiều thiết bị, online/offline/tìm tên, thành viên bị loại, iframe và trạng thái phát giữ
+  nguyên, không phát lệnh điều khiển nhạc khi mở/đóng danh sách. Màn hình 320px, tên dài,
+  danh sách dài cuộn bằng bàn phím, focus trở về nút mở, Axe sáng/tối đều đạt.
+- Lượt browser đầu phát hiện vùng cuộn thiếu keyboard focus; đã sửa `tabIndex` và xác minh
+  cuộn bằng End/Home. Xem ảnh phát hiện ô tìm tên bị CSS label toàn cục xếp dọc; đã đặt row
+  rõ ràng, thêm kiểm tra chiều cao và chạy lại bốn ca đạt.
+- [Hosted thật](MEMBERS_HOSTED_CHECK.md) **PASS** trên runtime thử 5180: Auth/membership,
+  private Realtime, danh sách desktop/mobile, mở hai tab cùng tài khoản vẫn tính một người,
+  rời tab cuối chuyển offline, quay lại chuyển online, chặn người bị thu hồi membership.
+  Lượt đầu phát hiện mất mạng ngắn không đóng socket nên không có sync mới; đã thêm retrack
+  qua transport dùng chung khi mạng trở lại và kiểm tra lại với browser offline thật đạt.
+  Tài khoản/phòng thử đã dọn theo ID. Không kiểm chứng âm thanh trong lượt hosted này.
+- Typecheck, lint, format và build cô lập đạt; scan **21 client artifacts PASS**. Public
+  `dist` và deployment pointer giữ nguyên. Không migration, không restart public/tunnel.
+  Đây là kết quả bản thử trước phát hành. Sau đó đã public lúc 19:19 giờ Việt Nam;
+  xem [kiểm tra public](MEMBERS_PUBLIC_CHECK.md) và [hướng dẫn](MEMBERS.md).
+
+## Mở rộng gợi ý nhạc — 16/11/2026
+
+- **263 unit/API/React PASS**: thêm nguồn VN/US/KR/JP, cache riêng 30 phút, đan xen trước
+  affinity ranking, gộp bài trùng nhưng giữ các nguồn, tăng giới hạn 24 bài quen/120 khám phá,
+  không hạ tiêu chí loại bài lỗi/đang chờ/quá dài; một nguồn lỗi không làm mất nguồn khác.
+- **12 browser PASS, 2 layout SKIP**: desktop/mobile xem 12 bài, mở thêm giữ bài cũ, đổi nguồn
+  và đổi nhóm không gọi feed lại, thêm một lần/toast, tìm nhanh, Axe/320px, lỗi toàn bộ/một
+  nguồn và hồi quy player/biểu quyết. Sau sửa thông báo nguồn lành nhưng hết bài phù hợp,
+  riêng hai ca partial failure chạy lại **2 PASS**.
+- Typecheck, ESLint, build cô lập và scan **21 client artifacts PASS**. Không thay migration.
+  Đã xem giao diện bằng dữ liệu thật; thử hosted nhận **61 bài khám phá** trong phòng mới,
+  so với giới hạn 24 trước đây. VN 24 / US 11 / KR 4 / JP 25, có bài thuộc nhiều nguồn nên
+  tổng các bộ lọc lớn hơn tổng bài duy nhất. Số bài thay đổi theo dữ liệu YouTube.
+- Hosted xác minh bộ lọc/Xem thêm trên desktop/mobile không phát sinh yêu cầu feed mới,
+  thêm bài đồng bộ và chặn truy cập sai quyền; dữ liệu phòng/tài khoản thử được dọn.
+  Xem [báo cáo local](RECOMMENDATIONS_HOSTED_CHECK.md) và [báo cáo public](RECOMMENDATIONS_PUBLIC_CHECK.md).
+- Bản mở rộng đã phát hành lúc **03:36 UTC / 10:36 giờ Việt Nam ngày 16/11/2026**,
+  main bundle `index-CeutjgZi.js`. Scan **50 client artifacts PASS**, gồm các chunk cũ giữ lại.
+  Chỉ restart preview (PID 9904); tunnel PID 23028 giữ nguyên. Bản khôi phục:
+  `.roomtune/releases/recommendations-20261116-103606/previous` (có secrets, ngoài Git/static).
+- Kiểm thử public HTTPS **PASS** lúc 03:37 UTC: 61 bài khám phá, đủ bốn nguồn, Xem thêm và
+  bộ lọc không gọi feed lại, thêm bài đồng bộ desktop/mobile, chặn outsider/thu hồi membership,
+  dọn đúng tài khoản/phòng thử. Đã xem ảnh giao diện dữ liệu thật. Kiểm tra độc lập xác nhận
+  bảy tài nguyên mới/cũ khớp hash bản local, API chưa đăng nhập trả 401 và tám đường dẫn
+  cấu hình/mã server trả 404. Không kiểm chứng âm thanh trong lượt gợi ý; không migrate DB.
+
+## Gợi ý gu phòng và khám phá — 16/11/2026
+
+- **257 unit/API/React PASS / 26 files** trên mã cuối: xếp hạng theo lịch sử, loại bài lỗi/
+  đang chờ/quá dài, đa dạng kênh, permission, cache dùng chung không lộ lịch sử, phản hồi YouTube
+  JSON/schema lỗi và cache lỗi vẫn giữ bài quen. Query tách theo phòng và danh tính.
+- Room/session suite **86 PASS, 2 SKIP** trên desktop/mobile. Hai ca layout skip trên project
+  mobile vì ca desktop đã chủ động quét cả viewport mobile. Bao gồm gợi ý, đổi nhóm không gọi
+  API, loading/chống bấm trùng/toast, lỗi discovery, tìm nhanh, 320px và Axe; hồi quy chat,
+  biểu quyết, hàng chờ, thiếu host và giữ iframe qua token expiry.
+- TypeScript strict, ESLint, Prettier và whitespace checks đạt. Build cô lập giữ nguyên public
+  `dist` và deployment pointer; scan 21 client artifacts đạt. Đường dẫn file server trên runtime
+  thử không trả khóa bí mật. Không sửa migration; không chạy lại database/backup suite.
+- Hosted: [báo cáo](RECOMMENDATIONS_HOSTED_CHECK.md) xác minh Auth/Supabase/YouTube thật, room
+  mới có discovery, history join, chặn outsider/revoked member, thêm bài từ mobile cập nhật
+  desktop và loại khỏi feed tiếp theo. Lịch sử được gieo trong phòng tạm; không kiểm chứng âm
+  thanh hoặc public HTTPS. Chỉ tạo/dọn các phòng/tài khoản của lượt chạy.
+- Trước phát hành, tính năng được kiểm tra riêng ở `http://127.0.0.1:5180`.
+  Hướng dẫn và giới hạn: [RECOMMENDATIONS.md](RECOMMENDATIONS.md).
+- Kiểm tra chỉ đọc trước phát hành: health của preview 4173 và HTTPS public đều 200/configured,
+  vẫn phục vụ bundle `index-CrR2RFDU.js`. Preview PID 32996 và tunnel PID 23028 giữ nguyên;
+  không restart public. Trạng thái process phải kiểm tra ngoài sandbox vì sandbox có thể
+  không đọc được thông tin tiến trình và báo nhầm là stopped.
+- Sau yêu cầu public: chuyển đúng build đã kiểm thử sang `dist`, giữ chunk cũ; scan **35 client
+  artifacts PASS** (gồm tài nguyên của bản trước). Preview PID 35884; tunnel PID 23028 giữ nguyên.
+  HTTPS phục vụ bundle `index-Bp2kNQ1V.js`, chunk gợi ý và game; API chưa xác thực trả 401,
+  đường dẫn nội bộ/secrets trả 404. [Kiểm thử public](RECOMMENDATIONS_PUBLIC_CHECK.md) **PASS**:
+  discovery, history join, thêm bài desktop/mobile và quyền membership dùng dịch vụ thật,
+  tài khoản/phòng thử đã dọn. Không commit/push hoặc migrate database trong lượt phát hành.
+
 ## Nhận lại host sau khi máy cũ tắt — 14/11/2026
 
 - **185 unit/API/React PASS / 19 files**; sau sửa kiểu tham số AppError trong test, riêng file

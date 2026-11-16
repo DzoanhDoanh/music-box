@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { AppError, durationSeconds } from '../shared/domain';
-import type { Song } from '../shared/contracts';
+import type { MusicRegion, Song } from '../shared/contracts';
 const videoSchema = z.object({
   id: z.string(),
   snippet: z.object({
@@ -12,7 +12,9 @@ const videoSchema = z.object({
   contentDetails: z.object({
     duration: z.string(),
     contentRating: z.record(z.string(), z.string()).optional(),
-    regionRestriction: z.unknown().optional(),
+    regionRestriction: z
+      .object({ allowed: z.array(z.string()).optional(), blocked: z.array(z.string()).optional() })
+      .optional(),
   }),
   status: z.object({
     embeddable: z.boolean(),
@@ -23,6 +25,7 @@ const videoSchema = z.object({
 export interface YouTubePort {
   video(id: string): Promise<Song>;
   search(query: string): Promise<Song[]>;
+  popularMusic(region?: MusicRegion): Promise<Song[]>;
 }
 export class YouTubeService implements YouTubePort {
   constructor(
@@ -61,9 +64,13 @@ export class YouTubeService implements YouTubePort {
           service: 'youtube',
           operation: path,
           status: response.status,
-          reasons: body?.error?.errors
-            ?.map((item: { reason?: string }) => item.reason)
-            .filter((reason: unknown) => typeof reason === 'string' && /^[\w]{1,64}$/.test(reason)),
+          reasons: Array.isArray(body?.error?.errors)
+            ? body.error.errors
+                .map((item: { reason?: unknown } | null) => item?.reason)
+                .filter(
+                  (reason: unknown) => typeof reason === 'string' && /^[\w]{1,64}$/.test(reason),
+                )
+            : undefined,
         }),
       );
       throw new AppError(
@@ -71,13 +78,28 @@ export class YouTubeService implements YouTubePort {
         quota ? 429 : 503,
       );
     }
-    return response.json();
+    try {
+      return await response.json();
+    } catch {
+      throw new AppError('YOUTUBE_UNAVAILABLE', 503);
+    }
+  }
+  private parse<T>(schema: z.ZodType<T>, body: unknown): T {
+    const result = schema.safeParse(body);
+    // Invalid provider data is an upstream failure, never a bad user request.
+    if (!result.success) throw new AppError('YOUTUBE_UNAVAILABLE', 503);
+    return result.data;
   }
   private normalize(raw: unknown): Song | null {
     const parsed = videoSchema.safeParse(raw);
     if (!parsed.success) return null;
     const v = parsed.data,
       duration = durationSeconds(v.contentDetails.duration);
+    // Chart origin (US/KR/JP) is independent of the audience's playback country.
+    const restriction = v.contentDetails.regionRestriction;
+    const blockedInVietnam =
+      restriction?.blocked?.includes('VN') ||
+      (restriction?.allowed !== undefined && !restriction.allowed.includes('VN'));
     if (
       !v.status.embeddable ||
       v.status.privacyStatus !== 'public' ||
@@ -85,7 +107,7 @@ export class YouTubeService implements YouTubePort {
       v.snippet.liveBroadcastContent !== 'none' ||
       !duration ||
       v.contentDetails.contentRating?.ytRating === 'ytAgeRestricted' ||
-      v.contentDetails.regionRestriction
+      blockedInVietnam
     )
       return null;
     return {
@@ -98,28 +120,45 @@ export class YouTubeService implements YouTubePort {
     };
   }
   async video(id: string): Promise<Song> {
-    const body = z
-      .object({ items: z.array(z.unknown()) })
-      .parse(await this.call('videos', { id, part: 'snippet,contentDetails,status' }));
+    const body = this.parse(
+      z.object({ items: z.array(z.unknown()) }),
+      await this.call('videos', { id, part: 'snippet,contentDetails,status' }),
+    );
     const song = this.normalize(body.items[0]);
     if (!song) throw new AppError('VIDEO_UNAVAILABLE');
     return song;
   }
+  async popularMusic(region: MusicRegion = 'VN'): Promise<Song[]> {
+    const body = this.parse(
+      z.object({ items: z.array(z.unknown()) }),
+      await this.call('videos', {
+        part: 'snippet,contentDetails,status',
+        chart: 'mostPopular',
+        regionCode: region,
+        videoCategoryId: '10',
+        maxResults: '50',
+      }),
+    );
+    return body.items
+      .map((video) => this.normalize(video))
+      .filter((song): song is Song => song !== null);
+  }
   async search(query: string): Promise<Song[]> {
-    const search = z
-      .object({ items: z.array(z.object({ id: z.object({ videoId: z.string() }) })) })
-      .parse(
-        await this.call('search', {
-          q: query,
-          part: 'snippet',
-          type: 'video',
-          videoEmbeddable: 'true',
-          maxResults: '12',
-          safeSearch: 'moderate',
-        }),
-      );
+    const search = this.parse(
+      z.object({ items: z.array(z.object({ id: z.object({ videoId: z.string() }) })) }),
+      await this.call('search', {
+        q: query,
+        part: 'snippet',
+        type: 'video',
+        videoEmbeddable: 'true',
+        regionCode: 'VN',
+        maxResults: '12',
+        safeSearch: 'moderate',
+      }),
+    );
     if (!search.items.length) return [];
-    const videos = z.object({ items: z.array(z.unknown()) }).parse(
+    const videos = this.parse(
+      z.object({ items: z.array(z.unknown()) }),
       await this.call('videos', {
         id: search.items.map((i) => i.id.videoId).join(','),
         part: 'snippet,contentDetails,status',

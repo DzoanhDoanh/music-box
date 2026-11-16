@@ -33,6 +33,23 @@ afterEach(() => {
 });
 
 describe('session continuity', () => {
+  it('preserves the server retry delay without retrying or refreshing authentication', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json(
+          { error: { code: 'RATE_LIMITED' } },
+          { status: 429, headers: { 'Retry-After': '60' } },
+        ),
+      );
+    vi.stubGlobal('fetch', request);
+    await expect(api('/youtube/search?q=bad')).rejects.toMatchObject({
+      code: 'RATE_LIMITED',
+      retryAfterSeconds: 60,
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(auth.refreshSession).not.toHaveBeenCalled();
+  });
   const unauthorized = () => Response.json({ error: { code: 'UNAUTHORIZED' } }, { status: 401 });
   it('renews a rejected token once without changing the receipt or payload', async () => {
     const request = vi

@@ -1,11 +1,62 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Link2, Plus, Check } from 'lucide-react';
+import { Search, Link2, Plus, Check, CircleAlert, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import type { RoomCommand, Snapshot, Song } from '../../shared/contracts';
-import { formatTime, parseYouTubeUrl } from '../../shared/domain';
+import { AppError, formatTime, parseYouTubeUrl } from '../../shared/domain';
 import { api } from '../lib/api';
-import { Button, Empty, Loading, ErrorState } from './ui';
+import { Button, Empty, Loading } from './ui';
+import Recommendations from './Recommendations';
+const normalizeQuery = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+
+function SearchFailure({
+  error,
+  search,
+  retry,
+  focusLink,
+  suggestions,
+}: {
+  error: Error;
+  search: string;
+  retry: () => void;
+  focusLink: () => void;
+  suggestions: () => void;
+}) {
+  const code = error instanceof AppError ? error.code : '';
+  const limited = code === 'YOUTUBE_QUOTA_EXCEEDED';
+  const [remaining, setRemaining] = useState(
+    error instanceof AppError ? (error.retryAfterSeconds ?? 0) : 0,
+  );
+  useEffect(() => {
+    if (!remaining) return;
+    const timer = setTimeout(() => setRemaining((value) => Math.max(0, value - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [remaining]);
+  return (
+    <div className="search-feedback" role="alert">
+      <CircleAlert aria-hidden="true" />
+      <h3>{limited ? 'Tìm kiếm đang hết lượt' : 'Chưa tìm được bài hát'}</h3>
+      <p>{error.message}</p>
+      <div className="search-feedback-actions">
+        {!limited && (
+          <Button disabled={remaining > 0} onClick={retry}>
+            {remaining > 0 ? `Thử lại sau ${remaining}s` : 'Thử lại'}
+          </Button>
+        )}
+        <Button onClick={suggestions}>Xem bài gợi ý</Button>
+        <Button onClick={focusLink}>Dán liên kết</Button>
+        <a
+          className="button button-secondary"
+          href={`https://www.youtube.com/results?search_query=${encodeURIComponent(search)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Tìm trên YouTube <ExternalLink size={16} aria-hidden="true" />
+        </a>
+      </div>
+    </div>
+  );
+}
 export default function SearchPanel({
   snapshot,
   execute,
@@ -15,24 +66,47 @@ export default function SearchPanel({
 }) {
   const [input, setInput] = useState(''),
     [search, setSearch] = useState(''),
+    [composing, setComposing] = useState(false),
     [link, setLink] = useState(''),
     [busy, setBusy] = useState<string | null>(null);
   const adding = useRef(false);
+  const linkInput = useRef<HTMLInputElement>(null);
+  const normalizedInput = normalizeQuery(input);
   useEffect(() => {
-    const timer = setTimeout(() => setSearch(input.trim()), 650);
+    if (composing) return;
+    const timer = setTimeout(() => setSearch(normalizedInput), 650);
     return () => clearTimeout(timer);
-  }, [input]);
+  }, [normalizedInput, composing]);
   const query = useQuery({
-    queryKey: ['search', snapshot.room.id, search],
+    queryKey: ['search', snapshot.room.id, snapshot.me, search],
     queryFn: () =>
       api<{
         items: Song[];
-      }>(`/youtube/search?room=${snapshot.room.id}&q=${encodeURIComponent(search)}`),
-    enabled: search.length >= 2,
+      }>(
+        `/youtube/search?room=${snapshot.room.id}&q=${encodeURIComponent(search)}`,
+        undefined,
+        undefined,
+        snapshot.me,
+      ),
+    enabled: search.length >= 2 && search === normalizedInput && !composing,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
+  function submitSearch(value: string) {
+    const next = normalizeQuery(value);
+    if (next.length < 2 || composing || (next === search && query.isFetching)) return;
+    if (next === search) {
+      if (query.isError || query.isStale) void query.refetch();
+    } else setSearch(next);
+  }
+  function clearSearch() {
+    setInput('');
+    setSearch('');
+  }
   async function add(id: string) {
     if (adding.current) return;
     adding.current = true;
@@ -57,26 +131,44 @@ export default function SearchPanel({
         </div>
         <span className="youtube-label">YouTube</span>
       </div>
-      <div className="search-field">
+      <form
+        className="search-field"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submitSearch(input);
+        }}
+      >
         <Search size={20} />
         <input
           aria-label="Tìm bài hát trên YouTube"
+          enterKeyHint="search"
           placeholder="Tên bài hát, nghệ sĩ, một chút cảm hứng…"
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onCompositionStart={() => setComposing(true)}
+          onCompositionEnd={(e) => {
+            setInput(e.currentTarget.value);
+            setComposing(false);
+          }}
           maxLength={120}
         />
         {input && (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Xóa tìm kiếm"
-            onClick={() => setInput('')}
-          >
+          <Button variant="ghost" size="icon" aria-label="Xóa tìm kiếm" onClick={clearSearch}>
             ×
           </Button>
         )}
-      </div>
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={
+            normalizedInput.length < 2 ||
+            composing ||
+            (normalizedInput === search && query.isFetching)
+          }
+        >
+          Tìm
+        </Button>
+      </form>
       <form
         className="link-form"
         onSubmit={(e) => {
@@ -91,6 +183,7 @@ export default function SearchPanel({
       >
         <Link2 size={18} />
         <input
+          ref={linkInput}
           aria-label="Liên kết YouTube"
           type="url"
           required
@@ -108,16 +201,30 @@ export default function SearchPanel({
           <Plus size={17} /> Thêm bài
         </Button>
       </form>
-      {input.trim().length >= 2 && (input.trim() !== search || query.isFetching) ? (
+      {input.trim().length < 2 ? (
+        <Recommendations
+          key={`${snapshot.room.id}:${snapshot.me}`}
+          snapshot={snapshot}
+          busy={busy}
+          add={add}
+          search={(value) => {
+            setInput(value);
+            submitSearch(value);
+          }}
+        />
+      ) : composing || normalizedInput !== search || query.isFetching ? (
         <Loading>Đang tìm bài hát…</Loading>
-      ) : search.length < 2 ? (
-        <Empty title="Bài hát tiếp theo là gì?">
-          Tìm kiếm một bài hát, hoặc thêm bằng liên kết YouTube.
-        </Empty>
       ) : query.isPending ? (
         <Loading />
       ) : query.error ? (
-        <ErrorState error={query.error} retry={() => void query.refetch()} />
+        <SearchFailure
+          key={`${snapshot.room.id}:${snapshot.me}:${query.errorUpdatedAt}`}
+          error={query.error}
+          search={search}
+          retry={() => void query.refetch()}
+          focusLink={() => linkInput.current?.focus()}
+          suggestions={clearSearch}
+        />
       ) : query.data?.items.length ? (
         <div className="song-results">
           {query.data.items.map((song) => {

@@ -156,6 +156,7 @@ export function Modal({
   open,
   onOpenChange,
   onCloseAutoFocus,
+  className,
 }: {
   title: string;
   description: string;
@@ -164,13 +165,17 @@ export function Modal({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onCloseAutoFocus?: Dialog.DialogContentProps['onCloseAutoFocus'];
+  className?: string;
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       {trigger && <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>}
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog-content" onCloseAutoFocus={onCloseAutoFocus}>
+        <Dialog.Content
+          className={cn('dialog-content', className)}
+          onCloseAutoFocus={onCloseAutoFocus}
+        >
           <Dialog.Title>{title}</Dialog.Title>
           <Dialog.Description>{description}</Dialog.Description>
           <Dialog.Close asChild>

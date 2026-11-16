@@ -10,13 +10,16 @@ export class SearchService {
   ) {}
   async search(room: string, query: string) {
     await this.store.requireMember(this.actor, room);
-    await this.store.consume(`search:${this.actor}`, 6);
-    const normalized = query.toLocaleLowerCase();
+    // Search has no separate per-user or daily application cap. Authentication
+    // still applies the shared API abuse limit; YouTube enforces its own quota.
+    const text = query.trim().replace(/\s+/g, ' ').toLowerCase();
+    // Version the cache because availability now checks Vietnam specifically.
+    const normalized = 'search:vn:v2:' + text;
     const cached = await this.store.cachedSearch(normalized);
     if (cached) return cached;
-    await this.store.consume('search:global', 80, 86400);
-    const items = await this.youtube.search(query);
-    await this.store.cacheSearch(normalized, items);
+    const items = await this.youtube.search(text);
+    // Metadata is checked again on enqueue. Reuse discovery results across rooms.
+    await this.store.cacheSearch(normalized, items, 6 * 60 * 60);
     return { items };
   }
 }

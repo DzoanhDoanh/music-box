@@ -2,7 +2,13 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { AppError, errorMessages } from '../shared/domain';
 import { authError } from '../shared/auth-errors';
 import type { RoomCommand, Song } from '../shared/contracts';
-import type { CommandResult, IdentityPort, RoomStore, ReadModel } from './ports';
+import type {
+  CommandResult,
+  IdentityPort,
+  RoomStore,
+  ReadModel,
+  RecommendationContext,
+} from './ports';
 export interface Env {
   SUPABASE_URL: string;
   SUPABASE_PUBLISHABLE_KEY: string;
@@ -58,7 +64,10 @@ export async function rateLimit(db: SupabaseClient, key: string, limit: number, 
     p_limit: limit,
     p_seconds: seconds,
   });
-  if (!allowed) throw new AppError('RATE_LIMITED', 429);
+  if (!allowed) {
+    const code = key.startsWith('enqueue:') ? 'ENQUEUE_RATE_LIMITED' : 'RATE_LIMITED';
+    throw new AppError(code, 429, seconds);
+  }
 }
 export async function requireMember(
   db: SupabaseClient,
@@ -147,6 +156,38 @@ export class SupabaseRepository implements RoomStore, IdentityPort {
     ]);
     return { audit: checked(audit), bans: checked(bans) };
   }
+  async recommendationContext(room: string): Promise<RecommendationContext> {
+    const [settings, queue, history] = await Promise.all([
+      this.db.from('room_settings').select('max_duration').eq('room_id', room).single(),
+      this.db
+        .from('queue_entries')
+        .select('status,song:songs(*)')
+        .eq('room_id', room)
+        .in('status', ['PENDING', 'QUEUED', 'PREPARING', 'PLAYING'])
+        .order('position')
+        .limit(500)
+        .returns<RecommendationContext['queue']>(),
+      this.db
+        .from('playback_history')
+        .select('status,played_at,entry:queue_entries(song:songs(*))')
+        .eq('room_id', room)
+        .order('played_at', { ascending: false })
+        .order('id')
+        .limit(300)
+        .returns<{ status: string; played_at: string; entry: { song: Song | null } | null }[]>(),
+    ]);
+    const configuration = checked(settings);
+    if (!configuration) throw new AppError('BACKEND_UNAVAILABLE', 503);
+    return {
+      maxDuration: configuration.max_duration,
+      queue: checked(queue) ?? [],
+      history: (checked(history) ?? []).map((row) => ({
+        status: row.status,
+        played_at: row.played_at,
+        song: row.entry?.song ?? null,
+      })),
+    };
+  }
   async library(actor: string) {
     const [favorites, playlists, profile] = await Promise.all([
       this.db
@@ -188,12 +229,12 @@ export class SupabaseRepository implements RoomStore, IdentityPort {
     );
     return row?.payload ?? null;
   }
-  async cacheSearch(query: string, items: Song[]) {
+  async cacheSearch(query: string, items: Song[], ttlSeconds = 600) {
     checked(
       await this.db.from('youtube_search_cache').upsert({
         query,
         payload: { items },
-        expires_at: new Date(Date.now() + 600000).toISOString(),
+        expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
       }),
     );
   }

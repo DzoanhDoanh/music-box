@@ -22,6 +22,7 @@ import { createGameSchema, gameCommandSchema } from '../shared/game/contracts';
 import { RoomCommandService } from './services/commands';
 import { PlaylistService } from './services/library';
 import { MaintenanceService, SearchService } from './services/search';
+import { RecommendationService } from './services/recommendations';
 
 type Services = {
   auth: AuthService;
@@ -29,6 +30,7 @@ type Services = {
   commands: RoomCommandService;
   library: PlaylistService;
   search: SearchService;
+  recommendations: RecommendationService;
   chat: ChatService;
   game: GameService;
 };
@@ -106,6 +108,7 @@ app.use('/api/v1/*', async (c, next) => {
     commands: new RoomCommandService(store, actor, youtube),
     library: new PlaylistService(store, actor),
     search: new SearchService(store, youtube, actor),
+    recommendations: new RecommendationService(store, youtube, actor),
     chat: new ChatService(store, actor),
     game: new GameService(store, actor),
   });
@@ -250,6 +253,9 @@ app.get('/api/v1/rooms/:id/admin', async (c) =>
       ),
   ),
 );
+app.get('/api/v1/rooms/:id/recommendations', async (c) =>
+  c.json(await c.get('services').recommendations.read(uuid.parse(c.req.param('id')))),
+);
 app.get('/api/v1/youtube/search', async (c) =>
   c.json(
     await c
@@ -296,7 +302,8 @@ app.onError((error, c) => {
       status: known.status,
     }),
   );
-  if (known.status === 429) c.header('Retry-After', '60');
+  if (known.status === 429 && known.retryAfterSeconds)
+    c.header('Retry-After', String(known.retryAfterSeconds));
   return c.json(
     { error: { code: known.code, message: known.message, requestId: c.get('requestId') } },
     known.status as 400 | 401 | 403 | 409 | 429 | 503,

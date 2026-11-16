@@ -11,6 +11,7 @@ export default defineConfig({
       VITE_SUPABASE_URL: 'https://roomtune-fixture.supabase.co',
       VITE_SUPABASE_PUBLISHABLE_KEY: 'fixture-public-key',
       VITE_TURNSTILE_SITE_KEY: '',
+      VITE_ENABLE_LUDO: 'false',
     },
   },
   projects: [

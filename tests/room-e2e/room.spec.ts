@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
+import { presenceFixture } from './presence-fixture';
 import {
   defaultSettings,
   settingsSchema,
@@ -9,7 +10,11 @@ import AxeBuilder from '@axe-core/playwright';
 const roomId = '10000000-0000-4000-8000-000000000001',
   userId = '20000000-0000-4000-8000-000000000001',
   entryId = '30000000-0000-4000-8000-000000000001';
-async function fixture(page: Page, role: 'member' | 'owner' = 'member') {
+async function fixture(
+  page: Page,
+  role: 'member' | 'owner' = 'member',
+  realtime?: (socket: WebSocketRoute) => void,
+) {
   const commands: Record<string, unknown>[] = [];
   const song = {
     youtube_video_id: 'dQw4w9WgXcQ',
@@ -92,7 +97,7 @@ async function fixture(page: Page, role: 'member' | 'owner' = 'member') {
     },
     { uid: userId, anonymous: role === 'member' },
   );
-  await page.context().routeWebSocket('**/realtime/**', (ws) => ws.close());
+  await page.context().routeWebSocket('**/realtime/**', realtime ?? ((ws) => ws.close()));
   await page.context().route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/v1/rooms')
@@ -222,6 +227,15 @@ async function fixture(page: Page, role: 'member' | 'owner' = 'member') {
             : {},
       });
     if (path.endsWith('/history')) return route.fulfill({ json: { items: [] } });
+    if (path.endsWith('/recommendations'))
+      return route.fulfill({
+        json: {
+          familiar: [],
+          discover: [],
+          seed: null,
+          discoveryUnavailable: false,
+        },
+      });
     if (path.endsWith('/admin')) return route.fulfill({ json: { audit: [], bans: [] } });
     if (path.endsWith('/search'))
       return route.fulfill({
@@ -236,7 +250,177 @@ async function fixture(page: Page, role: 'member' | 'owner' = 'member') {
 async function tab(page: Page, name: string) {
   await page.getByRole('button', { name, exact: true }).filter({ visible: true }).click();
 }
-test('unreleased Ludo stays hidden in the normal music configuration', async ({ page }) => {
+test('recommendations add once, expand and filter locally, rotate and hand off to search on desktop/mobile', async ({
+  page,
+}, info) => {
+  const f = await fixture(page);
+  const song = {
+    ...f.state.queue[0].song,
+    youtube_video_id: '9bZkp7q19f0',
+    title: 'Một ngày bình yên',
+  };
+  let feedRequests = 0;
+  await page.route('**/api/v1/rooms/*/recommendations', (route) => {
+    feedRequests++;
+    return route.fulfill({
+      json: {
+        familiar: [{ song, reason: 'ROOM_FAVORITE' }],
+        discover: Array.from({ length: 40 }, (_, index) => ({
+          song: {
+            ...song,
+            youtube_video_id: `discovery0${index}`,
+            title: `Khám phá số ${index + 1}`,
+          },
+          reason: 'DISCOVERY',
+          regions: [['VN', 'US', 'KR', 'JP'][index % 4]],
+        })),
+        seed: { label: 'Kênh quen', query: 'Kênh quen' },
+        discoveryUnavailable: false,
+      },
+    });
+  });
+  let finish!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  let enqueues = 0;
+  await page.route('**/api/v1/rooms/*/commands', async (route) => {
+    if (route.request().postDataJSON().action === 'enqueue') {
+      enqueues++;
+      await pending;
+    }
+    await route.fallback();
+  });
+  await page.goto(`/room/${roomId}`);
+  await tab(page, 'Tìm & thêm bài');
+  await expect(
+    page.getByRole('region', { name: 'Nghe lại cùng phòng', exact: true }),
+  ).toBeVisible();
+  const add = page.getByRole('button', { name: `Thêm ${song.title}`, exact: true });
+  await add.click();
+  await expect(add).toBeDisabled();
+  await expect(add).toHaveAttribute('aria-busy', 'true');
+  expect(enqueues).toBe(1);
+  finish();
+  await expect(
+    page.getByRole('button', { name: `${song.title} đã có trong hàng chờ`, exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByText('Đã thêm bài vào hàng chờ.', { exact: true })).toBeVisible();
+  expect(f.commands.filter((command) => command.action === 'enqueue')).toHaveLength(1);
+  await expect(page.getByText('Khám phá số 1', { exact: true })).toBeVisible();
+  const discovery = page.getByRole('region', { name: 'Khám phá nhạc mới', exact: true });
+  await expect(discovery.locator('.recommendation-card')).toHaveCount(12);
+  await page.getByRole('button', { name: 'Xem thêm bài khám phá', exact: true }).click();
+  await expect(discovery.locator('.recommendation-card')).toHaveCount(24);
+  await expect(page.getByText('Khám phá số 1', { exact: true })).toBeVisible();
+  expect(feedRequests).toBe(1);
+  await page.getByRole('button', { name: 'Đổi gợi ý', exact: true }).click();
+  await expect(page.getByText('Khám phá số 13', { exact: true })).toBeVisible();
+  await expect(discovery.locator('.recommendation-card')).toHaveCount(12);
+  await page.getByRole('button', { name: /^Việt Nam/ }).click();
+  await expect(discovery.locator('.recommendation-card')).toHaveCount(10);
+  await expect(page.getByText('Khám phá số 1', { exact: true })).toBeVisible();
+  await expect(page.getByText('Khám phá số 2', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: /^Tổng hợp/ }).click();
+  await expect(discovery.locator('.recommendation-card')).toHaveCount(12);
+  expect(feedRequests).toBe(1);
+  await page.screenshot({ path: info.outputPath('recommendations.png'), fullPage: true });
+  expect(
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
+      .violations,
+  ).toEqual([]);
+  const result = page.waitForResponse((response) => response.url().includes('/youtube/search'));
+  await page.getByRole('button', { name: 'Chill', exact: true }).click();
+  expect(new URL((await result).url()).searchParams.get('q')).toBe('nhạc chill việt');
+  await expect(
+    page.getByRole('link', { name: 'Kết quả tìm kiếm fixture', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Xóa tìm kiếm' }).click();
+  await expect(page.getByRole('region', { name: 'Gợi ý nhạc', exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 800 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(f.commands.every((command) => command.action === 'enqueue')).toBe(true);
+});
+
+test('discovery outage preserves familiar suggestions and the ordinary link/search form', async ({
+  page,
+}) => {
+  const f = await fixture(page);
+  const song = {
+    ...f.state.queue[0].song,
+    youtube_video_id: '9bZkp7q19f0',
+    title: 'Bài quen còn chọn được',
+  };
+  await page.route('**/api/v1/rooms/*/recommendations', (route) =>
+    route.fulfill({
+      json: {
+        familiar: [{ song, reason: 'ROOM_RECENT' }],
+        discover: [],
+        seed: null,
+        discoveryUnavailable: true,
+      },
+    }),
+  );
+  await page.goto(`/room/${roomId}`);
+  await tab(page, 'Tìm & thêm bài');
+  await expect(page.getByText(/YouTube đang tạm chậm/)).toBeVisible();
+  await expect(page.getByLabel('Liên kết YouTube', { exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: `Thêm ${song.title}`, exact: true }).click();
+  await expect
+    .poll(() => f.commands.filter((command) => command.action === 'enqueue').length)
+    .toBe(1);
+  await page.getByRole('button', { name: 'Lofi', exact: true }).click();
+  await expect(
+    page.getByRole('link', { name: 'Kết quả tìm kiếm fixture', exact: true }),
+  ).toBeVisible();
+});
+
+test('partial discovery failure keeps available sources and lets members switch without refetch', async ({
+  page,
+}) => {
+  const f = await fixture(page);
+  let calls = 0;
+  await page.route('**/api/v1/rooms/*/recommendations', (route) => {
+    calls++;
+    return route.fulfill({
+      json: {
+        familiar: [],
+        seed: null,
+        discoveryUnavailable: true,
+        unavailableRegions: ['KR'],
+        discover: [
+          {
+            song: {
+              ...f.state.queue[0].song,
+              youtube_video_id: '9bZkp7q19f0',
+              title: 'Bài từ nguồn còn hoạt động',
+            },
+            reason: 'DISCOVERY',
+            regions: ['US'],
+          },
+        ],
+      },
+    });
+  });
+  await page.goto(`/room/${roomId}`);
+  await tab(page, 'Tìm & thêm bài');
+  await expect(page.getByText(/Một số nguồn nhạc chưa tải được/)).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Thêm Bài từ nguồn còn hoạt động', exact: true }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: /^Hàn Quốc/ }).click();
+  await expect(page.getByText(/YouTube đang tạm chậm/)).toBeVisible();
+  await page.getByRole('button', { name: /^Nhật Bản/ }).click();
+  await expect(page.getByText(/Nguồn này chưa có bài phù hợp/)).toBeVisible();
+  await expect(page.getByText(/YouTube đang tạm chậm/)).toHaveCount(0);
+  await page.getByRole('button', { name: /^Mỹ/ }).click();
+  await expect(
+    page.getByRole('button', { name: 'Thêm Bài từ nguồn còn hoạt động', exact: true }),
+  ).toBeEnabled();
+  expect(calls).toBe(1);
+});
+
+test('Ludo stays hidden when explicitly disabled in the music configuration', async ({ page }) => {
   await fixture(page);
   const gameRequests: string[] = [];
   page.on('request', (request) => {
@@ -882,8 +1066,13 @@ test('reorder approval: applying majority preserves the listening iframe and cur
   await expect(panel).toContainText('Đã thông qua và chuyển bài');
   expect(await iframe!.evaluate((node) => node.isConnected)).toBe(true);
 });
-async function playbackRecoveryFixture(page: Page, role: 'owner' | 'member', missingHost = false) {
-  const f = await fixture(page, role);
+async function playbackRecoveryFixture(
+  page: Page,
+  role: 'owner' | 'member',
+  missingHost = false,
+  realtime?: (socket: WebSocketRoute) => void,
+) {
+  const f = await fixture(page, role, realtime);
   f.state.settings.playback_mode = 'ALL_DEVICES';
   f.state.queue = Array.from({ length: 5 }, (_, index) => ({
     ...f.state.queue[0],
@@ -961,6 +1150,133 @@ async function playbackRecoveryFixture(page: Page, role: 'owner' | 'member', mis
   await expect(page.locator('.youtube-container iframe')).toHaveCount(1);
   return f;
 }
+
+test('room members: live list deduplicates devices, filters people and preserves playback', async ({
+  page,
+}, info) => {
+  const other = '20000000-0000-4000-8000-000000000002';
+  const offline = '20000000-0000-4000-8000-000000000003';
+  const presence = presenceFixture(roomId, { [userId]: 1, [other]: 2, outsider: 1 });
+  const f = await playbackRecoveryFixture(page, 'member', false, presence.handle);
+  f.state.members.push(
+    { user_id: other, name: 'Minh online', role: 'owner', joined_at: '' },
+    { user_id: offline, name: 'Đoàn Anh', role: 'moderator', joined_at: '' },
+  );
+  presence.broadcast(++f.state.version);
+  const trigger = page.getByRole('button', { name: 'Xem thành viên: 2 đang online' });
+  await expect(trigger).toBeVisible();
+  const iframe = await page.locator('.youtube-container iframe').elementHandle();
+  const commandCount = f.commands.length;
+  await trigger.click();
+  const dialog = page.getByRole('dialog', { name: 'Thành viên trong phòng' });
+  await expect(dialog).toBeVisible();
+  const searchBounds = await dialog.locator('.room-members-search').boundingBox();
+  expect(searchBounds!.height).toBeLessThanOrEqual(48);
+  await expect(dialog.getByRole('status')).toHaveText('2 online · 1 offline');
+  await expect(dialog.locator('.room-member-item')).toHaveCount(3);
+  await expect(dialog.locator('.room-member-item').first()).toHaveAttribute(
+    'data-member-id',
+    userId,
+  );
+  await expect(dialog.locator('.room-member-item').nth(1)).toHaveAttribute('data-member-id', other);
+  await dialog.getByRole('searchbox', { name: 'Tìm thành viên' }).fill('doan anh');
+  await expect(dialog.locator('.room-member-item')).toHaveCount(1);
+  await expect(dialog.getByText('Đoàn Anh', { exact: true })).toBeVisible();
+  await dialog.getByRole('searchbox').fill('');
+  await dialog.getByRole('button', { name: /^Online/ }).click();
+  await expect(dialog.locator('.room-member-item')).toHaveCount(2);
+  presence.update({ [userId]: 1, [other]: 1 });
+  await expect(dialog.getByRole('status')).toHaveText('2 online · 1 offline');
+  presence.update({ [userId]: 1 });
+  await expect(dialog.locator('.room-member-item')).toHaveCount(1);
+  await dialog.getByRole('button', { name: /^Offline/ }).click();
+  await expect(dialog.locator('.room-member-item')).toHaveCount(2);
+  presence.update({ [userId]: 1, [other]: 1 });
+  await expect(dialog.locator('.room-member-item')).toHaveCount(1);
+  await dialog.getByRole('button', { name: /^Tất cả/ }).click();
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .include('.room-members-dialog')
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await page.screenshot({ path: info.outputPath('room-members.png') });
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator('.room-members-trigger')).toBeFocused();
+  expect(await iframe!.evaluate((node) => node.isConnected)).toBe(true);
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { recoveryPlayers: { state: number }[] }).recoveryPlayers[0].state,
+    ),
+  ).toBe(1);
+  expect(f.commands.length).toBe(commandCount);
+  f.state.members = f.state.members.filter((member) => member.user_id !== other);
+  presence.broadcast(++f.state.version);
+  await expect(page.getByRole('button', { name: 'Xem thành viên: 1 đang online' })).toBeVisible();
+});
+
+test('room members: reconnect stays unknown, list scrolls at 320px and returns to live status', async ({
+  page,
+}, info) => {
+  const other = '20000000-0000-4000-8000-000000000002';
+  const presence = presenceFixture(roomId, { [userId]: 1, [other]: 1 });
+  const f = await fixture(page, 'member', presence.handle);
+  f.state.members.push(
+    ...Array.from({ length: 18 }, (_, index) => ({
+      user_id: index === 0 ? other : `member-${index}`,
+      name:
+        index === 0
+          ? 'Người bạn có tên rất dài để kiểm tra hiển thị trên màn hình nhỏ'
+          : `Thành viên ${index}`,
+      role: 'member' as const,
+      joined_at: '',
+    })),
+  );
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(`/room/${roomId}`);
+  await page.getByRole('button', { name: 'Xem thành viên: 2 đang online' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Thành viên trong phòng' });
+  const list = dialog.getByRole('list');
+  await expect(dialog.locator('.room-member-item')).toHaveCount(19);
+  const bounds = await dialog.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(640);
+  expect(await list.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+  await list.focus();
+  await page.keyboard.press('End');
+  await expect.poll(() => list.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+  await page.keyboard.press('Home');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.context().setOffline(true);
+  await expect(dialog.locator('[data-presence="unknown"]')).toHaveCount(19);
+  await page.context().setOffline(false);
+  await expect(dialog.getByRole('status')).toHaveText('2 online · 17 offline');
+  await dialog.getByRole('button', { name: /^Offline/ }).click();
+  presence.disconnect();
+  await expect(dialog.getByText('Đang cập nhật trạng thái kết nối…')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /^Offline/ })).toBeDisabled();
+  await expect(dialog.locator('[data-presence="unknown"]')).toHaveCount(19);
+  await expect(dialog.locator('[data-presence="offline"]')).toHaveCount(0);
+  presence.resume();
+  await expect(dialog.getByRole('status')).toHaveText('2 online · 17 offline', { timeout: 20000 });
+  await expect(dialog.locator('.room-member-item')).toHaveCount(17);
+  await dialog.getByRole('button', { name: /^Tất cả/ }).click();
+  await page.evaluate(() => (document.documentElement.dataset.theme = 'light'));
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .include('.room-members-dialog')
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await page.screenshot({ path: info.outputPath('room-members-small-light.png') });
+});
 
 test('missing host: owner recovers directly from the listening panel and preserves the current song', async ({
   page,
@@ -1152,6 +1468,7 @@ test('slow song actions show pending, prevent duplicate sends and recover after 
   await page.goto(`/room/${roomId}`);
   await tab(page, 'Tìm & thêm bài');
   await page.getByLabel('Tìm bài hát trên YouTube').fill('nhạc');
+  await page.getByLabel('Tìm bài hát trên YouTube').press('Enter');
   const add = page.getByRole('button', { name: 'Thêm Kết quả tìm kiếm fixture' });
   await add.click();
   await expect(add).toHaveAttribute('aria-busy', 'true');
@@ -1283,6 +1600,58 @@ test('search and add by URL go through API', async ({ page }) => {
   await page.getByRole('button', { name: 'Thêm bài', exact: true }).click();
   await expect.poll(() => f.commands.length).toBe(2);
   expect(f.commands[1].video_id).toBe('dQw4w9WgXcQ');
+});
+
+test('search quota explains the provider limit and the reported radio URL remains usable', async ({
+  page,
+}, testInfo) => {
+  const f = await fixture(page);
+  let searches = 0;
+  await page.route('**/youtube/search?*', async (route) => {
+    searches++;
+    return route.fulfill({ status: 429, json: { error: { code: 'YOUTUBE_QUOTA_EXCEEDED' } } });
+  });
+  await page.goto(`/room/${roomId}`);
+  await tab(page, 'Tìm & thêm bài');
+  const input = page.getByLabel('Tìm bài hát trên YouTube');
+  await input.fill('bad');
+  await expect(page.getByRole('heading', { name: 'Tìm kiếm đang hết lượt' })).toBeVisible();
+  await expect(page.locator('.search-feedback')).toContainText('YouTube đã hết hạn mức API');
+  await expect(
+    page.locator('.search-feedback').getByRole('button', { name: 'Thử lại', exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Tìm trên YouTube' })).toHaveAttribute(
+    'href',
+    'https://www.youtube.com/results?search_query=bad',
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.waitForTimeout(200);
+  expect(searches).toBe(1);
+  await page.getByRole('button', { name: 'Dán liên kết', exact: true }).click();
+  await expect(page.getByLabel('Liên kết YouTube')).toBeFocused();
+  await page
+    .getByLabel('Liên kết YouTube')
+    .fill('https://www.youtube.com/watch?v=-q_S27LbNKU&list=RD-q_S27LbNKU&start_radio=1');
+  await page.getByRole('button', { name: 'Thêm bài', exact: true }).click();
+  await expect.poll(() => f.commands.filter((c) => c.action === 'enqueue').length).toBe(1);
+  expect(f.commands.find((c) => c.action === 'enqueue')?.video_id).toBe('-q_S27LbNKU');
+  expect(searches).toBe(1);
+  if (testInfo.project.name === 'mobile') await page.setViewportSize({ width: 320, height: 844 });
+  expect(
+    await page
+      .locator('.search-field')
+      .evaluate((element) => element.getBoundingClientRect().height),
+  ).toBeLessThan(90);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const accessibility = await new AxeBuilder({ page })
+    .include('.search-panel')
+    .withTags(['wcag2a', 'wcag2aa'])
+    .analyze();
+  expect(accessibility.violations).toEqual([]);
+  await page.locator('.search-panel').screenshot({ path: testInfo.outputPath('search-limit.png') });
+  await page.getByRole('button', { name: 'Xem bài gợi ý', exact: true }).click();
+  await expect(input).toHaveValue('');
+  expect(searches).toBe(1);
 });
 test('owner settings and host claim survive snapshot reconciliation', async ({ page }) => {
   const f = await fixture(page, 'owner');

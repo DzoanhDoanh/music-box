@@ -1,5 +1,15 @@
 # Dành cho thành viên
 
+**Xem ai online/offline — hiện ở bản thử:** bấm nút **N online** trên thanh đầu phòng
+(khi đang kết nối, nút ghi **Thành viên**). Danh sách đưa người online lên trước, hiển thị
+tên, vai trò và đánh dấu **Bạn**. Có ô tìm tên, hỗ trợ tìm không dấu, cùng bộ lọc
+**Tất cả / Online / Offline**. Mọi thành viên đều xem được; không cần quyền quản trị.
+Online nghĩa là đang mở phòng nhạc hoặc trang trò chơi của phòng, không đảm bảo người đó
+đang nghe được âm thanh. Chỉ mở chat của phòng khác không tính là đang ở phòng đó.
+Mở nhiều tab cùng tài khoản vẫn chỉ tính một người; trạng thái có thể trễ khi tắt máy hoặc
+mất mạng. Khi thiết bị của bạn mất kết nối, danh sách báo **Đang cập nhật** thay vì tự kết
+luận mọi người offline. Mở/đóng danh sách không chuyển trang hoặc dừng máy phát.
+
 **Nếu phòng báo đang chờ host:** chế độ **Tất cả thiết bị** vẫn cần một máy điều khiển bài chung.
 Khi máy host tắt/ngủ hoặc mất mạng, nhạc trên các máy nghe tạm dừng sau khi quyền host hết hạn
 (tối đa khoảng 30 giây từ lần xác nhận cuối). Bấm Play ngay trong video của máy nghe không nhận
@@ -39,13 +49,18 @@ chưa có ảnh/tệp, sửa tin, chat riêng hoặc thông báo đẩy khi đó
 
 1. Mở liên kết phòng hoặc quét QR bằng điện thoại.
 2. Nhập tên hiển thị, mã phòng, PIN nếu được cấp. Không cần email.
-3. Chọn **Tìm & thêm bài**. Gõ từ khóa (debounce) hoặc dán URL YouTube hợp lệ; nhấn thêm.
+3. Chọn **Tìm & thêm bài**. Khi ô tìm kiếm trống, chọn bài từ **Nghe lại cùng phòng** hoặc **Khám phá nhạc mới** rồi bấm **Thêm bài**. **Đổi gợi ý** mở nhóm bài khác; các nút thể loại/kênh giúp tìm nhanh. Gõ ít nhất 2 ký tự: ứng dụng tự tìm khi bạn ngừng gõ khoảng 650 ms, không cần Enter. Bạn vẫn có thể nhấn **Enter** hoặc nút **Tìm** để tìm ngay, hoặc dán URL YouTube. **Xóa tìm kiếm** đưa về gợi ý. ROOMTUNE không đặt trần tìm kiếm riêng; quota YouTube và chống spam API chung vẫn áp dụng. Thêm bài có giới hạn riêng.
 4. Trong **Không gian nghe**, bình chọn/bỏ bình chọn bài yêu thích. Chủ phòng quyết định chế độ FIFO/voting/fair/manual.
 5. Nhấn trái tim để lưu bài. **Thư viện của tôi** quản lý favorites, playlists và tên hiển thị.
 6. **Lịch sử phát** xem lại và thêm lại bài. Bộ lọc áp dụng cho trang hiện tại.
 7. Trong **Thư viện của tôi**, mục Hồ sơ có nút xuất dữ liệu JSON, về danh sách phòng và đăng xuất (có xác nhận).
 
 Playlist có nút thêm nhiều bài vào queue, giới hạn 20 bài mỗi lượt; vẫn chịu giới hạn của phòng/người. Nếu một bài bị từ chối, ứng dụng dừng và thông báo chính xác số bài đã thêm trước đó.
+
+Phần khám phá hiện 12 bài ban đầu. Bấm **Xem thêm** để mở tiếp mà vẫn giữ các bài đang xem;
+dòng đếm cho biết còn bao nhiêu lựa chọn. Chọn **Tổng hợp / Việt Nam / Mỹ / Hàn Quốc / Nhật Bản**
+để lọc nguồn ngay, không phải đợi tải lại. **Đổi gợi ý** chuyển sang nhóm 12 bài khác trong nguồn
+đang chọn. Nguồn lỗi có thông báo và nút thử lại, các nguồn còn hoạt động vẫn dùng được.
 
 Nếu phòng bật **Biểu quyết khi đổi vị trí bài**, nút **Đề xuất vị trí** xuất hiện cạnh mỗi bài trong hàng chờ. Chọn đầu hàng chờ hoặc số vị trí, rồi **Gửi đề xuất**. Phiếu đồng ý của bạn được tính ngay; những người khác chọn **Đồng ý** hoặc **Không đồng ý** trong khung biểu quyết. Bài chỉ chuyển khi quá nửa số người online lúc mở đề xuất đồng ý, và luôn cần ít nhất 2 người. Ví dụ 2–3 người cần 2 phiếu, 4–5 người cần 3 phiếu.
 

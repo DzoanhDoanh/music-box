@@ -14,6 +14,16 @@ import {
   type QueueEntry,
 } from '../../src/shared/contracts';
 describe('YouTube URL validation', () => {
+  it('extracts only the video from the reported radio URL, including a leading hyphen', () => {
+    const id = parseYouTubeUrl(
+      'https://www.youtube.com/watch?v=-q_S27LbNKU&list=RD-q_S27LbNKU&start_radio=1',
+    );
+    expect(id).toBe('-q_S27LbNKU');
+    expect(commandSchema.parse({ action: 'enqueue', video_id: id })).toEqual({
+      action: 'enqueue',
+      video_id: '-q_S27LbNKU',
+    });
+  });
   it.each([
     'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     'https://youtu.be/dQw4w9WgXcQ?t=2',

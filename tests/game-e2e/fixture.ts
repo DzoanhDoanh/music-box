@@ -317,6 +317,15 @@ export function gameFixture() {
           return route.fulfill({ json: { name: names[index], favorites: [], playlists: [] } });
         if (path.endsWith('/search')) return route.fulfill({ json: { items: [] } });
         if (path.endsWith('/history')) return route.fulfill({ json: { items: [] } });
+        if (path.endsWith('/recommendations'))
+          return route.fulfill({
+            json: {
+              familiar: [],
+              discover: [],
+              seed: null,
+              discoveryUnavailable: false,
+            },
+          });
         return route.fulfill({ status: 404, json: { error: { code: 'NOT_FOUND' } } });
       } catch (error) {
         return route.fulfill({

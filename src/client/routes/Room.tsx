@@ -28,6 +28,7 @@ import { useRoom } from '../lib/room';
 import { withFeedback } from '../lib/feedback';
 import PlaybackRecovery from '../components/PlaybackRecovery';
 import QueueDragHandle from '../components/QueueDragHandle';
+import RoomMembers from '../components/RoomMembers';
 import { ReorderProposalDialog, ReorderVotePanel } from '../components/ReorderVoting';
 import { api } from '../lib/api';
 import { hostIsAvailable } from '../lib/playback-sync';
@@ -232,13 +233,18 @@ export default function RoomPage() {
       </aside>
       <div className="dashboard-content">
         <header className="dashboard-top">
-          <div>
+          <div className="room-presence-heading">
             <span className={`connection ${room.connection === 'Đã kết nối' ? 'connected' : ''}`}>
               <i />
-              {room.connection}
+              <span className="room-connection-label">{room.connection}</span>
             </span>
-            <span className="header-divider" /> <Users size={15} />
-            <span>{room.online} đang online</span>
+            <span className="header-divider" />
+            <RoomMembers
+              key={playerKey}
+              members={snapshot.members}
+              me={snapshot.me}
+              onlineMembers={room.onlineMembers}
+            />
           </div>
           <div className="room-actions">
             <div className="user-chip">

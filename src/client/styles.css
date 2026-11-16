@@ -1781,6 +1781,7 @@ small {
 }
 .search-field {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 15px;
   border: 1px solid var(--line);
@@ -1795,8 +1796,33 @@ small {
   background: transparent;
   border: 0;
   width: 100%;
+  min-width: 0;
+  flex: 1;
   padding: 15px 0;
   font-size: 14px;
+}
+.search-field > .button,
+.search-field > svg {
+  flex-shrink: 0;
+}
+.search-feedback {
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.search-feedback > svg,
+.search-feedback p {
+  color: var(--muted);
+}
+.search-feedback h3 {
+  margin: 12px 0 8px;
+}
+.search-feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
 }
 .link-form {
   display: flex;

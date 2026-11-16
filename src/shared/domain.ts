@@ -89,7 +89,10 @@ export const errorMessages: Record<string, string> = {
   SONG_ALREADY_QUEUED: 'Bài hát đã có trong hàng chờ.',
   SONG_TOO_LONG: 'Video vượt quá thời lượng cho phép.',
   VIDEO_UNAVAILABLE: 'Video không khả dụng, đang phát trực tiếp hoặc không cho phép nhúng.',
-  YOUTUBE_QUOTA_EXCEEDED: 'YouTube đã hết hạn mức. Bạn có thể thử dán liên kết.',
+  YOUTUBE_QUOTA_EXCEEDED:
+    'YouTube đã hết hạn mức API. Tìm kiếm hoặc kiểm tra bài mới có thể tạm thời không dùng được.',
+  ENQUEUE_RATE_LIMITED:
+    'Bạn có thể thêm tối đa 12 bài mỗi phút. Hãy chờ khoảng một phút rồi thêm tiếp.',
   YOUTUBE_UNAVAILABLE: 'Chưa thể kết nối YouTube. Hãy thử lại sau.',
   HOST_BUSY: 'Một thiết bị khác đang giữ quyền phát nhạc.',
   STALE_HOST: 'Thiết bị đã mất quyền điều khiển. Hãy nhận lại quyền host.',
@@ -108,6 +111,7 @@ export class AppError extends Error {
   constructor(
     public code: string,
     public status = 400,
+    public retryAfterSeconds?: number,
   ) {
     super(errorMessages[code] ?? errorMessages.BACKEND_UNAVAILABLE);
   }

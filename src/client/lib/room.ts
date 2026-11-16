@@ -38,8 +38,12 @@ export function useRoom(id: string) {
             : 30000,
     retry: false,
   });
-  const [connection, setConnection] = useState('Đang kết nối');
-  const [online, setOnline] = useState(0);
+  const [realtime, setRealtime] = useState<{
+    room: string;
+    actor: string;
+    connection: string;
+    members: string[] | null;
+  } | null>(null);
   const me = query.data?.me;
   const accessLost = Boolean(query.error && !isConnectionError(query.error));
   const reorderApproval = query.data?.settings.reorder_approval;
@@ -61,27 +65,60 @@ export function useRoom(id: string) {
   }, [query.isSuccess, me, visitedRoom]);
   useEffect(() => {
     if (!supabase || !me || !user || accessLost) return;
+    let active = true;
+    let connection = 'Đang kết nối';
+    let members: string[] | null = null;
+    const publish = () => {
+      if (active)
+        setRealtime({
+          room: id,
+          actor: user,
+          connection: navigator.onLine ? connection : 'Mất kết nối',
+          members: navigator.onLine && connection === 'Đã kết nối' ? members : null,
+        });
+    };
     const recover = () => {
       void client.invalidateQueries({ queryKey: ['room', id, user] });
       void client.invalidateQueries({ queryKey: ['chat', id, user] });
     };
-    const dispose = new RealtimeService(supabase).subscribe(id, me, {
+    const service = new RealtimeService(supabase);
+    const dispose = service.subscribe(id, me, {
       onVersion: (version) => {
         const current = client.getQueryData<Snapshot>(['room', id, user]);
         if (!current || version > current.version) recover();
       },
-      onOnline: setOnline,
+      onPresence: (current) => {
+        members = current;
+        if (current !== null) connection = 'Đã kết nối';
+        publish();
+      },
       onChat: () => {
         void client.invalidateQueries({ queryKey: ['chat', id, user] });
       },
-      onConnection: setConnection,
+      onConnection: (status) => {
+        connection = status;
+        if (status !== 'Đã kết nối') members = null;
+        publish();
+      },
       onResync: recover,
     });
-    window.addEventListener('online', recover);
+    const offline = () => {
+      members = null;
+      connection = 'Mất kết nối';
+      publish();
+    };
+    const reconnect = () => {
+      recover();
+      service.refreshPresence(id, me);
+    };
+    window.addEventListener('offline', offline);
+    window.addEventListener('online', reconnect);
     document.addEventListener('visibilitychange', recover);
     return () => {
+      active = false;
       dispose();
-      window.removeEventListener('online', recover);
+      window.removeEventListener('offline', offline);
+      window.removeEventListener('online', reconnect);
       document.removeEventListener('visibilitychange', recover);
     };
   }, [id, me, user, accessLost, client]);
@@ -134,13 +171,22 @@ export function useRoom(id: string) {
     const messages = commandFeedback(command, query.data?.settings.require_approval ?? false);
     return messages && options?.feedback !== false ? withFeedback(task, ...messages) : task();
   };
+  const currentPresence = realtime?.room === id && realtime.actor === user && !accessLost;
+  const onlineIds = currentPresence && realtime.members !== null ? new Set(realtime.members) : null;
+  // Presence is an informational hint, never authority for room membership or voting.
+  const onlineMembers = onlineIds
+    ? (query.data?.members ?? [])
+        .filter((member) => onlineIds.has(member.user_id))
+        .map((member) => member.user_id)
+    : null;
   return {
     ...query,
     error: sessionError ?? (session === null ? new AppError('UNAUTHORIZED', 401) : query.error),
     isPending: session === undefined ? !sessionError : Boolean(session) && query.isPending,
     execute,
     pending: mutation.isPending,
-    connection,
-    online,
+    connection: currentPresence ? realtime.connection : 'Đang kết nối',
+    online: onlineMembers?.length ?? 0,
+    onlineMembers,
   };
 }

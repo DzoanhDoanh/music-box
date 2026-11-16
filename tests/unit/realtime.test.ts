@@ -19,7 +19,7 @@ function fixture() {
       track: vi.fn(async () => 'ok'),
       untrack: vi.fn(async () => 'ok'),
       teardown: vi.fn(),
-      presenceState: () => ({ actor: [{}] }),
+      presenceState: vi.fn<() => Record<string, unknown[]>>(() => ({ actor: [{}] })),
       status: (value: string) => status(value),
       event: (name: string, payload = {}) => events.get(name)?.({ payload }),
     };
@@ -38,6 +38,7 @@ function fixture() {
 const callbacks = () => ({
   onVersion: vi.fn(),
   onOnline: vi.fn(),
+  onPresence: vi.fn(),
   onConnection: vi.fn(),
   onResync: vi.fn(),
   onChat: vi.fn(),
@@ -48,6 +49,59 @@ const flush = async () => {
 afterEach(() => vi.useRealTimers());
 
 describe('shared room transport', () => {
+  it('refreshes after a brief network interruption without a second channel or chat-only presence', async () => {
+    const f = fixture(),
+      room = callbacks();
+    const stop = f.service.subscribe('A', 'alice', room);
+    const channel = f.created[0];
+    channel.status('SUBSCRIBED');
+    await flush();
+    channel.event('sync');
+    expect(channel.track).toHaveBeenCalledTimes(1);
+    f.service.refreshPresence('A', 'old-identity');
+    expect(channel.track).toHaveBeenCalledTimes(1);
+    f.service.refreshPresence('A', 'alice');
+    expect(room.onPresence).toHaveBeenLastCalledWith(null);
+    await flush();
+    expect(channel.track).toHaveBeenCalledTimes(2);
+    channel.event('sync');
+    expect(room.onPresence).toHaveBeenLastCalledWith(['actor']);
+    f.service.subscribeChat('A', 'alice', callbacks());
+    stop();
+    await flush();
+    f.service.refreshPresence('A', 'alice');
+    expect(channel.track).toHaveBeenCalledTimes(2);
+    expect(f.client.channel).toHaveBeenCalledTimes(1);
+  });
+  it('reports unique members only after sync, replays to observers and clears stale presence on reconnect', async () => {
+    const f = fixture(),
+      first = callbacks(),
+      second = callbacks();
+    f.service.subscribe('A', 'alice', first);
+    const channel = f.created[0];
+    channel.presenceState.mockReturnValue({ alice: [{}, {}], bob: [{}], empty: [] });
+    channel.status('SUBSCRIBED');
+    await flush();
+    expect(first.onPresence).toHaveBeenLastCalledWith(null);
+    channel.event('sync');
+    expect(first.onPresence).toHaveBeenLastCalledWith(['alice', 'bob']);
+    expect(first.onOnline).toHaveBeenLastCalledWith(2);
+    f.service.subscribeChat('A', 'alice', second);
+    expect(second.onPresence).toHaveBeenLastCalledWith(['alice', 'bob']);
+    channel.presenceState.mockReturnValue({ alice: [{}] });
+    channel.event('sync');
+    expect(first.onPresence).toHaveBeenLastCalledWith(['alice']);
+    channel.status('CHANNEL_ERROR');
+    expect(first.onPresence).toHaveBeenLastCalledWith(null);
+    channel.event('sync');
+    expect(first.onPresence).toHaveBeenLastCalledWith(null);
+    channel.status('SUBSCRIBED');
+    await flush();
+    expect(first.onPresence).toHaveBeenLastCalledWith(null);
+    channel.event('sync');
+    expect(first.onPresence).toHaveBeenLastCalledWith(['alice']);
+    expect(second.onPresence).toHaveBeenLastCalledWith(['alice']);
+  });
   it('isolates private game updates from music, recovers snapshots and never tracks game presence', async () => {
     const f = fixture(),
       room = callbacks(),

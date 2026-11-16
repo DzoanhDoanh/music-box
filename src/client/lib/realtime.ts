@@ -2,7 +2,9 @@ import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 
 export interface RoomSubscription {
   onVersion(version: number): void;
-  onOnline(count: number): void;
+  onOnline?(count: number): void;
+  /** null means the connection has not supplied a current Presence snapshot. */
+  onPresence?(members: string[] | null): void;
   onConnection(message: string): void;
   onResync(): void;
   onChat?(): void;
@@ -20,6 +22,8 @@ type SharedChannel = {
   stopped: boolean;
   generation: number;
   connection: string;
+  onlineMembers: string[] | null;
+  refreshPresence?: () => void;
   closeTimer?: ReturnType<typeof setTimeout>;
   retryTimer?: ReturnType<typeof setTimeout>;
 };
@@ -29,6 +33,10 @@ const channels = new WeakMap<SupabaseClient, Registry>();
 // One transport per topic. Chat alone never announces listening Presence.
 export class RealtimeService {
   constructor(private client: SupabaseClient) {}
+  refreshPresence(room: string, actor: string): void {
+    const entry = channels.get(this.client)?.entries.get(room);
+    if (entry?.actor === actor && !entry.stopped) entry.refreshPresence?.();
+  }
   subscribe(room: string, actor: string, callbacks: RoomSubscription): () => void {
     return this.watch(room, actor, callbacks, true);
   }
@@ -89,6 +97,7 @@ export class RealtimeService {
         stopped: false,
         generation: 0,
         connection: 'Đang kết nối',
+        onlineMembers: null,
       };
       state.entries.set(room, shared);
     }
@@ -100,6 +109,14 @@ export class RealtimeService {
       if (entry.stopped) return;
       entry.connection = message;
       for (const { callbacks } of entry.observers) callbacks.onConnection?.(message);
+    };
+    const emitPresence = (members: string[] | null) => {
+      if (entry.stopped) return;
+      entry.onlineMembers = members;
+      for (const { callbacks } of entry.observers) {
+        callbacks.onPresence?.(members === null ? null : [...members]);
+        callbacks.onOnline?.(members?.length ?? 0);
+      }
     };
     const syncPresence = async () => {
       if (entry.syncing || !entry.subscribed || entry.stopped || !entry.channel) return;
@@ -120,11 +137,21 @@ export class RealtimeService {
           emitConnection('Đã kết nối');
         }
       } catch {
+        emitPresence(null);
         emitConnection('Đang kết nối lại');
         if (!entry.stopped) entry.retryTimer = setTimeout(() => void syncPresence(), 1000);
       } finally {
         entry.syncing = false;
       }
+    };
+    entry.refreshPresence = () => {
+      // A brief offline event may leave the WebSocket open, so no rejoin/sync follows.
+      // Retrack through the same serialized path to request fresh server Presence.
+      if (!entry.subscribed || entry.stopped || ![...entry.observers].some((o) => o.presence))
+        return;
+      emitPresence(null);
+      entry.tracked = false;
+      void syncPresence();
     };
     const start = () => {
       if (entry.stopped) return;
@@ -148,15 +175,19 @@ export class RealtimeService {
             for (const { callbacks } of entry.observers) callbacks.onVersion?.(payload.version);
         })
         .on('presence', { event: 'sync' }, () => {
-          if (!entry.stopped)
-            for (const { callbacks } of entry.observers)
-              callbacks.onOnline?.(Object.keys(channel.presenceState()).length);
+          if (!entry.stopped && entry.subscribed)
+            emitPresence(
+              Object.entries(channel.presenceState())
+                .filter(([, sessions]) => sessions.length > 0)
+                .map(([member]) => member),
+            );
         })
         .subscribe((status) => {
           if (entry.stopped) return;
           entry.generation++;
           entry.subscribed = status === 'SUBSCRIBED';
           entry.tracked = false;
+          emitPresence(null);
           emitConnection(
             entry.subscribed
               ? 'Đã kết nối'
@@ -167,7 +198,7 @@ export class RealtimeService {
           if (entry.subscribed) {
             for (const { callbacks } of entry.observers) callbacks.onResync?.();
             void syncPresence();
-          } else for (const { callbacks } of entry.observers) callbacks.onOnline?.(0);
+          }
         });
     };
     if (fresh) {
@@ -177,7 +208,8 @@ export class RealtimeService {
     } else {
       callbacks.onConnection?.(entry.connection);
       if (entry.subscribed && entry.channel) {
-        callbacks.onOnline?.(Object.keys(entry.channel.presenceState()).length);
+        callbacks.onPresence?.(entry.onlineMembers === null ? null : [...entry.onlineMembers]);
+        callbacks.onOnline?.(entry.onlineMembers?.length ?? 0);
         callbacks.onResync?.();
         void syncPresence();
       }

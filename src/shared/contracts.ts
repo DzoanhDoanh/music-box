@@ -133,6 +133,20 @@ export interface Song {
   duration: number;
   verified_at: string;
 }
+export const musicRegions = ['VN', 'US', 'KR', 'JP'] as const;
+export type MusicRegion = (typeof musicRegions)[number];
+export interface SongRecommendation {
+  song: Song;
+  reason: 'ROOM_FAVORITE' | 'ROOM_RECENT' | 'FAMILIAR_CHANNEL' | 'DISCOVERY';
+  regions?: MusicRegion[];
+}
+export interface RecommendationFeed {
+  familiar: SongRecommendation[];
+  discover: SongRecommendation[];
+  seed: { label: string; query: string } | null;
+  discoveryUnavailable: boolean;
+  unavailableRegions?: MusicRegion[];
+}
 export const chatCommandSchema = z.discriminatedUnion('action', [
   z
     .object({

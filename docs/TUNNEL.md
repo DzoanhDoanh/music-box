@@ -49,6 +49,20 @@ Khi thao tác DNS bằng CLI phải chỉ định `--config cloudflared.roomtune
 
 ## Cách dùng sau khi mở được domain
 
+Bản cập nhật lúc 19:19 ngày 16/11/2026 bổ sung danh sách online/offline và sửa tìm kiếm,
+thêm link YouTube. Tìm kiếm tự chạy sau khi ngừng gõ 650 ms; hai trần search riêng của
+ứng dụng đã bỏ. Bấm **N online** ở thanh đầu để mở danh sách thành viên. Tải lại trang
+để dùng giao diện mới. Xem [kiểm tra thành viên](MEMBERS_PUBLIC_CHECK.md) và
+[kiểm tra tìm kiếm/link](SEARCH_LINK_PUBLIC_CHECK.md).
+
+Gợi ý nhạc đã phát hành ngày 16/11/2026: vào **Tìm & thêm bài**, để trống ô tìm kiếm để xem
+**Nghe lại cùng phòng** và **Khám phá nhạc mới**. Nếu tab đang mở bản cũ, tải lại trang.
+Đợt mở rộng cùng ngày bổ sung bốn nguồn **Việt Nam / Mỹ / Hàn Quốc / Nhật Bản**, bộ lọc và
+**Xem thêm**; kiểm thử public nhận được 61 bài khám phá trong phòng mới. Số bài thực tế
+thay đổi theo dữ liệu nguồn và giới hạn phòng.
+Xem [kiểm thử public](RECOMMENDATIONS_PUBLIC_CHECK.md). Lượt này chuyển đúng build đã kiểm tra
+ở cổng 5180, chỉ restart preview và giữ nguyên tunnel; chunk cũ được giữ để tab cũ tiếp tục dùng.
+
 Trong phòng nhạc, chọn **Trò chơi → Tạo bàn mới** để chơi cờ cá ngựa. Mời thành viên cùng
 phòng bằng link bàn; mỗi người ngồi ghế và bấm sẵn sàng. Xem [GAME.md](GAME.md).
 Game lưu deadline trên server; khi bàn mở, polling xử lý hết lượt. Khi không ai mở bàn,
