@@ -32,14 +32,22 @@ export function formatTime(seconds: number): string {
   return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
 }
 export function orderQueue(entries: QueueEntry[], mode: Settings['queue_mode']): QueueEntry[] {
+  const priority = (a: QueueEntry, b: QueueEntry) => (b.priority ?? 0) - (a.priority ?? 0);
   const list = entries
     .filter((e) => e.status === 'QUEUED')
     .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
   if (mode === 'VOTING')
     return list.sort(
-      (a, b) => b.vote_count - a.vote_count || a.position - b.position || a.id.localeCompare(b.id),
+      (a, b) =>
+        priority(a, b) ||
+        b.vote_count - a.vote_count ||
+        a.position - b.position ||
+        a.id.localeCompare(b.id),
     );
-  if (mode !== 'FAIR') return list;
+  if (mode !== 'FAIR')
+    return list.sort(
+      (a, b) => priority(a, b) || a.position - b.position || a.id.localeCompare(b.id),
+    );
   const counts = new Map<string | null, number>();
   const ranks = new Map<string | null, number>();
   const current = entries.find((e) => ['PREPARING', 'PLAYING'].includes(e.status))?.requested_by;
@@ -50,6 +58,7 @@ export function orderQueue(entries: QueueEntry[], mode: Settings['queue_mode']):
   }
   return list.sort(
     (a, b) =>
+      priority(a, b) ||
       ranks.get(a.id)! - ranks.get(b.id)! ||
       Number(a.requested_by === current) - Number(b.requested_by === current) ||
       a.position - b.position ||
@@ -57,6 +66,10 @@ export function orderQueue(entries: QueueEntry[], mode: Settings['queue_mode']):
   );
 }
 export const errorMessages: Record<string, string> = {
+  WHEEL_EMPTY:
+    'Cần ít nhất hai lựa chọn hợp lệ để quay. Với thưởng nhạc, chỉ tính người online có bài đang chờ.',
+  WHEEL_BUSY: 'Phòng vừa quay. Hãy chờ vòng quay hiện tại kết thúc.',
+  WHEEL_STALE: 'Có người vừa quay trước bạn. Kết quả đã được cập nhật, hãy xem rồi quay lại.',
   GAME_ACTION_INVALID: 'Thao tác không phù hợp với trạng thái ván hiện tại.',
   GAME_NOT_YOUR_TURN: 'Chưa đến lượt bạn hoặc xúc xắc đã được tung. Hãy đồng bộ lại bàn.',
   GAME_ILLEGAL_MOVE: 'Quân này không thể đi với số xúc xắc hiện tại.',

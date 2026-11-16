@@ -32,11 +32,13 @@
     "db:types": "supabase gen types typescript --local > src/shared/database.types.ts",
     "test:e2e:room": "playwright test --config playwright.room.config.ts",
     "test:e2e:game": "playwright test --config playwright.game.config.ts",
+    "test:e2e:activities": "playwright test --config playwright.activities.config.ts",
     "check:services": "node scripts/check-services.mjs",
     "test:hosted": "node scripts/test-hosted.mjs",
     "test:hosted:game": "node scripts/test-game-hosted.mjs",
     "test:hosted:recommendations": "node scripts/test-recommendations-hosted.mjs",
     "test:hosted:members": "node scripts/test-members-hosted.mjs",
+    "test:hosted:wheel": "node scripts/test-wheel-hosted.mjs",
     "admin:grant": "node scripts/provision-admin.mjs"
   },
   "dependencies": {

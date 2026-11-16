@@ -16,6 +16,7 @@ export interface Env {
   YOUTUBE_API_KEY: string;
   APP_BASE_URL: string;
   ENABLE_LUDO?: string;
+  ENABLE_WHEEL?: string;
 }
 export type UpstreamTiming = (stage: 'auth' | 'limits' | 'data', ms: number) => void;
 export function database(env: Env, timing?: UpstreamTiming): SupabaseClient {

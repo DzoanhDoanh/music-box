@@ -115,6 +115,16 @@ function Privacy() {
       <Brand />
       <h1>Quyền riêng tư & dữ liệu</h1>
       <p>
+        Tìm bằng giọng nói chỉ bật khi bạn nhấn micro. Trình duyệt có thể gửi âm thanh đến dịch vụ
+        nhận dạng của nhà cung cấp; ROOMTUNE không lưu bản ghi âm. Văn bản nhận dạng được dùng để
+        tìm bài hát giống như khi bạn gõ vào ô tìm kiếm.
+      </p>
+      <p>
+        Khi dùng vòng quay, danh sách lựa chọn, kết quả và phần thưởng được lưu trong phòng để các
+        thành viên xem chung. Danh sách tự nhập chưa quay được giữ trong phiên trình duyệt trên
+        thiết bị của bạn.
+      </p>
+      <p>
         Chat chỉ dành cho thành viên trong phòng. Mỗi tin tối đa 1.000 ký tự; khung chat hiển thị
         100 tin gần nhất trong 30 ngày. Bạn có thể xóa tin của mình; chủ phòng và người điều hành có
         thể xóa tin trong phòng. Nội dung đã xóa không được giữ trong lịch sử chat hoặc bản xuất dữ

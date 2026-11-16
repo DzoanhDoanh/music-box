@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Link2, Plus, Check, CircleAlert, ExternalLink } from 'lucide-react';
+import { Search, Link2, Plus, Check, CircleAlert, ExternalLink, Mic, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import type { RoomCommand, Snapshot, Song } from '../../shared/contracts';
 import { AppError, formatTime, parseYouTubeUrl } from '../../shared/domain';
 import { api } from '../lib/api';
 import { Button, Empty, Loading } from './ui';
 import Recommendations from './Recommendations';
+import { useVoiceSearch } from '../lib/voice-search';
 const normalizeQuery = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
 
 function SearchFailure({
@@ -71,12 +72,14 @@ export default function SearchPanel({
     [busy, setBusy] = useState<string | null>(null);
   const adding = useRef(false);
   const linkInput = useRef<HTMLInputElement>(null);
+  const voice = useVoiceSearch(setInput);
+  const listening = voice.state !== 'idle';
   const normalizedInput = normalizeQuery(input);
   useEffect(() => {
-    if (composing) return;
+    if (composing || listening) return;
     const timer = setTimeout(() => setSearch(normalizedInput), 650);
     return () => clearTimeout(timer);
-  }, [normalizedInput, composing]);
+  }, [normalizedInput, composing, listening]);
   const query = useQuery({
     queryKey: ['search', snapshot.room.id, snapshot.me, search],
     queryFn: () =>
@@ -88,7 +91,7 @@ export default function SearchPanel({
         undefined,
         snapshot.me,
       ),
-    enabled: search.length >= 2 && search === normalizedInput && !composing,
+    enabled: search.length >= 2 && search === normalizedInput && !composing && !listening,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     retry: false,
@@ -97,6 +100,7 @@ export default function SearchPanel({
     refetchOnMount: false,
   });
   function submitSearch(value: string) {
+    voice.cancel();
     const next = normalizeQuery(value);
     if (next.length < 2 || composing || (next === search && query.isFetching)) return;
     if (next === search) {
@@ -104,6 +108,7 @@ export default function SearchPanel({
     } else setSearch(next);
   }
   function clearSearch() {
+    voice.cancel();
     setInput('');
     setSearch('');
   }
@@ -144,7 +149,10 @@ export default function SearchPanel({
           enterKeyHint="search"
           placeholder="Tên bài hát, nghệ sĩ, một chút cảm hứng…"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            voice.cancel();
+            setInput(e.target.value);
+          }}
           onCompositionStart={() => setComposing(true)}
           onCompositionEnd={(e) => {
             setInput(e.currentTarget.value);
@@ -158,6 +166,21 @@ export default function SearchPanel({
           </Button>
         )}
         <Button
+          variant={listening ? 'danger' : 'ghost'}
+          size="icon"
+          aria-label={listening ? 'Dừng nhập giọng nói' : 'Tìm bằng giọng nói'}
+          aria-pressed={listening}
+          disabled={!voice.supported}
+          title={
+            voice.supported
+              ? 'Nói tên bài hát bằng tiếng Việt'
+              : 'Trình duyệt này chưa hỗ trợ nhập giọng nói'
+          }
+          onClick={() => (listening ? voice.cancel() : voice.start())}
+        >
+          {listening ? <Square size={17} /> : <Mic size={19} />}
+        </Button>
+        <Button
           type="submit"
           variant="primary"
           disabled={
@@ -169,6 +192,24 @@ export default function SearchPanel({
           Tìm
         </Button>
       </form>
+      <div className="voice-search-feedback" aria-live="polite" role="status">
+        {listening ? (
+          <>
+            <span className="voice-pulse" aria-hidden="true" />
+            <span>
+              {voice.interim ||
+                (voice.state === 'starting' ? 'Đang mở micro…' : 'Đang nghe… hãy nói tên bài hát.')}
+            </span>
+            <small>
+              Trình duyệt có thể gửi giọng nói đến dịch vụ nhận dạng. ROOMTUNE không lưu bản ghi.
+            </small>
+          </>
+        ) : (
+          voice.message ||
+          (!voice.supported &&
+            'Nhập giọng nói chưa khả dụng trên trình duyệt này. Bạn vẫn có thể gõ để tìm.')
+        )}
+      </div>
       <form
         className="link-form"
         onSubmit={(e) => {

@@ -23,12 +23,14 @@ import {
   X,
   Gamepad2,
   ArrowLeft,
+  CircleDot,
 } from 'lucide-react';
 import { useRoom } from '../lib/room';
 import { withFeedback } from '../lib/feedback';
 import PlaybackRecovery from '../components/PlaybackRecovery';
 import QueueDragHandle from '../components/QueueDragHandle';
 import RoomMembers from '../components/RoomMembers';
+import RoomNavigation, { type RoomTab as Tab } from '../components/RoomNavigation';
 import { ReorderProposalDialog, ReorderVotePanel } from '../components/ReorderVoting';
 import { api } from '../lib/api';
 import { hostIsAvailable } from '../lib/playback-sync';
@@ -47,13 +49,14 @@ import {
 } from '../components/ui';
 const HostPlayer = lazy(() => import('../components/HostPlayer')),
   GameHub = lazy(() => import('../components/game/GameHub')),
+  LuckyWheel = lazy(() => import('../components/LuckyWheel')),
   ListenerPlayer = lazy(() => import('../components/ListenerPlayer')),
   SearchPanel = lazy(() => import('../components/SearchPanel')),
   RoomSettings = lazy(() => import('../components/RoomSettings')),
   Library = lazy(() => import('../components/Library')),
   AdminPanel = lazy(() => import('../components/AdminPanel'));
-type Tab = 'queue' | 'search' | 'library' | 'history' | 'host' | 'admin' | 'settings' | 'games';
 const ludoEnabled = import.meta.env.VITE_ENABLE_LUDO === 'true';
+const wheelEnabled = import.meta.env.VITE_ENABLE_WHEEL === 'true';
 export default function RoomPage() {
   const [hostVisible, setHostVisible] = useState(false);
   const [claimFromListener, setClaimFromListener] = useState<string | null>(null);
@@ -71,12 +74,14 @@ export default function RoomPage() {
     [drag, setDrag] = useState<{ source: string; target: string } | null>(null);
   const [roomCode, setRoomCode] = useState('');
   const gamePage = ludoEnabled && route.pathname.startsWith(`/room/${id}/games`);
-  const tab = gamePage ? 'games' : musicTab;
+  const wheelPage = wheelEnabled && new URLSearchParams(route.search).get('tool') === 'wheel';
+  const tab = gamePage ? 'games' : wheelPage ? 'wheel' : musicTab;
   const setTab = (next: Tab) => {
     if (next === 'games') navigate(`/room/${id}/games`);
+    else if (next === 'wheel') navigate(`/room/${id}?tool=wheel`);
     else {
       setMusicTab(next);
-      if (gamePage) navigate(`/room/${id}`);
+      if (gamePage || wheelPage) navigate(`/room/${id}`);
     }
   };
   useEffect(() => {
@@ -133,6 +138,9 @@ export default function RoomPage() {
     { id: 'library', label: 'Thư viện của tôi', icon: Heart },
     { id: 'history', label: 'Lịch sử phát', icon: History },
     ...(ludoEnabled ? [{ id: 'games' as const, label: 'Trò chơi', icon: Gamepad2 }] : []),
+    ...(wheelEnabled
+      ? [{ id: 'wheel' as const, label: 'Vòng quay may mắn', icon: CircleDot }]
+      : []),
     ...(manager
       ? [
           { id: 'host' as const, label: 'Máy phát nhạc', icon: MonitorSpeaker },
@@ -177,7 +185,7 @@ export default function RoomPage() {
     return send({ action: 'reorder', ids, version: snapshot.version });
   }
   return (
-    <div className={'dashboard' + (gamePage ? ' game-screen' : '')}>
+    <div className={'dashboard' + (gamePage ? ' game-screen' : wheelPage ? ' wheel-screen' : '')}>
       <aside className="sidebar">
         <Brand />
         <div className="sidebar-room">
@@ -189,24 +197,16 @@ export default function RoomPage() {
             <small>Không gian âm nhạc</small>
           </div>
         </div>
-        <span className="nav-caption">KHÁM PHÁ</span>
-        <nav aria-label="Điều hướng phòng">
-          {nav.map(({ id: target, label, icon: Icon }) => (
-            <button
-              aria-label={label}
-              className={tab === target ? 'nav-item active' : 'nav-item'}
-              key={target}
-              onClick={() => {
-                setTab(target);
-                if (target === 'host') setHostVisible(true);
-              }}
-            >
-              <Icon size={19} />
-              {label}
-              {target === 'queue' && <span>{ordered.length}</span>}
-            </button>
-          ))}
-        </nav>
+        <span className="nav-caption">TRONG PHÒNG</span>
+        <RoomNavigation
+          items={nav}
+          current={tab}
+          count={ordered.length}
+          onSelect={(target) => {
+            setTab(target);
+            if (target === 'host') setHostVisible(true);
+          }}
+        />
         <div className="sidebar-bottom">
           <div className="invite-card">
             <Radio size={20} />
@@ -330,22 +330,16 @@ export default function RoomPage() {
               </div>
             </Modal>
           </div>
-          <div className="mobile-tabs" aria-label="Chọn mục">
-            {nav.map((n) => (
-              <button
-                aria-label={n.label}
-                className={tab === n.id ? 'active' : ''}
-                key={n.id}
-                onClick={() => {
-                  setTab(n.id);
-                  if (n.id === 'host') setHostVisible(true);
-                }}
-              >
-                <n.icon size={18} />
-                {n.label}
-              </button>
-            ))}
-          </div>
+          <RoomNavigation
+            mobile
+            items={nav}
+            current={tab}
+            count={ordered.length}
+            onSelect={(target) => {
+              setTab(target);
+              if (target === 'host') setHostVisible(true);
+            }}
+          />
           {proposalEntry &&
             ordered.find((entry) => entry.id === proposalEntry) &&
             snapshot.settings.reorder_approval && (
@@ -520,6 +514,7 @@ export default function RoomPage() {
                 </Suspense>
               )}
               <Suspense fallback={<Loading />}>
+                {tab === 'wheel' && <LuckyWheel key={playerKey} snapshot={snapshot} />}
                 {showQueue && (
                   <>
                     <div className="queue-layout">
@@ -617,6 +612,9 @@ export default function RoomPage() {
                                 <span>
                                   {entry.song.channel} <b>·</b> {entry.requester}
                                 </span>
+                                {(entry.priority ?? 0) > 0 && (
+                                  <small className="queue-reward">Ưu tiên từ vòng quay</small>
+                                )}
                               </div>
                               <span className="song-duration">
                                 {formatTime(entry.song.duration)}

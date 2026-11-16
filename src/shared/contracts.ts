@@ -178,6 +178,7 @@ export interface ChatSnapshot {
   messages: ChatMessage[];
 }
 export interface QueueEntry {
+  priority?: number;
   id: string;
   room_id: string;
   youtube_video_id: string;

@@ -420,6 +420,8 @@ try {
   );
   const { testReorderVoting } = await import('./test-reorder-db.mjs');
   await testReorderVoting({ sql, owner, users, videos: ids, check });
+  const { testWheel } = await import('./test-wheel-db.mjs');
+  await testWheel({ sql, owner, users, videos: ids, check });
   const { testChat } = await import('./test-chat-db.mjs');
   await testChat({ sql, owner, check });
   const { testGame } = await import('./test-game-db.mjs');

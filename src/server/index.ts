@@ -23,6 +23,7 @@ import { RoomCommandService } from './services/commands';
 import { PlaylistService } from './services/library';
 import { MaintenanceService, SearchService } from './services/search';
 import { RecommendationService } from './services/recommendations';
+import { wheelCommandSchema, type WheelSnapshot, type WheelResult } from '../shared/wheel';
 
 type Services = {
   auth: AuthService;
@@ -33,6 +34,7 @@ type Services = {
   recommendations: RecommendationService;
   chat: ChatService;
   game: GameService;
+  store: SupabaseRepository;
 };
 type Context = {
   Bindings: Env;
@@ -111,6 +113,7 @@ app.use('/api/v1/*', async (c, next) => {
     recommendations: new RecommendationService(store, youtube, actor),
     chat: new ChatService(store, actor),
     game: new GameService(store, actor),
+    store,
   });
   await next();
 });
@@ -122,6 +125,28 @@ const pageNumber = (value?: string) =>
     .max(10000)
     .parse(value ?? 0);
 const requestKey = (value?: string) => uuid.parse(value);
+app.use('/api/v1/rooms/:id/wheel', async (c, next) => {
+  if (c.env.ENABLE_WHEEL !== 'true') throw new AppError('NOT_FOUND', 404);
+  await next();
+});
+app.get('/api/v1/rooms/:id/wheel', async (c) =>
+  c.json(
+    await c.get('services').store.call<WheelSnapshot>('wheel_snapshot', {
+      p_actor: c.get('actor'),
+      p_room: uuid.parse(c.req.param('id')),
+    }),
+  ),
+);
+app.post('/api/v1/rooms/:id/wheel', async (c) =>
+  c.json(
+    await c.get('services').store.call<WheelResult>('wheel_spin', {
+      p_actor: c.get('actor'),
+      p_room: uuid.parse(c.req.param('id')),
+      p_request: requestKey(c.req.header('Idempotency-Key')),
+      p_command: wheelCommandSchema.parse(await c.req.json()),
+    }),
+  ),
+);
 // Require an explicit runtime flag so targets without the game migration remain safe.
 app.use('/api/v1/rooms/:id/games', async (c, next) => {
   if (c.env.ENABLE_LUDO !== 'true') throw new AppError('NOT_FOUND', 404);

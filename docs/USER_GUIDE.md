@@ -1,5 +1,11 @@
 # Dành cho thành viên
 
+**Giọng nói và vòng quay — bản thử:** trong **Tìm & thêm bài**, nhấn micro rồi nói tên bài.
+Vào **Giải trí → Vòng quay may mắn** (mobile: **Thêm**) để chọn người online hoặc **Tự nhập**
+danh sách món ăn, địa điểm, công việc… mỗi dòng một mục. Thưởng nhạc bật/tắt được ở chế độ chọn
+thành viên; nếu bật, bài đang chờ gần nhất của người trúng được ưu tiên trực tiếp, không qua biểu
+quyết và không cắt bài đang phát. Menu gộp theo Cá nhân/Giải trí/Quản lý. Xem [cách dùng](ACTIVITIES.md).
+
 **Xem ai online/offline — hiện ở bản thử:** bấm nút **N online** trên thanh đầu phòng
 (khi đang kết nối, nút ghi **Thành viên**). Danh sách đưa người online lên trước, hiển thị
 tên, vai trò và đánh dấu **Bạn**. Có ô tìm tên, hỗ trợ tìm không dấu, cùng bộ lọc

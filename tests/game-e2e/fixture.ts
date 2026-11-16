@@ -1,5 +1,6 @@
 import { expect, type BrowserContext, type Page, type WebSocketRoute } from '@playwright/test';
 import { defaultSettings, type Snapshot } from '../../src/shared/contracts';
+import { chooseRoomTab } from '../helpers/room-navigation';
 import { createInitialGameState, reconcileGame, transition } from '../../src/shared/game/engine';
 import {
   defaultRules,
@@ -366,7 +367,7 @@ export async function nav(page: Page, name: string) {
     await page.getByRole('button', { name: 'Về phòng nhạc', exact: true }).click();
     await expect(page.locator('.game-screen')).toHaveCount(0);
   }
-  await page.getByRole('button', { name, exact: true }).filter({ visible: true }).click();
+  await chooseRoomTab(page, name);
   if (name === 'Trò chơi') await expect(page.locator('.game-screen')).toBeVisible();
 }
 export async function fakeMusic(context: BrowserContext) {

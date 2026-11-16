@@ -1,5 +1,30 @@
 # Kết quả kiểm thử — 13/11/2026
 
+## Voice, vòng quay và menu — bản thử 16/11/2026
+
+- **305 unit/API/React PASS / 32 files**; typecheck/lint/format đạt. PostgreSQL: **63 checks PASS**,
+  gồm 9 kiểm tra vòng quay về quyền, khóa đồng thời, replay, bốn chế độ hàng chờ và giữ active run.
+- Room/session: **94 ca PASS, 2 SKIP** qua lượt đầy đủ và chạy lại phần liên quan. Lượt đầu
+  phát hiện hai lỗi Axe do `aria-controls` dùng ID chứa khoảng trắng; đổi sang ID cố định theo nhóm.
+  Lượt xác minh sau sửa **24 PASS, 2 SKIP**. Menu mobile, phiên đăng nhập và playback vẫn đạt.
+- Game: **18 PASS, 2 SKIP**. Public entry pages: **12 PASS**. Các skip là viewport đã được bao phủ
+  ở project desktop, không phải bỏ qua lỗi.
+- Activities: **10 PASS** desktop/mobile: giọng nói opt-in/final transcript/debounce/permission,
+  fallback bàn phím, custom draft qua reload, quay có/không thưởng, giữ iframe, lost response
+  retry cùng key qua reload, Axe sáng/tối và reduced motion.
+- Hosted: run `63e29b9b-b1cf-4946-9746-c0561bf9b2bd`, **4 nhóm kiểm tra PASS** với Auth, Presence,
+  API/RPC và hai phiên trình duyệt thật. Có kết quả custom chung; reward TWO_FIRST bỏ qua consent,
+  giữ active playback và toàn bộ queue, replay đúng một lượt, Next chọn bài thưởng. Kick chặn cả
+  đọc và replay. Hai tài khoản/phòng tạm đã dọn; không sửa phòng thật. Lượt đầu kịch bản thử bị
+  API từ chối do gửi cả metadata settings; đã sửa payload kiểm thử và dọn dữ liệu của lượt lỗi.
+- Migration đã backup/apply. Build riêng xác minh `dist` và deployment pointer không đổi;
+  scan **25 client artifacts PASS**, candidate source scan không có cấu hình runtime/secret.
+  Bản thử tại `127.0.0.1:5180`, public chưa phát hành bộ tính năng này.
+
+Giới hạn: voice dùng nhận dạng giả trong browser tests, chưa kiểm tra micro vật lý; hosted wheel
+kiểm tra playback state/Next, không xác nhận âm thanh nghe được. Test không chứng minh đã sửa
+báo cáo kéo bài làm mất các bài trước. Xem [ACTIVITIES.md](ACTIVITIES.md).
+
 ## Phát hành gợi ý, thành viên và tìm kiếm — 16/11/2026, 19:19
 
 - **286 unit/API/React PASS / 30 files**; TypeScript, ESLint và Prettier đạt.

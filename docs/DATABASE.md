@@ -1,5 +1,12 @@
 # Database
 
+Migration `202611160001_lucky_wheel.sql` thêm `queue_entries.priority` mặc định 0,
+`private.wheel_spins` và RPC service-only `wheel_snapshot`/`wheel_spin`. Giao dịch khóa cùng
+room, receipts chống lặp và chọn ngẫu nhiên mật mã; reward sửa priority của bài QUEUED,
+Next ưu tiên giá trị này ở cả bốn chế độ, reorder hợp lệ đặt lại 0. Các cột queue cũ và
+playback không bị thay đổi khi quay. Schema đã được backup/migrate cho bản thử ngày 16/11;
+UI/API public chưa bật. Xem [ACTIVITIES.md](ACTIVITIES.md).
+
 Chat bổ sung bằng migration `202611140003_room_chat.sql`, không sửa các migration đã áp dụng.
 `rooms.chat_sequence` là bộ đếm riêng (JS safe integer), không tăng room version hay cập nhật playback.
 `private.chat_messages` có unique `(room_id,sequence)`, FK cascade tới room/profile, giới hạn body 1.000 ký tự,

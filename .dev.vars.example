@@ -5,3 +5,5 @@ YOUTUBE_API_KEY=
 APP_BASE_URL=http://localhost:5173
 # Requires migration 202611140004_ludo.sql and VITE_ENABLE_LUDO=true at build time.
 ENABLE_LUDO=true
+# Requires migration 202611160001_lucky_wheel.sql and VITE_ENABLE_WHEEL=true at build time.
+ENABLE_WHEEL=false

@@ -1,3 +1,4 @@
+import { chooseRoomTab } from '../helpers/room-navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { defaultSettings, type Snapshot } from '../../src/shared/contracts';
 
@@ -182,10 +183,7 @@ async function listening(page: Page, role: 'owner' | 'member') {
   });
   await page.goto(`/room/${roomId}`);
   if (role === 'owner') {
-    await page
-      .getByRole('button', { name: 'Máy phát nhạc', exact: true })
-      .filter({ visible: true })
-      .click();
+    await chooseRoomTab(page, 'Máy phát nhạc');
     await page.getByRole('button', { name: 'Nhận quyền phát nhạc', exact: true }).click();
   } else
     await page.getByRole('button', { name: 'Bật nghe trên thiết bị này', exact: true }).click();

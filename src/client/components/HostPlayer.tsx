@@ -184,7 +184,7 @@ export default function HostPlayer({
       if (
         latest.current.fence === null ||
         event.defaultPrevented ||
-        document.querySelector('.game-screen') ||
+        document.querySelector('.game-screen, .wheel-screen') ||
         event.repeat ||
         event.ctrlKey ||
         event.metaKey ||

@@ -35,6 +35,7 @@ await writeFile(`${root}/wrangler.json`, JSON.stringify(config, null, 2));
 const vars = {
   ...source,
   ENABLE_LUDO: 'true',
+  ENABLE_WHEEL: 'true',
   APP_BASE_URL: 'http://127.0.0.1:5180',
 };
 await writeFile(

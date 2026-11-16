@@ -1,5 +1,16 @@
 # API v1
 
+Vòng quay (bật `ENABLE_WHEEL`): `GET /api/v1/rooms/:id/wheel` trả
+`{server_time,online,latest,recent}`. POST cùng endpoint yêu cầu UUID `Idempotency-Key` và
+`{action:"spin",mode:"MEMBERS"|"CUSTOM",reward:"NONE"|"LATEST_FIRST"|"TWO_FIRST",labels:[],previous_id:null|uuid}`.
+`labels` trống trong chế độ thành viên; custom nhận 2–50 mục khác nhau, mỗi mục 1–60 ký tự,
+và bắt buộc reward NONE. Không nhận winner/actor/seed từ client. Mọi thành viên online được quay;
+danh sách online và trao thưởng do server kiểm tra. Thưởng được phép bỏ qua biểu quyết,
+không ngắt bài đang phát. GET chỉ thành viên hiện tại đọc được. Lỗi xung đột `WHEEL_EMPTY`,
+`WHEEL_BUSY`, `WHEEL_STALE`; cùng key/payload trả lại cùng kết quả đã lưu.
+Các mốc thời gian, choices, winner_index/winner và rewarded nằm trong kết quả.
+Xem [ACTIVITIES.md](ACTIVITIES.md) cho giới hạn, thử nghiệm và flags.
+
 Tìm kiếm tự gửi sau khi ngừng gõ 650 ms (từ 2 ký tự); Enter/nút Tìm có thể gửi ngay.
 Không còn trần tìm kiếm riêng 6 lần/phút/người
 hoặc 80 lần/24 giờ. Vẫn áp dụng chống spam API chung 180 yêu cầu/phút/người và quota

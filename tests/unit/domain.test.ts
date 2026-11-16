@@ -73,6 +73,16 @@ describe('queue ordering', () => {
     expect(orderQueue(queue, 'VOTING').map((e) => e.id)).toEqual(['c', 'a', 'b', 'd']));
   it('rotates users fairly', () =>
     expect(orderQueue(queue, 'FAIR').map((e) => e.id)).toEqual(['a', 'c', 'd', 'b']));
+  it.each(['FIFO', 'VOTING', 'FAIR', 'MANUAL'] as const)(
+    'reward priority leads %s while preserving the full queued set',
+    (mode) => {
+      const awarded = queue.map((item) => (item.id === 'd' ? { ...item, priority: 1 } : item));
+      const result = orderQueue(awarded, mode);
+      expect(result[0].id).toBe('d');
+      expect(result.map((item) => item.id).sort()).toEqual(['a', 'b', 'c', 'd']);
+      expect(queue.every((item) => !item.priority)).toBe(true);
+    },
+  );
 });
 describe('contracts', () => {
   it('requires playback fencing and run ID', () =>

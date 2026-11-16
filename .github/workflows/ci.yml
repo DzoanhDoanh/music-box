@@ -27,6 +27,7 @@ jobs:
       - run: pnpm test:e2e
       - run: pnpm test:e2e:room
       - run: pnpm test:e2e:game
+      - run: pnpm test:e2e:activities
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

@@ -1,5 +1,11 @@
 # Triển khai Cloudflare + Supabase
 
+Voice/vòng quay/menu đang thử riêng trên `127.0.0.1:5180`, chưa phát hành public.
+Migration wheel đã áp dụng; giao diện/runtime cần cả `VITE_ENABLE_WHEEL` và `ENABLE_WHEEL`.
+Mẫu cấu hình giữ false, `build:game`/`game:start` bật riêng bản thử. Chỉ build public sau yêu cầu
+phát hành; hai runtime dùng chung database nên kiểm thử thưởng trong phòng tạm riêng.
+Xem [ACTIVITIES.md](ACTIVITIES.md).
+
 **Phát hành cờ cá ngựa qua tunnel:** bật `VITE_ENABLE_LUDO=true` trong `.env` và
 `ENABLE_LUDO=true` trong `.dev.vars`, sau đó build và khởi động lại theo [TUNNEL.md](TUNNEL.md).
 Migration `202611140004_ludo.sql` đã áp dụng ngày 14/11; không sửa hoặc reset database.

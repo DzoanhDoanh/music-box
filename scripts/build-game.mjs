@@ -44,6 +44,7 @@ try {
       env: {
         ...process.env,
         VITE_ENABLE_LUDO: 'true',
+        VITE_ENABLE_WHEEL: 'true',
         WRANGLER_LOG_PATH: resolve('.roomtune/game-build.log'),
       },
     });

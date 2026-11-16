@@ -48,7 +48,13 @@ export function useRoom(id: string) {
   const accessLost = Boolean(query.error && !isConnectionError(query.error));
   const reorderApproval = query.data?.settings.reorder_approval;
   useEffect(() => {
-    if (!user || !me || accessLost || !reorderApproval) return;
+    if (
+      !user ||
+      !me ||
+      accessLost ||
+      (!reorderApproval && import.meta.env.VITE_ENABLE_WHEEL !== 'true')
+    )
+      return;
     return trackRoomPresence(id, () => {
       void client.invalidateQueries({ queryKey: ['room', id, user] });
     });

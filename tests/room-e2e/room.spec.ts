@@ -1,5 +1,6 @@
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 import { presenceFixture } from './presence-fixture';
+import { chooseRoomTab } from '../helpers/room-navigation';
 import {
   defaultSettings,
   settingsSchema,
@@ -248,7 +249,7 @@ async function fixture(
   return { commands, state, joinedRooms };
 }
 async function tab(page: Page, name: string) {
-  await page.getByRole('button', { name, exact: true }).filter({ visible: true }).click();
+  await chooseRoomTab(page, name);
 }
 test('recommendations add once, expand and filter locally, rotate and hand off to search on desktop/mobile', async ({
   page,
