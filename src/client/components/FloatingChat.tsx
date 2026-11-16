@@ -13,7 +13,7 @@ import ChatPanel from './ChatPanel';
 export default function FloatingChat({ children }: { children: ReactNode }) {
   const query = useJoinedRooms(30000);
   const location = useLocation();
-  const currentRoom = matchPath('/room/:id', location.pathname)?.params.id ?? null;
+  const currentRoom = matchPath('/room/:id/*', location.pathname)?.params.id ?? null;
   if (!query.session) return children;
   return (
     <ChatDock

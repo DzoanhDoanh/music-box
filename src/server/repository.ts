@@ -9,6 +9,7 @@ export interface Env {
   SUPABASE_SECRET_KEY: string;
   YOUTUBE_API_KEY: string;
   APP_BASE_URL: string;
+  ENABLE_LUDO?: string;
 }
 export type UpstreamTiming = (stage: 'auth' | 'limits' | 'data', ms: number) => void;
 export function database(env: Env, timing?: UpstreamTiming): SupabaseClient {

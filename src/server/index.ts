@@ -17,6 +17,8 @@ import { YouTubeService } from './youtube';
 import { AuthService } from './services/auth';
 import { RoomService } from './services/room';
 import { ChatService } from './services/chat';
+import { GameService, settleDueGames } from './services/game';
+import { createGameSchema, gameCommandSchema } from '../shared/game/contracts';
 import { RoomCommandService } from './services/commands';
 import { PlaylistService } from './services/library';
 import { MaintenanceService, SearchService } from './services/search';
@@ -28,6 +30,7 @@ type Services = {
   library: PlaylistService;
   search: SearchService;
   chat: ChatService;
+  game: GameService;
 };
 type Context = {
   Bindings: Env;
@@ -104,6 +107,7 @@ app.use('/api/v1/*', async (c, next) => {
     library: new PlaylistService(store, actor),
     search: new SearchService(store, youtube, actor),
     chat: new ChatService(store, actor),
+    game: new GameService(store, actor),
   });
   await next();
 });
@@ -115,6 +119,53 @@ const pageNumber = (value?: string) =>
     .max(10000)
     .parse(value ?? 0);
 const requestKey = (value?: string) => uuid.parse(value);
+// Require an explicit runtime flag so targets without the game migration remain safe.
+app.use('/api/v1/rooms/:id/games', async (c, next) => {
+  if (c.env.ENABLE_LUDO !== 'true') throw new AppError('NOT_FOUND', 404);
+  await next();
+});
+app.use('/api/v1/rooms/:id/games/*', async (c, next) => {
+  if (c.env.ENABLE_LUDO !== 'true') throw new AppError('NOT_FOUND', 404);
+  await next();
+});
+app.get('/api/v1/rooms/:id/games', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .game.list(uuid.parse(c.req.param('id')), pageNumber(c.req.query('page'))),
+  ),
+);
+app.post('/api/v1/rooms/:id/games', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .game.create(
+        uuid.parse(c.req.param('id')),
+        requestKey(c.req.header('Idempotency-Key')),
+        createGameSchema.parse(await c.req.json()),
+      ),
+    201,
+  ),
+);
+app.get('/api/v1/rooms/:id/games/:game', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .game.read(uuid.parse(c.req.param('id')), uuid.parse(c.req.param('game'))),
+  ),
+);
+app.post('/api/v1/rooms/:id/games/:game', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .game.execute(
+        uuid.parse(c.req.param('id')),
+        uuid.parse(c.req.param('game')),
+        requestKey(c.req.header('Idempotency-Key')),
+        gameCommandSchema.parse(await c.req.json()),
+      ),
+  ),
+);
 app.get('/api/v1/rooms/:id/chat', async (c) =>
   c.json(
     await c.get('services').chat.read(
@@ -253,8 +304,12 @@ app.onError((error, c) => {
 });
 export default {
   fetch: app.fetch,
-  scheduled: async (_event: unknown, env: Env) => {
+  scheduled: async (event: { cron?: string }, env: Env) => {
     const store = new SupabaseRepository(database(env));
+    if (event.cron === '* * * * *') {
+      if (env.ENABLE_LUDO === 'true') await settleDueGames(store);
+      return;
+    }
     await new MaintenanceService(
       store,
       env.YOUTUBE_API_KEY ? new YouTubeService(env.YOUTUBE_API_KEY) : null,

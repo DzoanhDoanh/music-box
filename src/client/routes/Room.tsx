@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
@@ -21,6 +21,8 @@ import {
   Share2,
   Check,
   X,
+  Gamepad2,
+  ArrowLeft,
 } from 'lucide-react';
 import { useRoom } from '../lib/room';
 import { withFeedback } from '../lib/feedback';
@@ -43,12 +45,14 @@ import {
   Modal,
 } from '../components/ui';
 const HostPlayer = lazy(() => import('../components/HostPlayer')),
+  GameHub = lazy(() => import('../components/game/GameHub')),
   ListenerPlayer = lazy(() => import('../components/ListenerPlayer')),
   SearchPanel = lazy(() => import('../components/SearchPanel')),
   RoomSettings = lazy(() => import('../components/RoomSettings')),
   Library = lazy(() => import('../components/Library')),
   AdminPanel = lazy(() => import('../components/AdminPanel'));
-type Tab = 'queue' | 'search' | 'library' | 'history' | 'host' | 'admin' | 'settings';
+type Tab = 'queue' | 'search' | 'library' | 'history' | 'host' | 'admin' | 'settings' | 'games';
+const ludoEnabled = import.meta.env.VITE_ENABLE_LUDO === 'true';
 export default function RoomPage() {
   const [hostVisible, setHostVisible] = useState(false);
   const [claimFromListener, setClaimFromListener] = useState<string | null>(null);
@@ -57,13 +61,28 @@ export default function RoomPage() {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const navigate = useNavigate();
+  const route = useLocation();
   const { id = '' } = useParams(),
     room = useRoom(id),
     client = useQueryClient(),
-    [tab, setTab] = useState<Tab>('queue'),
+    [musicTab, setMusicTab] = useState<Tab>('queue'),
     [mine, setMine] = useState(false),
     [drag, setDrag] = useState<{ source: string; target: string } | null>(null);
   const [roomCode, setRoomCode] = useState('');
+  const gamePage = ludoEnabled && route.pathname.startsWith(`/room/${id}/games`);
+  const tab = gamePage ? 'games' : musicTab;
+  const setTab = (next: Tab) => {
+    if (next === 'games') navigate(`/room/${id}/games`);
+    else {
+      setMusicTab(next);
+      if (gamePage) navigate(`/room/${id}`);
+    }
+  };
+  useEffect(() => {
+    const legacy = new URLSearchParams(route.search).get('game');
+    if (ludoEnabled && legacy)
+      navigate(`/room/${id}/games/${encodeURIComponent(legacy)}`, { replace: true });
+  }, [id, route.search, navigate]);
   useEffect(() => {
     if (room.data) setRoomCode(room.data.room.code);
   }, [room.data]);
@@ -112,6 +131,7 @@ export default function RoomPage() {
     { id: 'search', label: 'Tìm & thêm bài', icon: Search },
     { id: 'library', label: 'Thư viện của tôi', icon: Heart },
     { id: 'history', label: 'Lịch sử phát', icon: History },
+    ...(ludoEnabled ? [{ id: 'games' as const, label: 'Trò chơi', icon: Gamepad2 }] : []),
     ...(manager
       ? [
           { id: 'host' as const, label: 'Máy phát nhạc', icon: MonitorSpeaker },
@@ -156,7 +176,7 @@ export default function RoomPage() {
     return send({ action: 'reorder', ids, version: snapshot.version });
   }
   return (
-    <div className="dashboard">
+    <div className={'dashboard' + (gamePage ? ' game-screen' : '')}>
       <aside className="sidebar">
         <Brand />
         <div className="sidebar-room">
@@ -255,6 +275,17 @@ export default function RoomPage() {
         </header>
 
         <main className="dashboard-main">
+          {gamePage && (
+            <header className="game-screen-header">
+              <Button onClick={() => setTab('queue')} variant="ghost">
+                <ArrowLeft size={17} /> Về phòng nhạc
+              </Button>
+              <span className="game-room-label">
+                <AudioLines size={16} /> {snapshot.room.name}
+              </span>
+              <span className="game-chat-slot" aria-hidden="true" />
+            </header>
+          )}
           {room.error && (
             <div className="notice" role="status">
               Đang kết nối lại để đồng bộ phòng. Bạn không cần tải lại trang.
@@ -472,6 +503,16 @@ export default function RoomPage() {
             </div>
             <div className="room-content">
               <ReorderVotePanel snapshot={snapshot} execute={send} />
+              {ludoEnabled && (
+                <Suspense fallback={tab === 'games' ? <Loading /> : null}>
+                  <GameHub
+                    key={playerKey}
+                    snapshot={snapshot}
+                    visible={tab === 'games'}
+                    onShow={() => setTab('games')}
+                  />
+                </Suspense>
+              )}
               <Suspense fallback={<Loading />}>
                 {showQueue && (
                   <>

@@ -1,5 +1,11 @@
 # Triển khai Cloudflare + Supabase
 
+**Phát hành cờ cá ngựa qua tunnel:** bật `VITE_ENABLE_LUDO=true` trong `.env` và
+`ENABLE_LUDO=true` trong `.dev.vars`, sau đó build và khởi động lại theo [TUNNEL.md](TUNNEL.md).
+Migration `202611140004_ludo.sql` đã áp dụng ngày 14/11; không sửa hoặc reset database.
+Tunnel cho phép cả `/room/:id/games` và `/room/:id/games/:match`. Xem [GAME.md](GAME.md).
+Preview không chạy cron; deadline được xử lý khi có lượt đọc/lệnh tiếp theo, gồm polling khi mở bàn.
+
 Đã migrate và kiểm thử Supabase hosted cùng YouTube API qua Worker local. Đã mở bản thử qua tunnel tại roomtune.dzoanh.me; xem [TUNNEL.md](TUNNEL.md) để bật/tắt và xem giới hạn. Chưa deploy Cloudflare Workers production. Không cần domain riêng khi dùng workers.dev. Không tự bật gói trả phí.
 
 1. Tạo Supabase project, lưu DB password ngoài repository. Bật Anonymous Sign-ins và Email provider. Với CLI đang dùng, `auth.email.enable_signup=false` tắt cả đăng nhập email và gây `email_provider_disabled`; giữ `true` để chủ phòng đăng nhập. Người dùng đã cho phép thiết lập này. Ứng dụng không có đăng ký quản trị công khai: mọi tài khoản tự tạo đều không có quyền tạo phòng nếu operator chưa cấp `system_admins`. Trước public rollout, tạo Turnstile widget cho domain được phép, đặt secret trong Supabase Auth CAPTCHA và VITE_TURNSTILE_SITE_KEY trong `.env`. Join/login đã có widget chuyển captchaToken vào SDK; không đặt secret Turnstile trong frontend.

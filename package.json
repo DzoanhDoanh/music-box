@@ -10,6 +10,10 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
+    "build:game": "node scripts/build-game.mjs",
+    "game:start": "powershell.exe -NoProfile -File scripts/game-trial.ps1 Start",
+    "game:stop": "powershell.exe -NoProfile -File scripts/game-trial.ps1 Stop",
+    "game:status": "powershell.exe -NoProfile -File scripts/game-trial.ps1 Status",
     "preview": "vite preview",
     "public:start": "powershell.exe -NoProfile -File scripts/public.ps1 Start",
     "public:stop": "powershell.exe -NoProfile -File scripts/public.ps1 Stop",
@@ -27,8 +31,10 @@
     "db:migrate": "supabase db push",
     "db:types": "supabase gen types typescript --local > src/shared/database.types.ts",
     "test:e2e:room": "playwright test --config playwright.room.config.ts",
+    "test:e2e:game": "playwright test --config playwright.game.config.ts",
     "check:services": "node scripts/check-services.mjs",
     "test:hosted": "node scripts/test-hosted.mjs",
+    "test:hosted:game": "node scripts/test-game-hosted.mjs",
     "admin:grant": "node scripts/provision-admin.mjs"
   },
   "dependencies": {

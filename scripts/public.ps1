@@ -21,6 +21,16 @@ function Get-OwnedProcess($record) {
     }
     if ($candidate -and $candidate.Path -eq $record.path -and
         $candidate.StartTime.ToUniversalTime().Ticks -eq $expectedTicks) {
+        $details = Get-CimInstance Win32_Process -Filter "ProcessId = $($record.id)"
+        $validCommand = switch ($record.name) {
+            'preview' { $details.CommandLine -match 'node_modules[\\/]vite[\\/]bin[\\/]vite\.js\s+preview\s*$' }
+            'tunnel' {
+                $config = [regex]::Escape((Join-Path $projectRoot 'cloudflared.roomtune.yml'))
+                $details.CommandLine -match ('tunnel\s+--config\s+"?' + $config + '"?\s+run\s+roomtune\s*$')
+            }
+            default { $false }
+        }
+        if (!$validCommand) { throw "Process command line differs for $($record.name); nothing stopped." }
         return $candidate
     }
 }

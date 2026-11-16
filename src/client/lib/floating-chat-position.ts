@@ -34,7 +34,11 @@ export function useFloatingChatPosition(expanded: boolean) {
       const visible = window.visualViewport;
       const x = visible?.offsetLeft ?? 0,
         y = visible?.offsetTop ?? 0;
-      const players = [...document.querySelectorAll('.youtube-container iframe, .floating-vote')]
+      const players = [
+        ...document.querySelectorAll(
+          '.youtube-container iframe, .floating-vote, .game-match .game-controls',
+        ),
+      ]
         .map((element) => element.getBoundingClientRect())
         .filter((r) => r.width > 0 && r.height > 0)
         .map((r) => ({
@@ -43,12 +47,22 @@ export function useFloatingChatPosition(expanded: boolean) {
           top: r.top - y,
           bottom: r.bottom - y,
         }));
-      const position = floatingChatPosition(
-        visible?.width ?? innerWidth,
-        visible?.height ?? innerHeight,
-        expanded,
-        players,
-      );
+      const anchor = document.querySelector('.game-chat-slot')?.getBoundingClientRect();
+      const position =
+        anchor && !expanded
+          ? {
+              left: anchor.left - x,
+              top: anchor.top - y,
+              width: anchor.width,
+              height: anchor.height,
+              expanded: false,
+            }
+          : floatingChatPosition(
+              visible?.width ?? innerWidth,
+              visible?.height ?? innerHeight,
+              expanded,
+              players,
+            );
       setCanOpen(position?.expanded ?? false);
       const before = ref.current.style.cssText;
       Object.assign(

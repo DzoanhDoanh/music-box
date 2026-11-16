@@ -7,7 +7,11 @@ export default defineConfig(({ mode, isPreview }) => {
   if (isPreview) process.env.X_LOCAL_EXPLORER = 'false';
   return {
     cacheDir: `node_modules/.vite/${mode}`,
-    plugins: [react(), tailwindcss(), cloudflare({ inspectorPort: isPreview ? false : undefined })],
+    plugins: [
+      react(),
+      tailwindcss(),
+      cloudflare({ inspectorPort: isPreview || mode.startsWith('test-') ? false : undefined }),
+    ],
     server: { port: 5173 },
     preview: {
       host: '127.0.0.1',

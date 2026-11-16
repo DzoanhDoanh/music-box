@@ -8,6 +8,7 @@ export default ts.config(
       'dist/**',
       'node_modules/**',
       '.wrangler/**',
+      '.roomtune/**',
       'playwright-report/**',
       'test-results/**',
     ],

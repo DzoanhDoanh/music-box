@@ -6,6 +6,7 @@ export interface RoomSubscription {
   onConnection(message: string): void;
   onResync(): void;
   onChat?(): void;
+  onGames?(): void;
 }
 type Observer = { callbacks: Partial<RoomSubscription>; presence: boolean };
 type SharedChannel = {
@@ -33,6 +34,9 @@ export class RealtimeService {
   }
   subscribeChat(room: string, actor: string, callbacks: Partial<RoomSubscription>): () => void {
     return this.watch(room, actor, callbacks, false);
+  }
+  subscribeGame(game: string, actor: string, callbacks: Partial<RoomSubscription>): () => void {
+    return this.watch('game:' + game, actor, callbacks, false);
   }
   private watch(
     room: string,
@@ -124,7 +128,7 @@ export class RealtimeService {
     };
     const start = () => {
       if (entry.stopped) return;
-      const channel = this.client.channel(`room:${room}`, {
+      const channel = this.client.channel(room.startsWith('game:') ? room : `room:${room}`, {
         config: { private: true, presence: { key: actor } },
       });
       entry.channel = channel;
@@ -135,6 +139,13 @@ export class RealtimeService {
         })
         .on('broadcast', { event: 'chat.updated' }, () => {
           if (!entry.stopped) for (const { callbacks } of entry.observers) callbacks.onChat?.();
+        })
+        .on('broadcast', { event: 'games.updated' }, () => {
+          if (!entry.stopped) for (const { callbacks } of entry.observers) callbacks.onGames?.();
+        })
+        .on('broadcast', { event: 'game.state_updated' }, ({ payload }) => {
+          if (!entry.stopped && typeof payload?.version === 'number')
+            for (const { callbacks } of entry.observers) callbacks.onVersion?.(payload.version);
         })
         .on('presence', { event: 'sync' }, () => {
           if (!entry.stopped)

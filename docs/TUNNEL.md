@@ -18,9 +18,14 @@ Script chạy hai tiến trình nền với cửa sổ ẩn. Có thể đóng Po
 npm.cmd run public:stop
 ```
 
-Stop chỉ dừng cây tiến trình ROOMTUNE đã ghi nhận, sau khi kiểm tra PID, đường dẫn executable và thời gian tạo. Không dừng tunnel `dzoanh-tunnel`, ứng dụng khác hoặc xóa dữ liệu Supabase. Trạng thái/log nằm trong `.roomtune/` (Git-ignored).
+Stop chỉ dừng cây tiến trình ROOMTUNE đã ghi nhận, sau khi kiểm tra PID, đường dẫn executable, thời gian tạo và command line. Không dừng tunnel `dzoanh-tunnel`, ứng dụng khác hoặc xóa dữ liệu Supabase. Trạng thái/log nằm trong `.roomtune/` (Git-ignored).
 
 Khi có thay đổi mã nguồn hoặc `.env`/`.dev.vars`:
+
+Để phát hành đầy đủ game, đặt `VITE_ENABLE_LUDO=true` trong `.env` và `ENABLE_LUDO=true`
+trong `.dev.vars`. Migration game đã có trên hosted. Lưu một bản sao `dist` và
+`.wrangler/deploy/config.json` vào `.roomtune/releases/` trước build để có thể quay lại.
+Các bản sao có thể chứa server secrets; giữ ngoài Git và ngoài thư mục static.
 
 ```powershell
 npm.cmd run public:stop
@@ -37,12 +42,17 @@ Trong lúc build/restart, domain tạm không phục vụ. `npm.cmd run dev` v�
 - DNS CNAME của `roomtune.dzoanh.me` trỏ tunnel trên, bật proxy Cloudflare. Hai ứng dụng của tunnel cũ không thay đổi.
 - `APP_BASE_URL` trong `.dev.vars` và Supabase Auth Site URL đều là `https://roomtune.dzoanh.me`; giữ hai URL local cho phát triển.
 - Preview chỉ nghe loopback, chỉ cho Host `roomtune.dzoanh.me` cùng localhost/IP theo Vite. Inspector và Local Explorer bị tắt.
-- Tunnel chỉ cho `/`, `/join`, `/login`, `/rooms`, `/room/<uuid>`, `/privacy`, `/assets/*`, favicon/robots và `/api/v1/*`. Đường dẫn debug, mã nguồn, `.env`, `.dev.vars`, `dist/roomtune` nhận 404. Không serve toàn bộ `dist`.
+- Tunnel chỉ cho `/`, `/join`, `/login`, `/rooms`, `/room/<uuid>`, `/room/<uuid>/games`, `/room/<uuid>/games/<uuid>`, `/privacy`, `/assets/*`, favicon/robots và `/api/v1/*`. Đường dẫn debug, mã nguồn, `.env`, `.dev.vars`, `dist/roomtune` nhận 404. Không serve toàn bộ `dist`.
 - Cloudflare Vite sao chép `.dev.vars` vào `dist/roomtune/.dev.vars` cho preview; file này chứa secrets và không phải static asset. Chỉ `dist/client` được phục vụ.
 
 Khi thao tác DNS bằng CLI phải chỉ định `--config cloudflared.roomtune.yml`. CLI trên máy này ưu tiên tunnel trong config mặc định ngay cả khi truyền tên khác; không dùng `--overwrite-dns` với bản ghi chưa đối chiếu.
 
 ## Cách dùng sau khi mở được domain
+
+Trong phòng nhạc, chọn **Trò chơi → Tạo bàn mới** để chơi cờ cá ngựa. Mời thành viên cùng
+phòng bằng link bàn; mỗi người ngồi ghế và bấm sẵn sàng. Xem [GAME.md](GAME.md).
+Game lưu deadline trên server; khi bàn mở, polling xử lý hết lượt. Khi không ai mở bàn,
+trạng thái bắt kịp vào lần truy cập kế tiếp vì preview không chạy lịch cron Workers.
 
 Chủ phòng đăng nhập tài khoản đã có tại `/login`. Dữ liệu phòng giữ nguyên; session đăng nhập localhost không tự chuyển sang domain mới. Vào phòng từ domain và dùng **Sao chép lời mời** để có link HTTPS cho điện thoại. Link tạo từ localhost vẫn là link local.
 

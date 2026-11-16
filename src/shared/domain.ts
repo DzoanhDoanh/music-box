@@ -57,6 +57,13 @@ export function orderQueue(entries: QueueEntry[], mode: Settings['queue_mode']):
   );
 }
 export const errorMessages: Record<string, string> = {
+  GAME_ACTION_INVALID: 'Thao tác không phù hợp với trạng thái ván hiện tại.',
+  GAME_NOT_YOUR_TURN: 'Chưa đến lượt bạn hoặc xúc xắc đã được tung. Hãy đồng bộ lại bàn.',
+  GAME_ILLEGAL_MOVE: 'Quân này không thể đi với số xúc xắc hiện tại.',
+  GAME_SEAT_TAKEN: 'Ghế đã có người hoặc bàn không còn nhận người chơi.',
+  GAME_NOT_READY: 'Cần ít nhất hai người và tất cả bấm sẵn sàng trước khi bắt đầu.',
+  GAME_STALE: 'Bàn cờ vừa thay đổi. Đã yêu cầu đồng bộ; hãy chọn lại thao tác.',
+  GAME_TABLE_LIMIT: 'Phòng đã có 8 bàn chưa kết thúc. Hãy tham gia hoặc kết thúc bàn cũ.',
   REORDER_VOTING_DISABLED: 'Phòng chưa bật biểu quyết đổi vị trí bài.',
   REORDER_REQUIRES_APPROVAL: 'Cần biểu quyết đồng ý trước khi đổi vị trí bài.',
   PROPOSAL_EXISTS: 'Phòng đang có một đề xuất chờ biểu quyết. Hãy xử lý đề xuất đó trước.',

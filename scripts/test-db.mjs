@@ -422,6 +422,8 @@ try {
   await testReorderVoting({ sql, owner, users, videos: ids, check });
   const { testChat } = await import('./test-chat-db.mjs');
   await testChat({ sql, owner, check });
+  const { testGame } = await import('./test-game-db.mjs');
+  await testGame({ sql, owner, check });
   await check('backup and restore into a separate database preserves records', async () => {
     const binary = process.env.PG_BIN
       ? process.env.PG_BIN.replace(/[\\/]?$/, '/')
@@ -457,13 +459,34 @@ try {
       database: 'roomtune_restore_check',
     });
     try {
-      for (const table of ['rooms', 'queue_entries', 'votes', 'playback_history', 'playlists']) {
+      for (const table of [
+        'rooms',
+        'queue_entries',
+        'votes',
+        'playback_history',
+        'playlists',
+        'game_matches',
+        'game_players',
+        'game_settings',
+        'game_moves',
+        'game_events',
+        'game_results',
+        'game_spectators',
+      ]) {
         const original = (await sql.unsafe(`select count(*)::int n from public.${table}`))[0].n;
         assert.equal(
           (await restored.unsafe(`select count(*)::int n from public.${table}`))[0].n,
           original,
         );
       }
+      assert.deepEqual(
+        await restored`select id,state from public.game_matches order by id`,
+        await sql`select id,state from public.game_matches order by id`,
+      );
+      assert.deepEqual(
+        await restored`select actor,request_id,command,result from private.game_receipts order by actor,request_id`,
+        await sql`select actor,request_id,command,result from private.game_receipts order by actor,request_id`,
+      );
       const state = (
         await restored`select public.room_snapshot(${owner}::uuid,${room.id}::uuid) r`
       )[0].r;

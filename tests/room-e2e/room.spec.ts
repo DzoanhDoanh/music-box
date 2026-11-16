@@ -236,6 +236,22 @@ async function fixture(page: Page, role: 'member' | 'owner' = 'member') {
 async function tab(page: Page, name: string) {
   await page.getByRole('button', { name, exact: true }).filter({ visible: true }).click();
 }
+test('unreleased Ludo stays hidden in the normal music configuration', async ({ page }) => {
+  await fixture(page);
+  const gameRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/api/v1/') && request.url().includes('/games'))
+      gameRequests.push(request.url());
+  });
+  await page.goto(`/room/${roomId}?game=30000000-0000-4000-8000-000000000001`);
+  await expect(page.getByRole('region', { name: 'Hàng chờ phát nhạc' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Trò chơi', exact: true })).toHaveCount(0);
+  await expect(page.locator('.game-hub')).toHaveCount(0);
+  await page.goto(`/room/${roomId}/games/30000000-0000-4000-8000-000000000001`);
+  await expect(page.getByRole('region', { name: 'Hàng chờ phát nhạc' })).toBeVisible();
+  await expect(page.locator('.game-hub, .game-screen')).toHaveCount(0);
+  expect(gameRequests).toEqual([]);
+});
 function prepareReorder(state: Snapshot) {
   state.settings = { ...state.settings, reorder_approval: true, queue_mode: 'MANUAL' };
   state.reorder = { online_count: 4, proposal: null };

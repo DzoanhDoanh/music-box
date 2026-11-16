@@ -13,7 +13,9 @@ export default function Notifications({ light }: { light: boolean }) {
       const offsetLeft = visible?.offsetLeft ?? 0,
         offsetTop = visible?.offsetTop ?? 0;
       const players = [
-        ...document.querySelectorAll('.youtube-container iframe, .chat-dock, .floating-vote'),
+        ...document.querySelectorAll(
+          '.youtube-container iframe, .chat-dock, .floating-vote, .game-match .game-controls',
+        ),
       ]
         .map((player) => player.getBoundingClientRect())
         .filter((r) => r.width > 0 && r.height > 0)

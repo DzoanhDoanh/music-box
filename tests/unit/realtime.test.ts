@@ -48,6 +48,30 @@ const flush = async () => {
 afterEach(() => vi.useRealTimers());
 
 describe('shared room transport', () => {
+  it('isolates private game updates from music, recovers snapshots and never tracks game presence', async () => {
+    const f = fixture(),
+      room = callbacks(),
+      game = callbacks();
+    const list = vi.fn();
+    f.service.subscribe('A', 'me', { ...room, onGames: list });
+    f.service.subscribeGame('match', 'me', game);
+    expect(f.client.channel).toHaveBeenLastCalledWith('game:match', {
+      config: { private: true, presence: { key: 'me' } },
+    });
+    const channel = f.created[1];
+    channel.status('SUBSCRIBED');
+    channel.event('game.state_updated', { version: 42 });
+    expect(game.onVersion).toHaveBeenCalledWith(42);
+    expect(room.onVersion).not.toHaveBeenCalled();
+    channel.event('game.state_updated', { version: 'forged' });
+    expect(game.onVersion).toHaveBeenCalledTimes(1);
+    channel.status('CHANNEL_ERROR');
+    channel.status('SUBSCRIBED');
+    expect(game.onResync).toHaveBeenCalledTimes(2);
+    expect(channel.track).not.toHaveBeenCalled();
+    f.created[0].event('games.updated');
+    expect(list).toHaveBeenCalledTimes(1);
+  });
   it('shares one channel and untracks when only chat remains', async () => {
     vi.useFakeTimers();
     const f = fixture(),

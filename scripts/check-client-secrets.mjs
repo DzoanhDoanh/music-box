@@ -15,7 +15,7 @@ async function scan(directory) {
     }
   }
 }
-await scan('dist/client');
+await scan(process.argv[2] ?? 'dist/client');
 console.log(
   `PASS ${files} client artifacts checked for server secret markers and known key formats. Heuristic check, not a complete secret audit.`,
 );

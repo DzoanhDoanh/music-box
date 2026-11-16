@@ -183,6 +183,8 @@ export default function HostPlayer({
     const keyboard = (event: KeyboardEvent) => {
       if (
         latest.current.fence === null ||
+        event.defaultPrevented ||
+        document.querySelector('.game-screen') ||
         event.repeat ||
         event.ctrlKey ||
         event.metaKey ||
@@ -191,7 +193,10 @@ export default function HostPlayer({
       )
         return;
       const target = event.target as HTMLElement | null;
-      if (target?.closest('input,textarea,select,button,a,[contenteditable="true"]')) return;
+      if (
+        target?.closest('input,textarea,select,button,a,[role="button"],[contenteditable="true"]')
+      )
+        return;
       if (event.code === 'Space') {
         event.preventDefault();
         if (recovery.current?.runId === latest.current.snapshot.playback.run_id) return;
