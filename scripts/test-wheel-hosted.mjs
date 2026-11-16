@@ -197,8 +197,20 @@ try {
   const afterCustom = await api(owner, `${path}/snapshot`);
   assert.deepEqual(afterCustom.queue, beforeCustom.queue);
   assert.deepEqual(afterCustom.playback, beforeCustom.playback);
-  await desktop.screenshot({ path: `${directory}/desktop.png`, fullPage: true });
-  await mobile.screenshot({ path: `${directory}/mobile.png`, fullPage: true });
+  for (const [name, page] of [
+    ['desktop', desktop],
+    ['mobile', mobile],
+  ]) {
+    // Full-page screenshots of a scrolled page can misplace off-screen fixed elements.
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await expect
+      .poll(() =>
+        page.locator('.skip-link').evaluate((node) => node.getBoundingClientRect().bottom),
+      )
+      .toBeLessThanOrEqual(0);
+    await page.screenshot({ path: `${directory}/${name}.png`, fullPage: true });
+  }
   pass(
     'Any online member spins arbitrary choices; two real sessions see the same result and queue remains intact',
   );

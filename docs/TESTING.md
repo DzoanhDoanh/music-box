@@ -1,6 +1,6 @@
 # Kết quả kiểm thử — 13/11/2026
 
-## Voice, vòng quay và menu — bản thử 16/11/2026
+## Voice, vòng quay và menu — 16/11/2026
 
 - **305 unit/API/React PASS / 32 files**; typecheck/lint/format đạt. PostgreSQL: **63 checks PASS**,
   gồm 9 kiểm tra vòng quay về quyền, khóa đồng thời, replay, bốn chế độ hàng chờ và giữ active run.
@@ -19,7 +19,12 @@
   API từ chối do gửi cả metadata settings; đã sửa payload kiểm thử và dọn dữ liệu của lượt lỗi.
 - Migration đã backup/apply. Build riêng xác minh `dist` và deployment pointer không đổi;
   scan **25 client artifacts PASS**, candidate source scan không có cấu hình runtime/secret.
-  Bản thử tại `127.0.0.1:5180`, public chưa phát hành bộ tính năng này.
+  Kiểm thử ban đầu dùng bản thử tại `127.0.0.1:5180`. Sau yêu cầu phát hành, đã chuyển đúng
+  build sang public lúc 20:40 (giờ Việt Nam), commit `3055794`; giữ chunk cũ và bản rollback.
+  Scan **85 client artifacts PASS** sau gộp chunk. Preview PID 8764, tunnel PID 23028 giữ nguyên.
+- [Public HTTPS](ACTIVITIES_PUBLIC_CHECK.md): HTML/assets khớp release, health/header/quyền truy cập
+  đạt. Hosted **4 nhóm PASS** với hai phiên thật; quay tự nhập đồng bộ, thưởng/replay/Next và
+  thu hồi quyền đạt. Đã dọn phòng/tài khoản thử; không sửa dữ liệu phòng người dùng.
 
 Giới hạn: voice dùng nhận dạng giả trong browser tests, chưa kiểm tra micro vật lý; hosted wheel
 kiểm tra playback state/Next, không xác nhận âm thanh nghe được. Test không chứng minh đã sửa

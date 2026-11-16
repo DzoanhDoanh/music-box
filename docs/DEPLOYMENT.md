@@ -1,9 +1,10 @@
 # Triển khai Cloudflare + Supabase
 
-Voice/vòng quay/menu đang thử riêng trên `127.0.0.1:5180`, chưa phát hành public.
-Migration wheel đã áp dụng; giao diện/runtime cần cả `VITE_ENABLE_WHEEL` và `ENABLE_WHEEL`.
-Mẫu cấu hình giữ false, `build:game`/`game:start` bật riêng bản thử. Chỉ build public sau yêu cầu
-phát hành; hai runtime dùng chung database nên kiểm thử thưởng trong phòng tạm riêng.
+Voice/vòng quay/menu đã phát hành tại `https://roomtune.dzoanh.me` lúc 20:40 ngày 16/11/2026
+(giờ Việt Nam), từ commit `3055794`. Migration wheel đã áp dụng; public đã bật cả
+`VITE_ENABLE_WHEEL=true` và `ENABLE_WHEEL=true`. Mẫu cấu hình giữ false cho môi trường mới.
+`build:game`/`game:start` vẫn bật bản thử riêng trên `127.0.0.1:5180`; hai runtime dùng chung
+database nên chỉ kiểm thử thưởng trong phòng tạm riêng. Không build trực tiếp vào `dist` đang chạy.
 Xem [ACTIVITIES.md](ACTIVITIES.md).
 
 **Phát hành cờ cá ngựa qua tunnel:** bật `VITE_ENABLE_LUDO=true` trong `.env` và
@@ -12,7 +13,7 @@ Migration `202611140004_ludo.sql` đã áp dụng ngày 14/11; không sửa ho�
 Tunnel cho phép cả `/room/:id/games` và `/room/:id/games/:match`. Xem [GAME.md](GAME.md).
 Preview không chạy cron; deadline được xử lý khi có lượt đọc/lệnh tiếp theo, gồm polling khi mở bàn.
 
-Đã migrate và kiểm thử Supabase hosted cùng YouTube API qua Worker local. Đã mở bản thử qua tunnel tại roomtune.dzoanh.me; xem [TUNNEL.md](TUNNEL.md) để bật/tắt và xem giới hạn. Chưa deploy Cloudflare Workers production. Không cần domain riêng khi dùng workers.dev. Không tự bật gói trả phí.
+Đã migrate và kiểm thử Supabase hosted cùng YouTube API qua Worker local. Public đang chạy qua tunnel tại roomtune.dzoanh.me; xem [TUNNEL.md](TUNNEL.md) để bật/tắt và xem giới hạn. Chưa deploy Cloudflare Workers production. Không cần domain riêng khi dùng workers.dev. Không tự bật gói trả phí.
 
 1. Tạo Supabase project, lưu DB password ngoài repository. Bật Anonymous Sign-ins và Email provider. Với CLI đang dùng, `auth.email.enable_signup=false` tắt cả đăng nhập email và gây `email_provider_disabled`; giữ `true` để chủ phòng đăng nhập. Người dùng đã cho phép thiết lập này. Ứng dụng không có đăng ký quản trị công khai: mọi tài khoản tự tạo đều không có quyền tạo phòng nếu operator chưa cấp `system_admins`. Trước public rollout, tạo Turnstile widget cho domain được phép, đặt secret trong Supabase Auth CAPTCHA và VITE_TURNSTILE_SITE_KEY trong `.env`. Join/login đã có widget chuyển captchaToken vào SDK; không đặt secret Turnstile trong frontend.
 2. Local: `pnpm exec supabase start` cần Docker đang chạy; hoặc dùng hosted Supabase. `pnpm exec supabase login`, `pnpm exec supabase link --project-ref ...`, kiểm tra linked project trước `pnpm db:migrate`. Không db reset production.

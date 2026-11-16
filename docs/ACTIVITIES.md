@@ -1,6 +1,9 @@
 # Giọng nói, vòng quay và menu phòng
 
-Bản thử ngày 16/11/2026: `http://127.0.0.1:5180`. Chưa phát hành bộ tính năng này lên public.
+Đã phát hành ngày 16/11/2026 lúc 20:40 (giờ Việt Nam) tại
+[roomtune.dzoanh.me](https://roomtune.dzoanh.me), từ commit `3055794`.
+Bản thử riêng vẫn ở `http://127.0.0.1:5180`.
+Xem [kết quả kiểm tra public](ACTIVITIES_PUBLIC_CHECK.md).
 
 ## Sử dụng
 
@@ -35,8 +38,9 @@ trên desktop và phía dưới trên mobile. Vòng quay không phát âm thanh 
   sau backup ngày 16/11/2026. Không sửa migration đã áp dụng. Cột `queue_entries.priority`
   mặc định 0, nên phòng chưa nhận thưởng giữ thứ tự hiện có.
 - `VITE_ENABLE_WHEEL=true` bật giao diện ở thời điểm build; `ENABLE_WHEEL=true` bật API.
-  Cả hai mặc định tắt trong mẫu cấu hình. `build:game` / `game:start` bật riêng bản thử.
-  Public `.env`, `.dev.vars`, `dist` và tiến trình tunnel không được thay thế trong lần triển khai này.
+  Cả hai đã bật trên public; mẫu cấu hình vẫn mặc định tắt để môi trường mới chỉ bật sau migration.
+  `build:game` / `game:start` bật riêng bản thử. Lần phát hành dùng build đã kiểm thử, giữ chunk cũ
+  và bản rollback, chỉ khởi động lại preview; tunnel vẫn chạy.
 - Route là `/room/:id?tool=wheel`, dùng đường dẫn phòng đã có trong tunnel.
 - RPC `wheel_snapshot` và `wheel_spin` chỉ service role được gọi. Actor lấy từ Auth, quyền thành
   viên/ban luôn kiểm tra trước receipt. Danh sách thành viên lấy từ lease Presence đã xác thực,
