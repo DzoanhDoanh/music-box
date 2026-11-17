@@ -4,9 +4,10 @@ Ngày 17/11/2026: đã phát hành engine, bàn cờ và giao diện chọn nư�
 cùng migration Supabase hosted. Tải lại trang và tạo bàn mới để dùng luật v2;
 ván cũ giữ nguyên luật của bàn, kể cả khi chơi lại. Xem [kiểm tra phát hành](CANGUA_V2_PUBLIC_CHECK.md).
 
-**Bản sửa ô xuất quân an toàn đang ở mã nguồn, chưa public.** Bàn mới mặc định dùng
+**Bản sửa ô xuất quân an toàn đã public lúc 14:06 ngày 17/11/2026 (giờ Việt Nam).** Bàn mới mặc định dùng
 `safe: STARTS`; bốn ô xuất quân chỉ chứa quân cùng màu. Bàn v2 đã lưu với `safe: NONE`
 giữ nguyên luật cũ, kể cả khi chơi lại. Quản trò có thể đổi tùy chọn ở phòng chờ.
+Xem [kết quả phát hành](MANAGEMENT_SAFE_STARTS_RELEASE.md).
 
 Đây là biến thể ROOMTUNE, không khẳng định là bộ luật duy nhất của cờ cá ngựa. Theo xác nhận
 của người dùng: ra 1 có thể nhảy cửa chuồng khi đường trống; không vượt quân cản; đối thủ cách
@@ -182,7 +183,7 @@ Migration đã được backup/dry-run và áp dụng trước khi thay API/UI. 
 đều hỗ trợ v1/v2; không chạy lại runtime chỉ hiểu v1 khi database đã có bàn v2. Luật và bàn
 trong UI luôn chọn theo schema của ván. Máy chủ sinh xúc xắc và chọn người đi đầu bằng random an toàn.
 
-Migration **chưa áp dụng hosted** `202611170003_safe_start_squares.sql` bổ sung `safe: STARTS`
+Migration **đã áp dụng hosted** `202611170003_safe_start_squares.sql` bổ sung `safe: STARTS`
 cho schema 2, giữ hàm CHECK hiện có và validator của `NONE`/v1. Không cập nhật hàng dữ liệu cũ.
 Validator từ chối chồng quân và quân khác màu dừng trên ô xuất quân. Bàn cũ `safe: NONE`
 vẫn cho đá ở ô xuất quân và bị chặn bởi mọi quân như trước; chỉ khi quản trò đổi tùy chọn

@@ -5,7 +5,7 @@
 - Đối thủ trên ô thường cách 3 bước: tung 2 đi được, tung 3 đá, tung 4–6 không vượt qua.
 - Ra 1 có thể nhảy tới cửa chuồng kế tiếp khi đoạn đường trống.
 - Ô cuối của vòng là cửa lên chuồng của chính mình; ô kế tiếp trên đường chung là ô xuất quân.
-- Bổ sung ở mã nguồn (chưa public): ô xuất quân là ô an toàn chỉ chứa một ngựa cùng màu.
+- Bổ sung đã public lúc 14:06 ngày 17/11: ô xuất quân là ô an toàn chỉ chứa một ngựa cùng màu.
   Quân màu khác chỉ được đi qua, không dừng dù trống; ngựa ở ô này không bị đá và không chặn đường.
   Tung 6 không được xuất thêm nếu ô xuất quân đang có ngựa mình. Bàn mới dùng luật này;
   bàn cũ giữ cấu hình đã lưu, có thể đổi khi chờ. Góc nhìn mặc định là phẳng.
@@ -13,7 +13,7 @@
 Không coi một biến thể cờ cá ngựa là luật duy nhất. Các mặc định về xuất quân, thêm lượt và
 xếp chuồng được ghi trong [bộ luật ROOMTUNE v2](GAME_RULES_V2.md).
 
-## Kiểm chứng bản ô xuất quân an toàn (source, chưa public)
+## Kiểm chứng bản ô xuất quân an toàn trước phát hành
 
 - 381 unit/API tests đạt, gồm đủ bốn màu, đi qua ô an toàn, cấm dừng ở ô xuất quân khác màu,
   cấm xuất chồng khi ra 6, chặn/đá ở ô thường, nhảy cửa và giữ luật v1/v2 cũ khi rematch.
@@ -28,6 +28,10 @@ xếp chuồng được ghi trong [bộ luật ROOMTUNE v2](GAME_RULES_V2.md).
   `.roomtune/management-build`, entry `index-C0w48bKw.js`, game `GameHub-Cwp1cuNv.js`.
   Hash xác nhận `dist` public và con trỏ deploy được giữ nguyên. Chưa restart public/trial,
   chưa commit/push hoặc chạy migration trên Supabase hosted.
+
+Sau các kiểm tra trên, bản này đã commit/push và public theo yêu cầu người dùng.
+Migration hosted và runtime public/trial đã cập nhật; [báo cáo phát hành](MANAGEMENT_SAFE_STARTS_RELEASE.md)
+ghi kết quả HTTPS, browser dùng dịch vụ thật và kiểm thử xóa/kick trên phòng riêng.
 
 ## Lỗi và sửa đổi
 

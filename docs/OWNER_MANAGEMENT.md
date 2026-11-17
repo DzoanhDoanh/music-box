@@ -1,7 +1,8 @@
 # Quản lý phòng nhạc và bàn cờ
 
-Trạng thái: đã triển khai trong source và kiểm thử cô lập. Chưa áp dụng migration hosted,
-chưa thay bản public hoặc bản trial đang dùng database hosted.
+Trạng thái: đã public lúc **14:06 ngày 17/11/2026 (giờ Việt Nam)**. Migration hosted,
+public và trial 5180 đã cập nhật. Xem [phát hành](MANAGEMENT_SAFE_STARTS_RELEASE.md)
+và [kiểm thử API với dịch vụ thật](MANAGEMENT_PUBLIC_CHECK.md).
 
 ## Vị trí và quyền
 
@@ -62,6 +63,6 @@ Sau sửa luật ô an toàn: toàn bộ unit/API (381), PostgreSQL (80) và bro
 - `tests/game-e2e/management.spec.ts`: nhiều browser độc lập, desktop/mobile, xác nhận tên,
   thu hồi quyền, feedback và chuyển về danh sách. Chỉ dùng fixture; không xóa phòng thật.
 
-Migration mới: `202611170002_owner_management.sql`. Áp dụng sau kiểm thử/backup khi phát hành;
-không sửa migration đã áp dụng. Build ứng viên ở `.roomtune/management-build`; tuyệt đối chỉ
+Migration `202611170002_owner_management.sql` đã áp dụng sau kiểm thử/backup;
+không sửa migration đã áp dụng. Build đã phát hành ở `.roomtune/management-build`; tuyệt đối chỉ
 serve thư mục `client`, không serve worker build hoặc file cấu hình bí mật.
