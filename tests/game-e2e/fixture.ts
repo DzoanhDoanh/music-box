@@ -270,6 +270,7 @@ export function gameFixture() {
               command.name,
               names[index],
               command.rules,
+              command.skin,
             );
             commit(s);
             const result = view(s.id);

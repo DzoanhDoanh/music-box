@@ -2,6 +2,7 @@ import { AppError } from '../domain';
 import {
   defaultRules,
   isCaNgua,
+  usesAutomaticMovement,
   stateSchema,
   type EngineAction,
   type GamePlayer,
@@ -10,7 +11,8 @@ import {
   type LegalMove,
   type MoveKind,
 } from './contracts';
-import { boardCell, trackLength, nextGate } from './board';
+import { boardCell, trackLength, nextGate, trackStepTarget } from './board';
+import type { PieceSkin } from './piece-skins';
 export { boardCell } from './board';
 
 function fail(code = 'GAME_ACTION_INVALID'): never {
@@ -23,6 +25,7 @@ export function createInitialGameState(
   name: string,
   playerName: string,
   rules: GameRules = defaultRules,
+  skin?: PieceSkin,
 ): GameState {
   return stateSchema.parse({
     schema: isCaNgua(rules) ? 2 : 1,
@@ -34,7 +37,7 @@ export function createInitialGameState(
     round: 1,
     status: 'WAITING',
     rules,
-    players: [newPlayer(actor, playerName, 0)],
+    players: [newPlayer(actor, playerName, 0, skin)],
     turn: null,
     phase: 'ROLL',
     dice: null,
@@ -44,7 +47,7 @@ export function createInitialGameState(
     last: { type: 'created', actor },
   });
 }
-function newPlayer(id: string, name: string, color: number): GamePlayer {
+function newPlayer(id: string, name: string, color: number, skin?: PieceSkin): GamePlayer {
   return {
     id,
     name,
@@ -54,6 +57,7 @@ function newPlayer(id: string, name: string, color: number): GamePlayer {
     status: 'ACTIVE',
     rank: null,
     misses: 0,
+    ...(skin ? { skin } : {}),
   };
 }
 export function isSafe(cell: number, rules: GameRules) {
@@ -111,7 +115,17 @@ function caNguaMoves(state: GameState, player: GamePlayer, dice: number): LegalM
       return step(to);
     }
     const moves: LegalMove[] = [];
-    const to = from + dice;
+    const to = trackStepTarget(from, dice, state.rules);
+    const gate = nextGate(from);
+    const canJump =
+      dice === 1 &&
+      isCaNgua(state.rules) &&
+      state.rules.jumpOnOne &&
+      clear(from, gate - 1) &&
+      !occupied(gate);
+    // The player chooses a horse, never a weaker movement when a jump is available.
+    if (canJump && usesAutomaticMovement(state.rules))
+      return [{ piece, from, to: gate, moveKind: 'JUMP' }];
     // Safe starts belong to their color: other horses may pass, never land there.
     if (
       to <= 55 &&
@@ -120,28 +134,17 @@ function caNguaMoves(state: GameState, player: GamePlayer, dice: number): LegalM
       (!occupied(to) || (!safe(to) && occupied(to) !== player.id))
     )
       moves.push(...step(to));
-    const gate = nextGate(from);
-    if (
-      dice === 1 &&
-      isCaNgua(state.rules) &&
-      state.rules.jumpOnOne &&
-      gate !== to &&
-      clear(from, gate - 1) &&
-      !occupied(gate)
-    )
-      moves.push({ piece, from, to: gate, moveKind: 'JUMP' });
+    if (canJump && gate !== to) moves.push({ piece, from, to: gate, moveKind: 'JUMP' });
     return moves;
   });
 }
-export function validateMove(
-  state: GameState,
-  actor: string,
-  piece: number,
-  moveKind: MoveKind = 'STEP',
-) {
+export function validateMove(state: GameState, actor: string, piece: number, moveKind?: MoveKind) {
   return (
     getLegalMoves(state, actor).find(
-      (m) => m.piece === piece && (m.moveKind ?? 'STEP') === moveKind,
+      (m) =>
+        m.piece === piece &&
+        ((moveKind === undefined && usesAutomaticMovement(state.rules)) ||
+          (m.moveKind ?? 'STEP') === (moveKind ?? 'STEP')),
     ) ?? fail('GAME_ILLEGAL_MOVE')
   );
 }
@@ -335,7 +338,7 @@ export function transition(
         s.players.some((p) => p.color === action.color)
       )
         fail('GAME_SEAT_TAKEN');
-      s.players.push(newPlayer(actor, name, action.color));
+      s.players.push(newPlayer(actor, name, action.color, action.skin));
       s.players.sort((a, b) => a.color - b.color);
       waitingStatus(s);
       break;
@@ -346,6 +349,15 @@ export function transition(
       player.ready = false;
       s.players.sort((a, b) => a.color - b.color);
       waitingStatus(s);
+      break;
+    case 'skin':
+      if (
+        !player ||
+        player.status !== 'ACTIVE' ||
+        (!waiting && !['PLAYING', 'PAUSED'].includes(s.status))
+      )
+        fail('GAME_ACTION_INVALID');
+      player.skin = action.skin;
       break;
     case 'ready':
       if (!waiting || !player) fail();
@@ -432,7 +444,7 @@ export function transition(
     case 'rematch':
       requireHost();
       if (!['FINISHED', 'CANCELLED'].includes(s.status)) fail();
-      s.players = s.players.map((p) => newPlayer(p.id, p.name, p.color));
+      s.players = s.players.map((p) => newPlayer(p.id, p.name, p.color, p.skin));
       s.round++;
       s.status = 'WAITING';
       s.turn = null;

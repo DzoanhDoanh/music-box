@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { pieceSkinSchema } from './piece-skins';
 
 export const legacyRulesSchema = z
   .object({
@@ -11,22 +12,39 @@ export const legacyRulesSchema = z
     maxMisses: z.number().int().min(2).max(5).default(3),
   })
   .strict();
-export const caNguaRulesSchema = legacyRulesSchema.extend({
-  variant: z.literal('CANGUA_V2'),
-  jumpOnOne: z.boolean().default(true),
-  // Missing/old values retain the original v2 rules. New tables opt into safe starts below.
-  safe: z.enum(['NONE', 'STARTS']).default('NONE'),
-  captureBonus: z.literal(false).default(false),
-  finishBonus: z.literal(false).default(false),
-  threeSixes: z.literal(false).default(false),
-});
+export const caNguaRulesSchema = legacyRulesSchema
+  .extend({
+    variant: z.literal('CANGUA_V2'),
+    jumpOnOne: z.boolean().default(true),
+    // Missing/old values retain the original v2 rules. New tables opt into safe starts below.
+    safe: z.enum(['NONE', 'STARTS']).default('NONE'),
+    // Optional on purpose: parsing a saved match must not rewrite its immutable rules.
+    movement: z.enum(['SKIP_STARTS_AUTO_JUMP', 'SPAWN_ONLY_AUTO_JUMP']).optional(),
+    captureBonus: z.literal(false).default(false),
+    finishBonus: z.literal(false).default(false),
+    threeSixes: z.literal(false).default(false),
+  })
+  .refine(
+    (rules) =>
+      rules.movement !== 'SPAWN_ONLY_AUTO_JUMP' || (rules.safe === 'STARTS' && rules.jumpOnOne),
+    { message: 'Fixed movement requires protected spawn-only squares and automatic jumps' },
+  );
 // Missing variant is persisted Ludo v1, never silently reinterpreted as v2.
 export const rulesSchema = z.union([caNguaRulesSchema, legacyRulesSchema]);
 export type GameRules = z.infer<typeof rulesSchema>;
 export const legacyRules = legacyRulesSchema.parse({});
-export const defaultRules = caNguaRulesSchema.parse({ variant: 'CANGUA_V2', safe: 'STARTS' });
+export const defaultRules = caNguaRulesSchema.parse({
+  variant: 'CANGUA_V2',
+  safe: 'STARTS',
+  movement: 'SPAWN_ONLY_AUTO_JUMP',
+});
 export const isCaNgua = (rules: GameRules): rules is z.infer<typeof caNguaRulesSchema> =>
   'variant' in rules && rules.variant === 'CANGUA_V2';
+export const usesAutomaticMovement = (rules: GameRules) =>
+  isCaNgua(rules) &&
+  (rules.movement === 'SKIP_STARTS_AUTO_JUMP' || rules.movement === 'SPAWN_ONLY_AUTO_JUMP');
+export const hasFixedMovement = (rules: GameRules) =>
+  isCaNgua(rules) && rules.movement === 'SPAWN_ONLY_AUTO_JUMP';
 export const moveKindSchema = z.enum(['STEP', 'JUMP']);
 export type MoveKind = z.infer<typeof moveKindSchema>;
 export type LegalMove = { piece: number; from: number; to: number; moveKind?: MoveKind };
@@ -49,6 +67,8 @@ export const playerSchema = z
     status: z.enum(['ACTIVE', 'FINISHED', 'FORFEITED']),
     rank: z.number().int().min(1).max(4).nullable(),
     misses: z.number().int().min(0).max(5),
+    // Missing skin is the original horse; never inject cosmetic fields into saved games.
+    skin: pieceSkinSchema.optional(),
   })
   .strict();
 export const stateSchema = z
@@ -144,11 +164,23 @@ export type GameState = z.infer<typeof stateSchema>;
 export type GamePlayer = z.infer<typeof playerSchema>;
 const version = z.number().int().nonnegative();
 export const createGameSchema = z
-  .object({ name: z.string().trim().min(1).max(60), rules: rulesSchema })
+  .object({
+    name: z.string().trim().min(1).max(60),
+    rules: rulesSchema,
+    skin: pieceSkinSchema.optional(),
+  })
   .strict();
 export const gameCommandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('kick'), user_id: z.uuid(), version }).strict(),
-  z.object({ action: z.literal('join'), color: z.number().int().min(0).max(3), version }).strict(),
+  z
+    .object({
+      action: z.literal('join'),
+      color: z.number().int().min(0).max(3),
+      skin: pieceSkinSchema.optional(),
+      version,
+    })
+    .strict(),
+  z.object({ action: z.literal('skin'), skin: pieceSkinSchema, version }).strict(),
   z.object({ action: z.literal('color'), color: z.number().int().min(0).max(3), version }).strict(),
   z.object({ action: z.literal('ready'), ready: z.boolean(), version }).strict(),
   z.object({ action: z.literal('settings'), rules: rulesSchema, version }).strict(),

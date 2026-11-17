@@ -164,6 +164,7 @@ export function useGame(room: string, actor: string, game: string | null, visibl
         void client.invalidateQueries({ queryKey: ['game', room, actor, game] });
         void client.invalidateQueries({ queryKey: ['games', room, actor] });
         if (!['roll', 'move'].includes(request.body.action)) toast.success('Đã cập nhật bàn chơi.');
+        return result;
       } catch (error) {
         if (!uncertainGameRequest(error)) {
           clearGameRequest(scope.storage, request.key);

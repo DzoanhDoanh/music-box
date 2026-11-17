@@ -1,5 +1,13 @@
 # Cờ cá ngựa ROOMTUNE — bộ luật v2
 
+**Mới nhất: 19:47 ngày 17/11/2026**, bàn mới dùng luật cố định: hệ thống tự chọn nhảy
+hoặc một bước cho từng quân khi ra 1; ô xuất quân chỉ để ra quân, luôn bỏ qua khi đi.
+Xem [luật hiện hành và cách nâng bàn cũ](CANGUA_FIXED_MOVEMENT.md).
+
+**Bản sửa mới đã public lúc 16:10 ngày 17/11:** bỏ qua ô xuất quân màu khác khi đếm bước và tự
+nhảy khi ra 1 nếu không bị cản. Xem [luật và tương thích của bản sửa](CANGUA_MOVEMENT_UPDATE.md).
+Phần dưới ghi bộ luật đã public lúc 14:06, còn áp dụng cho các bàn đã lưu chưa nâng luật.
+
 Ngày 17/11/2026: đã phát hành engine, bàn cờ và giao diện chọn nước v2 lên public,
 cùng migration Supabase hosted. Tải lại trang và tạo bàn mới để dùng luật v2;
 ván cũ giữ nguyên luật của bàn, kể cả khi chơi lại. Xem [kiểm tra phát hành](CANGUA_V2_PUBLIC_CHECK.md).

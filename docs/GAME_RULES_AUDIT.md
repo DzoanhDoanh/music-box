@@ -1,5 +1,12 @@
 # Rà soát luật và bàn cờ — 17/11/2026
 
+Mới nhất: [luật cố định và vùng bấm lớn hơn](CANGUA_FIXED_MOVEMENT.md) đã public lúc
+19:47 cùng ngày; bàn mới không có lựa chọn tắt tự nhảy hoặc bảo vệ ô xuất quân.
+
+Sau bản public 14:06, người dùng yêu cầu bỏ bước ở ô xuất quân màu khác và bắt buộc
+nhảy khi ra 1 nếu đường thoáng. Bản sửa đã public lúc 16:10 và kết quả kiểm thử ghi tại
+[CANGUA_MOVEMENT_UPDATE.md](CANGUA_MOVEMENT_UPDATE.md). Các mục dưới là lịch sử bản đã public.
+
 ## Yêu cầu đã xác nhận
 
 - Đối thủ trên ô thường cách 3 bước: tung 2 đi được, tung 3 đá, tung 4–6 không vượt qua.

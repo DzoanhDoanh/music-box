@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import worker, { app } from '../../src/server/index';
 import { createInitialGameState, transition } from '../../src/shared/game/engine';
-import type { GameCommand, GameSnapshot } from '../../src/shared/game/contracts';
+import { defaultRules, type GameCommand, type GameSnapshot } from '../../src/shared/game/contracts';
 import { secureDice } from '../../src/server/services/game';
 
 const actor = '10000000-0000-4000-8000-000000000001',
@@ -88,6 +88,51 @@ const request = (body?: unknown, suffix = '/' + game, settings = env) =>
     settings,
   );
 describe('trusted game API', () => {
+  it('changes only the authenticated player skin and rejects forged targets and unknown skins before committing', async () => {
+    state.state.phase = 'MOVE';
+    state.state.dice = 6;
+    const before = structuredClone(state.state);
+    const response = await request({ action: 'skin', skin: 'CAT', version: before.version });
+    expect(response.status).toBe(200);
+    const result = ((await response.json()) as GameSnapshot).state;
+    expect(result.players[0].skin).toBe('CAT');
+    expect(result.players[1]).toEqual(before.players[1]);
+    expect(result.deadline).toBe(before.deadline);
+    expect(result.dice).toBe(6);
+    expect(result.turn).toBe(before.turn);
+    for (const invalid of [
+      { action: 'skin', skin: 'DOG', user_id: other },
+      { action: 'skin', skin: 'url' },
+    ]) {
+      calls = [];
+      expect((await request({ ...invalid, version: before.version })).status).toBe(400);
+      expect(calls.some((c) => c.path.endsWith('/game_commit'))).toBe(false);
+    }
+    const created = await request({ name: 'Hình quân', rules: before.rules, skin: 'ROCKET' }, '');
+    expect(created.status).toBe(201);
+    expect(((await created.json()) as GameSnapshot).state.players[0].skin).toBe('ROCKET');
+  });
+  it('chooses the automatic jump server-side when only a horse is submitted, then falls back to a counted capture', async () => {
+    state.state.phase = 'MOVE';
+    state.state.dice = 1;
+    state.state.players[0].pieces[0] = 13;
+    state.state.players[1].pieces[0] = 0;
+    const body = { action: 'move', version: state.state.version, piece: 0 };
+    const jump = await request(body);
+    expect(jump.status).toBe(200);
+    expect(((await jump.json()) as GameSnapshot).state.last).toMatchObject({
+      to: 27,
+      moveKind: 'JUMP',
+    });
+    expect((await request({ ...body, moveKind: 'STEP' })).status).toBe(409);
+    state.state.players[1].pieces[1] = 1;
+    const step = await request(body);
+    expect(step.status).toBe(200);
+    const result = ((await step.json()) as GameSnapshot).state;
+    expect(result.last).toMatchObject({ to: 15, moveKind: 'STEP', captures: [other + ':1'] });
+    expect(result.players[1].pieces).toEqual([0, -1, -1, -1]);
+    expect((await request({ ...body, moveKind: 'JUMP' })).status).toBe(409);
+  });
   it('safe starts allow passage but reject foreign landing and a second spawn without committing', async () => {
     state.state.phase = 'MOVE';
     state.state.dice = 1;
@@ -103,7 +148,7 @@ describe('trusted game API', () => {
     const response = await request(body);
     expect(response.status).toBe(200);
     const result = (await response.json()) as GameSnapshot;
-    expect(result.state.players[0].pieces[0]).toBe(15);
+    expect(result.state.players[0].pieces[0]).toBe(16);
     expect(result.state.players[1].pieces[0]).toBe(0);
     expect(result.state.last.captures).toEqual([]);
     state.state.players[0].pieces = [-1, 0, -1, -1];
@@ -261,6 +306,23 @@ describe('trusted game API', () => {
     expect(calls.find((c) => c.path.endsWith('/game_create'))?.body).toMatchObject({
       p_actor: actor,
       p_state: { host: actor, name: 'Bàn mới', version: 0, status: 'WAITING' },
+    });
+  });
+  it('rejects disabling automatic jumps or spawn-only squares in the fixed rule profile', async () => {
+    for (const overrides of [{ jumpOnOne: false }, { safe: 'NONE' }, { movement: 'FORGED' }]) {
+      const rules = { ...defaultRules, ...overrides };
+      expect((await request({ name: 'Luật cố định', rules }, '')).status).toBe(400);
+      expect(
+        (await request({ action: 'settings', rules, version: state.state.version })).status,
+      ).toBe(400);
+    }
+    expect(
+      calls.some((c) => c.path.endsWith('/game_create') || c.path.endsWith('/game_commit')),
+    ).toBe(false);
+    const created = await request({ name: 'Luật cố định', rules: defaultRules }, '');
+    expect(created.status).toBe(201);
+    expect(calls.find((c) => c.path.endsWith('/game_create'))?.body).toMatchObject({
+      p_state: { rules: defaultRules },
     });
   });
 });

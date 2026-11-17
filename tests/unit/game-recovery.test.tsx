@@ -84,7 +84,7 @@ describe('durable game requests', () => {
           })
         : { ...state, state: { ...state.state, id: other } },
     );
-    let pending!: Promise<void>;
+    let pending!: Promise<GameSnapshot | undefined>;
     await act(async () => {
       pending = h.result.current.send({ action: 'ready', ready: true });
     });

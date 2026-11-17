@@ -1,5 +1,9 @@
 # Triển khai Cloudflare + Supabase
 
+Cập nhật mới nhất: **19:47 ngày 17/11/2026 (giờ Việt Nam)**, luật cờ cá ngựa cố định
+và vùng bấm quân lớn hơn đã lên public và bản thử 5180. Migration 006 đã áp dụng;
+ván đang chơi giữ luật đã lưu. Xem [CANGUA_FIXED_MOVEMENT.md](CANGUA_FIXED_MOVEMENT.md).
+
 Voice/vòng quay/menu đã phát hành tại `https://roomtune.dzoanh.me` lúc 20:40 ngày 16/11/2026
 (giờ Việt Nam), từ commit `3055794`. Migration wheel đã áp dụng; public đã bật cả
 `VITE_ENABLE_WHEEL=true` và `ENABLE_WHEEL=true`. Mẫu cấu hình giữ false cho môi trường mới.

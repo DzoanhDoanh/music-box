@@ -1,5 +1,5 @@
 import type { GameState } from '../../../shared/game/contracts';
-import { lastPosition } from '../../../shared/game/board';
+import { lastPosition, countedDistance, skipsStart } from '../../../shared/game/board';
 import { piecePoint } from './board-geometry';
 
 export type PiecePosition = { x: number; y: number; scale: number; stack: number };
@@ -63,12 +63,13 @@ export function committedMotion(before: GameState, after: GameState) {
     (from === -1
       ? to !== 0
       : to <= from ||
-        to - from > (after.schema === 2 && after.last.moveKind === 'JUMP' ? 14 : 6)) ||
+        countedDistance(from, to, after.rules) >
+          (after.schema === 2 && after.last.moveKind === 'JUMP' ? 14 : 6)) ||
     before.players.find((p) => p.id === actor)?.pieces[piece] !== from ||
     mover.pieces[piece] !== to
   )
     return plans;
-  const duration = Math.min(1100, Math.max(360, (to - from) * 115));
+  const duration = Math.min(1100, Math.max(360, countedDistance(from, to, after.rules) * 115));
   for (const [key, end] of next) {
     const start = old.get(key);
     if (!start || transform(start) === transform(end)) continue;
@@ -76,6 +77,8 @@ export function committedMotion(before: GameState, after: GameState) {
     if (key === actor + ':' + piece) {
       let last = start;
       for (let n = from + 1; n <= to; n++) {
+        // Traverse sheltered starts without a landing/bounce that implies a counted step.
+        if (skipsStart(n, after.rules)) continue;
         const point = piecePoint(mover.color, n, piece, after.schema);
         const target = n === to ? end : { x: point[0], y: point[1], scale: 1, stack: 1 };
         frames.push({

@@ -20,6 +20,7 @@ import {
   History,
   Layers3,
   UserMinus,
+  Palette,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Snapshot } from '../../../shared/contracts';
@@ -28,12 +29,15 @@ import {
   defaultRules,
   rulesSchema,
   isCaNgua,
+  usesAutomaticMovement,
+  hasFixedMovement,
   statusNames,
   type GameRules,
   type GameSnapshot,
   type LegalMove,
 } from '../../../shared/game/contracts';
 import { calculateRanking, getLegalMoves } from '../../../shared/game/engine';
+import { countedDistance } from '../../../shared/game/board';
 import { api } from '../../lib/api';
 import { AppError } from '../../../shared/domain';
 import DeleteResource from '../DeleteResource';
@@ -49,6 +53,10 @@ import {
 import { AsyncButton, Button, Confirm, ErrorState, Loading, Modal } from '../ui';
 import LudoBoard from './LudoBoard';
 import Dice from './Dice';
+import PieceSkinPicker from './PieceSkinPicker';
+import { PiecePreview } from './PieceFigure';
+import { pieceSkinName, type PieceSkin } from '../../../shared/game/piece-skins';
+import { readPieceSkin, rememberPieceSkin } from '../../lib/piece-skin';
 import './game.css';
 
 function RulesFields({
@@ -64,6 +72,26 @@ function RulesFields({
   return (
     <fieldset disabled={disabled} className="game-rules-fields">
       <legend>Luật của bàn</legend>
+      {v2 && !hasFixedMovement(rules) && (
+        <div className="game-fixed-rules">
+          <p>
+            Bàn này giữ bộ luật đã lưu. Đổi sang luật mới để hệ thống tự chọn nhảy hoặc đi 1 cho
+            từng quân; ô xuất quân chỉ dành cho quân vừa ra.
+          </p>
+          <Button
+            onClick={() =>
+              onChange({
+                ...rules,
+                safe: 'STARTS',
+                jumpOnOne: true,
+                movement: 'SPAWN_ONLY_AUTO_JUMP',
+              })
+            }
+          >
+            Áp dụng luật di chuyển mới
+          </Button>
+        </div>
+      )}
       <label>
         Ra quân
         <select
@@ -87,29 +115,18 @@ function RulesFields({
           </select>
         </label>
       )}
-      {v2 && (
-        <label>
-          Ô xuất quân
-          <select
-            value={rules.safe}
-            onChange={(event) =>
-              onChange({ ...rules, safe: event.target.value as 'NONE' | 'STARTS' })
-            }
-          >
-            <option value="STARTS">An toàn · một ngựa, được đi vượt</option>
-            <option value="NONE">Luật v2 cũ · không có ô an toàn</option>
-          </select>
-        </label>
-      )}
-      {v2 && (
-        <label className="game-check">
-          <input
-            type="checkbox"
-            checked={rules.jumpOnOne}
-            onChange={(e) => onChange({ ...rules, jumpOnOne: e.target.checked })}
-          />
-          Ra 1 được nhảy tới cửa chuồng khi không bị chặn
-        </label>
+      {v2 && hasFixedMovement(rules) && (
+        <div className="game-fixed-rules">
+          <strong>Di chuyển tự động theo từng quân</strong>
+          <p>
+            Ra 1: đường trống thì bắt buộc nhảy tới cửa kế tiếp. Có vật cản thì đi 1 bước nếu hợp
+            lệ. Bạn chỉ chọn quân.
+          </p>
+          <p>
+            Ô xuất quân chỉ dành cho quân vừa ra từ chuồng của màu đó. Quân đang đi bỏ qua ô này,
+            không tính bước, không dừng hoặc đá quân tại đó.
+          </p>
+        </div>
       )}
       <label>
         Thời gian mỗi lượt
@@ -166,26 +183,32 @@ function RulesHelp({ rules }: { rules: GameRules }) {
         <p>
           <strong>Cờ cá ngựa ROOMTUNE · Bộ luật v2</strong>
         </p>
+        {!hasFixedMovement(rules) && (
+          <p>
+            Bàn đã lưu giữ luật cũ. Chủ bàn có thể chọn “Áp dụng luật di chuyển mới” trong Tùy chỉnh
+            luật khi bàn đang chờ, kể cả sau khi chọn Chơi lại.
+          </p>
+        )}
         <ol>
           <li>
             Mỗi người 4 ngựa; ra {rules.entry === 'SIX' ? '6' : '1 hoặc 6'} để xuất vào ô trống.
             Không đứng chồng quân.
           </li>
           <li>
-            Đi một vòng 56 ô. Ô cuối là cửa chuồng của mình; ô kế tiếp trên đường chung là ô xuất
-            quân. Ô có hình ngựa là xuất quân, ô có mũi tên là cửa chuồng. Đến cửa phải dừng, lần
-            tung sau mới vào chuồng.
+            Bàn có 56 ô đường chung. Ô cuối là cửa chuồng của mình; ô kế tiếp trên đường chung là ô
+            xuất quân. Ô có hình ngựa là xuất quân, ô có mũi tên là cửa chuồng. Đến cửa phải dừng,
+            lần tung sau mới vào chuồng.
           </li>
           <li>
             {rules.safe === 'STARTS'
-              ? 'Bốn ô xuất quân là ô an toàn, mỗi ô chỉ chứa một ngựa cùng màu. Quân màu khác chỉ được đi qua, không được dừng dù ô trống; vẫn tính ô đó là một bước. Ngựa ở ô an toàn không bị đá và không chặn quân đi qua; các chướng ngại ở ô thường vẫn chặn đường.'
+              ? `Bốn ô xuất quân chỉ nhận quân vừa ra từ chuồng của màu đó, mỗi ô chứa tối đa một quân. Mọi quân đang di chuyển đều bỏ qua ô này, không được dừng dù ô trống; ${usesAutomaticMovement(rules) ? 'bỏ qua ô đó khi đếm bước, dù có ngựa hay không' : 'luật cũ vẫn tính ô đó là một bước'}. Ngựa ở ô an toàn không bị đá và không chặn quân đi qua; các chướng ngại ở ô thường vẫn chặn đường.`
               : 'Luật cũ của bàn: không có ô an toàn trên đường chung; không vượt bất kỳ quân nào. Ô xuất quân vẫn có thể bị đá khi đi đúng số.'}{' '}
-            Ở ô thường, đối thủ cách 3 ô: ra 2 được đi, ra 3 đá, ra 4–6 bị chặn.
+            Đối thủ ở ô thường cách 3 bước được tính: ra 2 được đi, ra 3 đá, ra 4–6 bị chặn.
           </li>
           <li>
             {rules.jumpOnOne
-              ? `Ra 1: chọn đi một ô hoặc nhảy tới cửa chuồng kế tiếp nếu đoạn đường không bị chặn và ô cửa trống.${rules.safe === 'STARTS' ? ' Được vượt ngựa đang ở ô xuất quân an toàn.' : ''} Nhảy không đá quân và không đi quá cửa của mình.`
-              : 'Đã tắt nhảy cửa chuồng; ra 1 chỉ đi một ô.'}
+              ? `${usesAutomaticMovement(rules) ? 'Ra 1: chọn ngựa là tự nhảy tới cửa chuồng kế tiếp nếu đường không bị chặn và ô cửa trống. Nếu bị cản, ngựa đi 1 bước khi hợp lệ; không được chọn đi thường khi có thể nhảy.' : 'Luật cũ: ra 1 chọn đi một ô hoặc nhảy tới cửa chuồng kế tiếp nếu đoạn đường không bị chặn và ô cửa trống.'}${rules.safe === 'STARTS' ? ' Được vượt ngựa đang ở ô xuất quân an toàn.' : ''} Nhảy không đá quân và không đi quá cửa của mình.`
+              : 'Đã tắt nhảy cửa chuồng; ra 1 chỉ đi một bước hợp lệ.'}
           </li>
           <li>
             Đứng ở cửa: ra số nào vào bậc đó nếu đường vào trống. Đã ở bậc n: phải ra n + 1 để lên
@@ -291,6 +314,10 @@ export default function GameHub({
     [editing, setEditing] = useState(false);
   const [options, setOptions] = useState(false),
     [history, setHistory] = useState(false);
+  const [skinDialog, setSkinDialog] = useState<{ actor: string; match: string | null } | null>(
+    null,
+  );
+  const [skinDraft, setSkinDraft] = useState<PieceSkin>('HORSE');
   const [sound, setSound] = useState(false),
     [clock, setClock] = useState(Date.now());
   const [depth, setDepth] = useState(() => localStorage.getItem('roomtune:ludo:depth') === 'depth');
@@ -301,6 +328,7 @@ export default function GameHub({
   const [createReceipt, setCreateReceipt] = useState<GameRequest<{
     name: string;
     rules: GameRules;
+    skin?: PieceSkin;
   }> | null>(() => readGameRequest(createScope, true));
   const live = useRef(true),
     createBusy = useRef(false);
@@ -311,6 +339,10 @@ export default function GameHub({
     navigate('/room/' + room + '/games' + (id ? '/' + encodeURIComponent(id) : ''));
   };
   const state = game.data?.state;
+  const mySkin = state?.players.find((p) => p.id === actor)?.skin;
+  useEffect(() => {
+    if (mySkin) rememberPieceSkin(actor, mySkin);
+  }, [actor, mySkin]);
   const deleted = game.query.error instanceof AppError && game.query.error.code === 'NOT_FOUND';
   useEffect(() => {
     if (!match || !deleted) return;
@@ -348,12 +380,12 @@ export default function GameHub({
     m.from === -1
       ? 'Ra quân'
       : m.moveKind === 'JUMP'
-        ? `Nhảy tới cửa chuồng · ${m.to - m.from} ô`
+        ? `Nhảy tới cửa chuồng · ${state ? countedDistance(m.from, m.to, state.rules) : m.to - m.from} bước`
         : state?.schema === 2 && m.to >= 56
           ? `Vào bậc ${m.to - 55}`
           : state?.schema === 1 && m.to === 57
             ? 'Về đích'
-            : 'Đi ' + state?.dice + ' ô';
+            : 'Đi ' + state?.dice + ' bước';
   useEffect(() => {
     const timer = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -413,7 +445,7 @@ export default function GameHub({
     createBusy.current = true;
     setSaving(true);
     const request = createReceipt ?? {
-      body: { name: name.trim(), rules: rulesSchema.parse(rules) },
+      body: { name: name.trim(), rules: rulesSchema.parse(rules), skin: readPieceSkin(actor) },
       key: crypto.randomUUID(),
     };
     try {
@@ -466,6 +498,11 @@ export default function GameHub({
         );
   const moves = state ? getLegalMoves(state, actor) : [];
   const busy = game.pending || game.retry || !!game.query.error;
+  const canChooseSkin = !match || !!(player?.status === 'ACTIVE' && !ended);
+  const openSkins = () => {
+    setSkinDraft(match ? (mySkin ?? 'HORSE') : readPieceSkin(actor));
+    setSkinDialog({ actor, match });
+  };
   return (
     <section
       className={
@@ -477,7 +514,11 @@ export default function GameHub({
         <div>
           <span className="game-eyebrow">
             <Gamepad2 size={15} />
-            {state?.schema === 1 && match ? 'BÀN LUẬT CŨ · 52 Ô' : 'ROOMTUNE PLAY'}
+            {state?.schema === 1 && match
+              ? 'BÀN LUẬT CŨ · 52 Ô'
+              : state?.schema === 2 && !hasFixedMovement(state.rules) && match
+                ? 'BÀN DÙNG LUẬT ĐÃ LƯU'
+                : 'ROOMTUNE PLAY'}
           </span>
           <h2>{match ? (state?.name ?? 'Bàn cờ cá ngựa') : 'Nhạc hay. Bạn vui. Vào ván thôi.'}</h2>
           {!match && <p>Chơi cùng những người trong phòng. Giai điệu vẫn tiếp tục.</p>}
@@ -536,6 +577,9 @@ export default function GameHub({
                 }}
               >
                 <Plus size={18} /> Tạo bàn mới
+              </Button>
+              <Button variant="ghost" onClick={openSkins}>
+                <Palette size={17} /> Quân của tôi
               </Button>
             </div>
             <div className="game-hero-dice" aria-hidden="true">
@@ -709,7 +753,13 @@ export default function GameHub({
                       {!p && waiting && (
                         <AsyncButton
                           disabled={busy}
-                          onClick={() => game.send({ action: player ? 'color' : 'join', color })}
+                          onClick={() =>
+                            game.send(
+                              player
+                                ? { action: 'color', color }
+                                : { action: 'join', color, skin: readPieceSkin(actor) },
+                            )
+                          }
                         >
                           {player ? 'Đổi màu' : 'Ngồi đây'}
                         </AsyncButton>
@@ -764,6 +814,9 @@ export default function GameHub({
                       onMove={(piece) => {
                         void choosePiece(piece).catch(() => {});
                       }}
+                      onDestination={(move) => {
+                        void sendMove(move).catch(() => {});
+                      }}
                     />
                   </div>
                 </div>
@@ -807,7 +860,7 @@ export default function GameHub({
                               {seconds}s
                             </strong>
                             <small>
-                              {state.phase === 'ROLL' ? 'Tung xúc xắc' : 'Chọn một ngựa để đi'}
+                              {state.phase === 'ROLL' ? 'Tung xúc xắc' : 'Chọn một quân để đi'}
                             </small>
                           </div>
                         </div>
@@ -829,8 +882,11 @@ export default function GameHub({
                           >
                             {selectedPiece !== null && (
                               <p className="game-choice-hint">
-                                Ngựa {selectedPiece + 1}: chọn cách đi
+                                {pieceSkinName(player?.skin)} {selectedPiece + 1}: chọn cách đi
                               </p>
+                            )}
+                            {selectedPiece === null && (
+                              <p className="game-choice-hint">Bấm quân sáng hoặc nút số.</p>
                             )}
                             {(selectedPiece !== null
                               ? moves.filter((m) => m.piece === selectedPiece)
@@ -846,7 +902,7 @@ export default function GameHub({
                                   selectedPiece !== null ? sendMove(m) : choosePiece(m.piece)
                                 }
                               >
-                                Ngựa {m.piece + 1}
+                                {pieceSkinName(player?.skin)} {m.piece + 1}
                                 <small>
                                   {selectedPiece === null &&
                                   moves.filter((other) => other.piece === m.piece).length > 1
@@ -968,6 +1024,11 @@ export default function GameHub({
             </Button>
           </div>
 
+          {canChooseSkin && (
+            <Button className="game-skin-trigger" disabled={busy} onClick={openSkins}>
+              <PiecePreview skin={mySkin} color={player?.color} /> Quân của tôi
+            </Button>
+          )}
           {host && (
             <div className="game-admin-actions">
               {waiting && (
@@ -1110,6 +1171,54 @@ export default function GameHub({
             Tạo bàn
           </Button>
         </form>
+      </Modal>
+      <Modal
+        title="Quân của tôi"
+        className="piece-picker-dialog"
+        description={
+          match
+            ? 'Chọn hình cho 4 quân của bạn. Mọi người trong bàn đều nhìn thấy.'
+            : 'Chọn hình mặc định cho lần tạo bàn hoặc vào ghế tiếp theo trên thiết bị này.'
+        }
+        open={
+          !!skinDialog && skinDialog.actor === actor && skinDialog.match === match && canChooseSkin
+        }
+        onOpenChange={(open) => {
+          if (!open) setSkinDialog(null);
+        }}
+      >
+        <div className="piece-picker-body">
+          <PieceSkinPicker
+            value={skinDraft}
+            onChange={setSkinDraft}
+            color={player?.color ?? 0}
+            disabled={!!match && busy}
+          />
+          <p className="piece-picker-note">
+            Hình quân chỉ thay đổi cách hiển thị. Luật đi, xúc xắc và thời gian lượt vẫn giữ nguyên.
+          </p>
+        </div>
+        <div className="piece-picker-actions">
+          <Button onClick={() => setSkinDialog(null)}>Để sau</Button>
+          <AsyncButton
+            variant="primary"
+            disabled={!!match && busy}
+            onClick={async () => {
+              if (match && !(await game.send({ action: 'skin', skin: skinDraft }))) return;
+              const remembered = rememberPieceSkin(actor, skinDraft);
+              if (!match) {
+                if (!remembered) {
+                  toast.error('Không lưu được lựa chọn trên trình duyệt này.');
+                  return;
+                }
+                toast.success('Đã lưu hình quân cho lần chơi tiếp theo.');
+              }
+              setSkinDialog((current) => (current === skinDialog ? null : current));
+            }}
+          >
+            Lưu hình quân
+          </AsyncButton>
+        </div>
       </Modal>
       <Modal
         title="Luật cờ cá ngựa"

@@ -9,6 +9,7 @@ import {
   type GameState,
 } from '../../shared/game/contracts';
 import type { RoomStore } from '../ports';
+import type { PieceSkin } from '../../shared/game/piece-skins';
 
 /** Rejection sampling avoids modulo bias. This module is never imported by the client. */
 export function secureIndex(count: number): number {
@@ -42,7 +43,7 @@ export class GameService {
       p_name: name,
     });
   }
-  create(room: string, key: string, command: { name: string; rules: GameRules }) {
+  create(room: string, key: string, command: { name: string; rules: GameRules; skin?: PieceSkin }) {
     const state = createInitialGameState(
       crypto.randomUUID(),
       room,
@@ -50,6 +51,7 @@ export class GameService {
       command.name,
       'Người chơi',
       command.rules,
+      command.skin,
     );
     return this.store.call<GameSnapshot>('game_create', {
       p_actor: this.actor,

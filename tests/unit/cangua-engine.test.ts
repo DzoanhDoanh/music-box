@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { boardCell, nextGate } from '../../src/shared/game/board';
 import {
-  defaultRules as safeStartRules,
+  caNguaRulesSchema,
   legacyRules,
   stateSchema,
   gameCommandSchema,
@@ -21,7 +21,7 @@ import { committedMotion, pieceLayout } from '../../src/client/components/game/b
 const ids = [1, 2, 3, 4].map((n) => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`);
 const room = '20000000-0000-4000-8000-000000000001';
 // Existing saved v2 tables keep their original unprotected-start rules.
-const defaultRules = { ...safeStartRules, safe: 'NONE' } as const;
+const defaultRules = caNguaRulesSchema.parse({ variant: 'CANGUA_V2', safe: 'NONE' });
 function fixture(count = 4) {
   let s = createInitialGameState(room, room, ids[0], 'Cờ cá ngựa', 'An', defaultRules);
   for (let color = 1; color < count; color++)

@@ -12,6 +12,7 @@ export async function testCaNgua({
   transition,
 }) {
   const defaultRules = { ...safeStartRules, safe: 'NONE' };
+  delete defaultRules.movement; // Persisted v2 rules before automatic movement.
   const friend = randomUUID();
   await sql`insert into auth.users(id) values(${friend})`;
   const room = (

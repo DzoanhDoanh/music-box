@@ -1,13 +1,21 @@
 import { test, expect } from '@playwright/test';
-import { defaultRules } from '../../src/shared/game/contracts';
+import { defaultRules, caNguaRulesSchema } from '../../src/shared/game/contracts';
 import { gameFixture, ids, match, openGame } from './fixture';
 
-test('safe starts disable foreign landing and duplicate spawn but permit passing the protected horse', async ({
+test('saved safe-start rules disable foreign landing and duplicate spawn but permit passing the protected horse', async ({
   page,
   context,
 }, info) => {
   const f = gameFixture();
-  const s = f.seed(2, { ...defaultRules, jumpOnOne: false, turnSeconds: 90 });
+  const s = f.seed(
+    2,
+    caNguaRulesSchema.parse({
+      variant: 'CANGUA_V2',
+      safe: 'STARTS',
+      jumpOnOne: false,
+      turnSeconds: 90,
+    }),
+  );
   s.players[0].pieces[0] = 13;
   s.phase = 'MOVE';
   s.dice = 1;

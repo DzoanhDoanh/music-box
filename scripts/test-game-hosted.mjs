@@ -178,6 +178,7 @@ try {
   assert.equal(created.schema, 2);
   assert.equal(created.rules.variant, 'CANGUA_V2');
   assert.equal(created.rules.jumpOnOne, true);
+  assert.equal(created.rules.movement, 'SPAWN_ONLY_AUTO_JUMP');
   await memberPage.goto(`${base}/room/${room.id}/games/${game}`);
   await expect(memberPage.getByRole('group', { name: /Bàn cờ/ })).toBeVisible({ timeout: 15000 });
   for (const page of [hostPage, memberPage]) {
@@ -203,6 +204,40 @@ try {
   await expect(hostPage.locator('.game-connection')).toHaveText('Đã kết nối', { timeout: 15000 });
   await expect(memberPage.locator('.game-connection')).toHaveText('Đã kết nối', { timeout: 15000 });
   pass('Desktop creates table; mobile joins; both real private game channels connect');
+
+  for (const [page, label, skin, player] of [
+    [hostPage, 'Siêu nhân', 'HERO', user.id],
+    [memberPage, 'Ninja', 'NINJA', memberSession.user.id],
+  ]) {
+    await page.getByRole('button', { name: 'Tùy chọn bàn', exact: true }).click();
+    await page.getByRole('button', { name: 'Quân của tôi', exact: true }).click();
+    const picker = page.getByRole('dialog', { name: 'Quân của tôi', exact: true });
+    await expect(picker.getByRole('radio')).toHaveCount(16);
+    await picker.getByRole('radio', { name: label, exact: true }).check();
+    await picker.getByRole('button', { name: 'Lưu hình quân', exact: true }).click();
+    await expect(picker).toHaveCount(0);
+    await page
+      .getByRole('dialog', { name: 'Tùy chọn bàn', exact: true })
+      .getByRole('button', { name: 'Đóng', exact: true })
+      .click();
+    for (const viewer of [hostPage, memberPage])
+      await expect(
+        viewer.locator(`[data-piece^="${player}:"][data-skin="${skin}"] [data-hero="${skin}"]`),
+      ).toHaveCount(4, { timeout: 15000 });
+  }
+  const beforeSkin = (await read()).state;
+  const skinKey = randomUUID(),
+    skinBody = { action: 'skin', skin: 'HERO', version: beforeSkin.version };
+  const skinResult = await api(ownerSession, path, skinBody, 200, skinKey);
+  assert.deepEqual(await api(ownerSession, path, skinBody, 200, skinKey), skinResult);
+  assert.deepEqual(skinResult.state, {
+    ...beforeSkin,
+    version: beforeSkin.version + 1,
+    last: { type: 'skin', actor: user.id },
+  });
+  pass(
+    'Sixteen skins available; desktop superhero and mobile ninja synchronize through hosted persistence; duplicate skin receipt preserves gameplay state',
+  );
 
   const versions = [];
   const channel = member

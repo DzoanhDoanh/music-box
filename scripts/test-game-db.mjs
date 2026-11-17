@@ -10,7 +10,7 @@ export async function testGame({ sql, owner, check }) {
   const bundle = await build({
     stdin: {
       contents:
-        "export * from './src/server/services/game'; export * from './src/shared/game/engine'; export {defaultRules} from './src/shared/game/contracts'; export {rpc} from './src/server/repository';",
+        "export * from './src/server/services/game'; export * from './src/shared/game/engine'; export {defaultRules,legacyRules} from './src/shared/game/contracts'; export {pieceSkins} from './src/shared/game/piece-skins'; export {rpc} from './src/server/repository';",
       resolveDir: process.cwd(),
       loader: 'ts',
     },
@@ -30,6 +30,8 @@ export async function testGame({ sql, owner, check }) {
     getLegalMoves,
     settleDueGames,
     defaultRules,
+    legacyRules,
+    pieceSkins,
   } = await import(pathToFileURL(bundlePath).href);
   const people = [owner, ...Array.from({ length: 4 }, () => randomUUID())];
   for (const id of people.slice(1)) await sql`insert into auth.users(id) values(${id})`;
@@ -399,6 +401,10 @@ export async function testGame({ sql, owner, check }) {
   await testCaNgua({ sql, owner, check, store, GameService, defaultRules, transition });
   const { testSafeStarts } = await import('./test-safe-starts-db.mjs');
   await testSafeStarts({ sql, owner, check, store, GameService, defaultRules });
+  const { testCaNguaMovement } = await import('./test-cangua-movement-db.mjs');
+  await testCaNguaMovement({ sql, owner, check, store, GameService, defaultRules });
+  const { testPieceSkins } = await import('./test-piece-skins-db.mjs');
+  await testPieceSkins({ sql, check, store, GameService, defaultRules, legacyRules, pieceSkins });
   const { testManagement } = await import('./test-management-db.mjs');
   await testManagement({ sql, owner, check, store, GameService, defaultRules });
 }

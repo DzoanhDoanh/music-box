@@ -1,12 +1,12 @@
 import { useId, useLayoutEffect, useRef } from 'react';
 import { getLegalMoves, isSafe } from '../../../shared/game/engine';
-import { colorNames, type GameState } from '../../../shared/game/contracts';
+import { colorNames, type GameState, type LegalMove } from '../../../shared/game/contracts';
 import { boardTrack, origins, homeLane, piecePoint } from './board-geometry';
 import { lastPosition, trackLength } from '../../../shared/game/board';
 import { committedMotion, pieceLayout } from './board-motion';
+import PieceFigure, { horseShape } from './PieceFigure';
+import { pieceSkinName } from '../../../shared/game/piece-skins';
 export { track, piecePoint } from './board-geometry';
-const horseShape =
-  'M-.32,.28 Q-.4,.1 -.2,-.04 L-.13,-.22 L-.3,-.24 L-.2,-.42 L.02,-.39 L.1,-.5 L.18,-.3 Q.38,-.18 .27,.1 L.34,.28 Z';
 
 export default function LudoBoard({
   state,
@@ -14,12 +14,14 @@ export default function LudoBoard({
   disabled,
   selectedPiece,
   onMove,
+  onDestination,
 }: {
   state: GameState;
   actor: string;
   disabled: boolean;
   selectedPiece?: number | null;
   onMove: (piece: number) => void;
+  onDestination: (move: LegalMove) => void;
 }) {
   const id = useId().replace(/:/g, '');
   const legal = getLegalMoves(state, actor);
@@ -78,6 +80,11 @@ export default function LudoBoard({
     };
   }, []);
   const layout = pieceLayout(state);
+  const destinations = new Map<number, LegalMove[]>();
+  for (const move of legal) {
+    if (selectedPiece != null && move.piece !== selectedPiece) continue;
+    destinations.set(move.to, [...(destinations.get(move.to) ?? []), move]);
+  }
   return (
     <svg
       ref={board}
@@ -208,23 +215,41 @@ export default function LudoBoard({
         <path d="M7.88,7.12 L7.88,7.88 L7.5,7.5 Z" fill="var(--horse-2)" />
         <path d="M7.12,7.88 L7.88,7.88 L7.5,7.5 Z" fill="var(--horse-3)" />
       </g>
-      {legal
-        .filter((move) => selectedPiece == null || move.piece === selectedPiece)
-        .map((move) => {
-          const p = state.players.find((p) => p.id === actor)!;
-          const [x, y] = piecePoint(p.color, move.to, move.piece, state.schema);
-          return (
-            <circle
-              key={move.piece + ':' + move.moveKind}
-              cx={x}
-              cy={y}
-              r=".43"
-              className="ludo-destination"
-            >
-              <title>{move.moveKind === 'JUMP' ? 'Nhảy tới cửa chuồng' : 'Ô đến'}</title>
-            </circle>
-          );
-        })}
+      {[...destinations].map(([to, moves]) => {
+        const move = moves[0];
+        const p = state.players.find((p) => p.id === actor)!;
+        const [x, y] = piecePoint(p.color, move.to, move.piece, state.schema);
+        const allowed = !disabled && moves.length === 1;
+        const label =
+          moves.length === 1
+            ? `Đi tới ô sáng · ${pieceSkinName(p.skin)} ${move.piece + 1} · ${move.moveKind === 'JUMP' ? 'Nhảy tới cửa chuồng' : to >= trackLength(state.schema) ? 'Vào bậc ' + (to - trackLength(state.schema) + 1) : 'Đi tới ô ' + to}`
+            : `${moves.length} quân có thể tới ô này; chọn quân bằng số ở dưới bàn.`;
+        return (
+          <g
+            key={to}
+            data-destination={to}
+            className="ludo-target"
+            role={moves.length === 1 ? 'button' : undefined}
+            tabIndex={allowed ? 0 : -1}
+            aria-disabled={!allowed}
+            aria-label={label}
+            pointerEvents={allowed ? 'auto' : 'none'}
+            onClick={() => {
+              if (allowed) onDestination(move);
+            }}
+            onKeyDown={(e) => {
+              if (allowed && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                onDestination(move);
+              }
+            }}
+          >
+            <title>{label}</title>
+            <rect x={x - 0.5} y={y - 0.5} width="1" height="1" className="ludo-hit" />
+            <circle cx={x} cy={y} r=".43" className="ludo-destination" />
+          </g>
+        );
+      })}
       {state.players
         .filter((p) => p.status !== 'FORFEITED')
         .flatMap((p) =>
@@ -239,6 +264,7 @@ export default function LudoBoard({
               <g
                 key={p.id + piece}
                 data-piece={p.id + ':' + piece}
+                data-skin={p.skin ?? 'HORSE'}
                 className={
                   'ludo-piece ludo-color-' +
                   p.color +
@@ -252,10 +278,12 @@ export default function LudoBoard({
                   filter: 'url(#' + id + 'shadow)',
                 }}
                 role="button"
+                pointerEvents={allowed ? 'auto' : 'none'}
                 tabIndex={allowed ? 0 : -1}
                 aria-disabled={!allowed}
                 aria-label={
-                  'Ngựa ' +
+                  pieceSkinName(p.skin) +
+                  ' ' +
                   (piece + 1) +
                   ' · ' +
                   colorNames[p.color] +
@@ -283,14 +311,19 @@ export default function LudoBoard({
                 }}
               >
                 <title>
-                  {p.name} · Ngựa {piece + 1}
+                  {p.name} · {pieceSkinName(p.skin)} {piece + 1}
                   {stack > 1 ? ` · ${stack} quân trên ô` : ''}
                 </title>
-                <circle r=".52" className="ludo-hit" />
+                <rect x="-.5" y="-.5" width="1" height="1" className="ludo-hit" />
                 {allowed && <circle r=".47" className="ludo-halo" pointerEvents="none" />}
-                <ellipse cy=".13" rx=".36" ry=".28" className="ludo-piece-shadow" />
-                <path d={horseShape} className="ludo-horse" />
-                <path d={horseShape} fill={'url(#' + id + 'gloss)'} pointerEvents="none" />
+                <ellipse
+                  cy=".13"
+                  rx=".36"
+                  ry=".28"
+                  className="ludo-piece-shadow"
+                  pointerEvents="none"
+                />
+                <PieceFigure skin={p.skin} number={piece + 1} gloss={'url(#' + id + 'gloss)'} />
                 <circle
                   className="ludo-event-ring"
                   pointerEvents="none"
@@ -299,10 +332,6 @@ export default function LudoBoard({
                   stroke="var(--horse)"
                   opacity="0"
                 />
-                <circle cx="-.08" cy="-.28" r=".035" fill="#151321" />
-                <text x="0" y=".25" textAnchor="middle" className="ludo-piece-number">
-                  {piece + 1}
-                </text>
               </g>
             );
           }),

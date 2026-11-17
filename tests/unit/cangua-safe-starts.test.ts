@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { boardCell } from '../../src/shared/game/board';
 import {
   caNguaRulesSchema,
-  defaultRules,
   legacyRules,
   stateSchema,
   type GameRules,
@@ -17,6 +16,8 @@ import {
 
 const ids = [1, 2, 3, 4].map((n) => `10000000-0000-4000-8000-00000000000${n}`);
 const room = '20000000-0000-4000-8000-000000000001';
+// Historical STARTS matches retain counted starts and optional jumps.
+const defaultRules = caNguaRulesSchema.parse({ variant: 'CANGUA_V2', safe: 'STARTS' });
 function fixture(color = 0, rules: GameRules = defaultRules) {
   let s = createInitialGameState(room, room, ids[0], 'An toàn', 'An', rules);
   for (let i = 1; i < 4; i++)

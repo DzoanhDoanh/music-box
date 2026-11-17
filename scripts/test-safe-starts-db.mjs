@@ -2,7 +2,16 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 /** Runs only against the isolated PostgreSQL harness, never hosted rooms. */
-export async function testSafeStarts({ sql, owner, check, store, GameService, defaultRules }) {
+export async function testSafeStarts({
+  sql,
+  owner,
+  check,
+  store,
+  GameService,
+  defaultRules: currentRules,
+}) {
+  const defaultRules = { ...currentRules };
+  delete defaultRules.movement; // Keep regression coverage for published, counted starts.
   const friend = randomUUID();
   await sql`insert into auth.users(id) values(${friend})`;
   const room = (

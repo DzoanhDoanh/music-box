@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { gameFixture, room, match, ids, openGame, nav, fakeMusic } from './fixture';
 import { getLegalMoves } from '../../src/shared/game/engine';
-import { defaultRules } from '../../src/shared/game/contracts';
+import { caNguaRulesSchema } from '../../src/shared/game/contracts';
 
 test('four independent players create, choose seats, ready, finish a whole game and rematch', async ({
   browser,
@@ -27,14 +27,18 @@ test('four independent players create, choose seats, ready, finish a whole game 
     const dialog = pages[0].getByRole('dialog');
     await dialog.getByLabel('Tên bàn', { exact: true }).fill('Đường đua bạn bè');
     await expect(
-      dialog.getByLabel('Ra 1 được nhảy tới cửa chuồng khi không bị chặn'),
-    ).toBeChecked();
-    await expect(dialog.getByRole('combobox', { name: 'Ô xuất quân', exact: true })).toHaveValue(
-      'STARTS',
-    );
+      dialog.getByText('Di chuyển tự động theo từng quân', { exact: true }),
+    ).toBeVisible();
+    await expect(dialog.getByRole('combobox', { name: 'Ô xuất quân', exact: true })).toHaveCount(0);
+    await expect(dialog.getByRole('checkbox')).toHaveCount(0);
     await dialog.getByLabel('Thời gian mỗi lượt').selectOption('90');
     await dialog.getByRole('button', { name: 'Tạo bàn', exact: true }).click();
     await expect(pages[0].getByRole('group', { name: /Bàn cờ/ })).toBeVisible();
+    expect(f.games.get(match)!.rules).toMatchObject({
+      movement: 'SPAWN_ONLY_AUTO_JUMP',
+      safe: 'STARTS',
+      jumpOnOne: true,
+    });
     for (let i = 1; i < 4; i++) {
       await openGame(pages[i]);
       await pages[i]
@@ -65,7 +69,7 @@ test('four independent players create, choose seats, ready, finish a whole game 
           await page
             .locator('.game-move-choices')
             .getByRole('button', {
-              name: move.moveKind === 'JUMP' ? /Nhảy tới cửa chuồng/ : /Đi 1 ô/,
+              name: move.moveKind === 'JUMP' ? /Nhảy tới cửa chuồng/ : /Đi 1 bước/,
             })
             .click();
       }
@@ -230,12 +234,15 @@ test('legal horses are operable with keyboard and surrender requires confirmatio
   expect(f.games.get(match)!.players[0].status).toBe('ACTIVE');
 });
 
-test('v2 shows all home ranks and explicitly chooses a jump without moving on piece selection', async ({
+test('saved v2 shows all home ranks and retains explicit jump choices', async ({
   page,
   context,
 }, info) => {
   const f = gameFixture();
-  const s = f.seed(2, { ...defaultRules, turnSeconds: 90 });
+  const s = f.seed(
+    2,
+    caNguaRulesSchema.parse({ variant: 'CANGUA_V2', safe: 'STARTS', turnSeconds: 90 }),
+  );
   s.players[0].pieces[0] = 2;
   s.dice = 1;
   s.phase = 'MOVE';
@@ -254,7 +261,7 @@ test('v2 shows all home ranks and explicitly chooses a jump without moving on pi
   expect(f.games.get(match)!.players[0].pieces[0]).toBe(2);
   const jump = page.getByRole('button', { name: /Ngựa 1 Nhảy tới cửa chuồng/ });
   await expect(jump).toBeVisible();
-  await expect(page.getByRole('button', { name: /Ngựa 1 Đi 1 ô/ })).toBeFocused();
+  await expect(page.getByRole('button', { name: /Ngựa 1 Đi 1 bước/ })).toBeFocused();
   if (info.project.name === 'desktop') {
     for (const [width, height] of [
       [1366, 768],

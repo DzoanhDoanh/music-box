@@ -1,8 +1,12 @@
-.game-hub {
+.game-hub,
+.game-piece-preview,
+.piece-picker {
   --horse-0: #ef727b;
   --horse-1: #68cda5;
   --horse-2: #f1c55d;
   --horse-3: #79a9f5;
+}
+.game-hub {
   min-width: 0;
   container-type: inline-size;
 }
@@ -316,6 +320,11 @@
   font-size: 12px;
   margin: 0;
 }
+.game-move-choices:not(.choosing-move) .game-choice-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
 .ludo-safe {
   fill: none;
   stroke: var(--text);
@@ -348,6 +357,153 @@
   fill: #141321;
   font-weight: 900;
 }
+.game-piece-preview {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  overflow: visible;
+}
+.game-skin-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.game-skin-trigger .game-piece-preview {
+  width: 28px;
+  height: 28px;
+}
+.piece-picker {
+  display: grid;
+  gap: 16px;
+}
+.dialog-content.piece-picker-dialog {
+  display: flex;
+  flex-direction: column;
+  max-width: 560px;
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  overflow: hidden;
+}
+.piece-picker-dialog > h2,
+.piece-picker-dialog > p {
+  flex-shrink: 0;
+}
+.piece-picker-dialog > p {
+  margin: 8px 0 16px;
+}
+.piece-picker-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  margin: 0 -4px;
+}
+.piece-picker .game-piece-preview {
+  width: 44px;
+  height: 44px;
+}
+.piece-picker-preview {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--horse) 8%, var(--panel));
+}
+.piece-picker-preview > div {
+  display: flex;
+  gap: 8px;
+}
+.piece-picker-preview > span {
+  color: var(--muted);
+  text-align: center;
+  font-size: 12px;
+}
+.piece-picker-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.piece-picker-group legend {
+  margin-bottom: 10px;
+  font-weight: 700;
+  font-size: 13px;
+}
+.piece-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.piece-picker-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  cursor: pointer;
+}
+.piece-picker-option > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.piece-picker-option > span {
+  font-size: 12px;
+  text-align: center;
+}
+.piece-picker-option.selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+}
+.piece-picker-option:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.piece-picker-option:has(input:disabled) {
+  opacity: 0.65;
+  cursor: wait;
+}
+.piece-picker-check {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  color: var(--accent);
+  pointer-events: none;
+}
+.piece-picker-actions {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.piece-picker-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 16px;
+}
+@media (max-width: 420px) {
+  .piece-picker-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .piece-picker-preview .game-piece-preview {
+    width: 42px;
+    height: 42px;
+  }
+}
 .ludo-halo {
   fill: none;
   stroke: var(--accent);
@@ -355,10 +511,16 @@
   stroke-dasharray: 0.1 0.08;
   animation: ludo-halo 1.4s linear infinite;
 }
-.ludo-piece.can-move {
+.ludo-piece.can-move,
+.ludo-target[aria-disabled='false'] {
   cursor: pointer;
+  touch-action: manipulation;
 }
-.ludo-piece:focus-visible .ludo-hit {
+.ludo-target {
+  outline: none;
+}
+.ludo-piece:focus-visible .ludo-hit,
+.ludo-target:focus-visible .ludo-hit {
   fill: var(--accent);
   fill-opacity: 0.3;
   stroke: var(--text);
@@ -544,6 +706,21 @@
 }
 .game-rules-fields label {
   font-size: 12px;
+}
+.game-fixed-rules {
+  grid-column: 1 / -1;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.game-fixed-rules p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+.game-fixed-rules .button {
+  margin-top: 10px;
 }
 .game-rules-fields .game-check {
   flex-direction: row;
@@ -1312,19 +1489,19 @@ body:has(.game-screen) .chat-dock .theme-switch {
   }
   .game-match .game-move-choices {
     grid-column: 2;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px;
     margin: 0;
   }
   .game-match .game-move-choices .button {
-    padding: 5px 1px;
-    min-height: 44px;
-    font-size: 10px;
+    padding: 6px 4px;
+    min-height: 48px;
+    font-size: 12px;
     gap: 2px;
     border-radius: 8px;
   }
   .game-match .game-move-choices small {
-    font-size: 8px;
+    font-size: 10px;
   }
   .game-match .game-turn-card:not(:has(.game-dice-row)) {
     display: flex;
@@ -1492,7 +1669,7 @@ body:has(.game-screen) .chat-dock .theme-switch {
   line-height: 1.3;
 }
 @media (max-height: 540px) and (min-width: 640px) {
-  .game-match .game-arena:has(.choosing-move) {
+  .game-match .game-arena:has(.game-move-choices) {
     grid-template-columns: minmax(0, 1fr) minmax(280px, 36%);
   }
 }
