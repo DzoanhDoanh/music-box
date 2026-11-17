@@ -1,6 +1,6 @@
 # Cờ cá ngựa ROOMTUNE
 
-**Bản sửa hình bàn theo ảnh (17/11):** đã có ở source và bản thử 5180, chưa đưa lên public.
+**Bản sửa hình bàn theo ảnh (17/11):** đã public lúc 11:26 giờ Việt Nam; bản thử 5180 cũng đã cập nhật.
 Ô tròn, nhà chờ tròn, chuồng 1–6 đầy đủ và dấu cửa/xuất quân được sửa cho cả bàn cũ lẫn mới.
 Xem [đối chiếu và kiểm chứng](GAME_BOARD_REFERENCE.md).
 
