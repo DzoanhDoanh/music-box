@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const rulesSchema = z
+export const legacyRulesSchema = z
   .object({
     entry: z.enum(['SIX', 'ONE_OR_SIX']).default('SIX'),
     safe: z.enum(['STARS', 'STARTS', 'NONE']).default('STARS'),
@@ -11,8 +11,24 @@ export const rulesSchema = z
     maxMisses: z.number().int().min(2).max(5).default(3),
   })
   .strict();
+export const caNguaRulesSchema = legacyRulesSchema.extend({
+  variant: z.literal('CANGUA_V2'),
+  jumpOnOne: z.boolean().default(true),
+  safe: z.literal('NONE').default('NONE'),
+  captureBonus: z.literal(false).default(false),
+  finishBonus: z.literal(false).default(false),
+  threeSixes: z.literal(false).default(false),
+});
+// Missing variant is persisted Ludo v1, never silently reinterpreted as v2.
+export const rulesSchema = z.union([caNguaRulesSchema, legacyRulesSchema]);
 export type GameRules = z.infer<typeof rulesSchema>;
-export const defaultRules = rulesSchema.parse({});
+export const legacyRules = legacyRulesSchema.parse({});
+export const defaultRules = caNguaRulesSchema.parse({ variant: 'CANGUA_V2' });
+export const isCaNgua = (rules: GameRules): rules is z.infer<typeof caNguaRulesSchema> =>
+  'variant' in rules && rules.variant === 'CANGUA_V2';
+export const moveKindSchema = z.enum(['STEP', 'JUMP']);
+export type MoveKind = z.infer<typeof moveKindSchema>;
+export type LegalMove = { piece: number; from: number; to: number; moveKind?: MoveKind };
 export const colorNames = ['Đỏ', 'Xanh lá', 'Vàng', 'Xanh dương'] as const;
 export const statusNames = {
   WAITING: 'Đợi người chơi',
@@ -28,7 +44,7 @@ export const playerSchema = z
     name: z.string().min(1).max(40),
     color: z.number().int().min(0).max(3),
     ready: z.boolean(),
-    pieces: z.array(z.number().int().min(-1).max(57)).length(4),
+    pieces: z.array(z.number().int().min(-1).max(61)).length(4),
     status: z.enum(['ACTIVE', 'FINISHED', 'FORFEITED']),
     rank: z.number().int().min(1).max(4).nullable(),
     misses: z.number().int().min(0).max(5),
@@ -36,7 +52,7 @@ export const playerSchema = z
   .strict();
 export const stateSchema = z
   .object({
-    schema: z.literal(1),
+    schema: z.union([z.literal(1), z.literal(2)]),
     id: z.uuid(),
     room: z.uuid(),
     host: z.uuid(),
@@ -57,8 +73,9 @@ export const stateSchema = z
         type: z.string().max(40),
         actor: z.string().max(40),
         piece: z.number().int().min(0).max(3).optional(),
-        from: z.number().int().min(-1).max(57).optional(),
-        to: z.number().int().min(-1).max(57).optional(),
+        from: z.number().int().min(-1).max(61).optional(),
+        to: z.number().int().min(-1).max(61).optional(),
+        moveKind: moveKindSchema.optional(),
         dice: z.number().int().min(1).max(6).optional(),
         captures: z.array(z.string().max(40)).max(12).optional(),
       })
@@ -66,6 +83,26 @@ export const stateSchema = z
   })
   .strict()
   .superRefine((s, ctx) => {
+    if ((s.schema === 2) !== isCaNgua(s.rules))
+      ctx.addIssue({ code: 'custom', message: 'Rules/state version mismatch' });
+    if (
+      s.schema === 1 &&
+      (s.players.some((p) => p.pieces.some((n) => n > 57)) ||
+        (s.last.from ?? -1) > 57 ||
+        (s.last.to ?? -1) > 57 ||
+        s.last.moveKind !== undefined)
+    )
+      ctx.addIssue({ code: 'custom', message: 'Invalid legacy position/action' });
+    if (s.schema === 2) {
+      const cells = new Set<string>();
+      for (const p of s.players)
+        for (const n of p.pieces) {
+          if (n === -1 || p.status === 'FORFEITED') continue;
+          const cell = n < 56 ? 'track:' + ((p.color * 14 + n) % 56) : p.id + ':' + n;
+          if (cells.has(cell)) ctx.addIssue({ code: 'custom', message: 'Occupied square' });
+          cells.add(cell);
+        }
+    }
     if (
       new Set(s.players.map((p) => p.id)).size !== s.players.length ||
       new Set(s.players.map((p) => p.color)).size !== s.players.length
@@ -126,7 +163,14 @@ export const gameCommandSchema = z.discriminatedUnion('action', [
       version,
     })
     .strict(),
-  z.object({ action: z.literal('move'), piece: z.number().int().min(0).max(3), version }).strict(),
+  z
+    .object({
+      action: z.literal('move'),
+      piece: z.number().int().min(0).max(3),
+      moveKind: moveKindSchema.optional(),
+      version,
+    })
+    .strict(),
   z.object({ action: z.enum(['watch', 'unwatch']) }).strict(),
 ]);
 export type GameCommand = z.infer<typeof gameCommandSchema>;

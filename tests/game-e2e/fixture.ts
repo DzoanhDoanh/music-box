@@ -1,13 +1,19 @@
 import { expect, type BrowserContext, type Page, type WebSocketRoute } from '@playwright/test';
 import { defaultSettings, type Snapshot } from '../../src/shared/contracts';
 import { chooseRoomTab } from '../helpers/room-navigation';
-import { createInitialGameState, reconcileGame, transition } from '../../src/shared/game/engine';
 import {
-  defaultRules,
+  createInitialGameState,
+  reconcileGame,
+  transition,
+  getLegalMoves,
+} from '../../src/shared/game/engine';
+import {
+  legacyRules as defaultRules,
   gameCommandSchema,
   createGameSchema,
   type GameSnapshot,
   type GameState,
+  type GameRules,
 } from '../../src/shared/game/contracts';
 import { AppError } from '../../src/shared/domain';
 
@@ -140,13 +146,16 @@ export function gameFixture() {
       ]);
     broadcast(s.id);
   };
-  const seed = (count = 4) => {
-    let s = createInitialGameState(match, room, ids[0], 'Đường đua bạn bè', names[0], {
+  const seed = (
+    count = 4,
+    rules: GameRules = {
       ...defaultRules,
       threeSixes: false,
       finishBonus: true,
       turnSeconds: 90,
-    });
+    },
+  ) => {
+    let s = createInitialGameState(match, room, ids[0], 'Đường đua bạn bè', names[0], rules);
     for (let i = 1; i < count; i++)
       s = transition(
         s,
@@ -267,7 +276,28 @@ export function gameFixture() {
           }
           const player = current.players.find((p) => p.id === actor),
             progress = player?.pieces.find((n) => n !== 57) ?? -1;
-          const dice = progress === -1 ? 6 : Math.min(6, 57 - progress);
+          // Deterministic browser scenario: one active player completes their circuit
+          // while the others roll 2 in the nest. Random multiplayer games are tested
+          // separately by the engine suite; greedy best-roll bots can capture forever.
+          const leader = current.players.find((p) => p.status === 'ACTIVE');
+          const dice =
+            current.schema === 1
+              ? progress === -1
+                ? 6
+                : Math.min(6, 57 - progress)
+              : actor !== leader?.id
+                ? 2
+                : [1, 2, 3, 4, 5, 6]
+                    .map((face) => ({
+                      face,
+                      to: Math.max(
+                        -1,
+                        ...getLegalMoves({ ...current, phase: 'MOVE', dice: face }).map(
+                          (m) => m.to,
+                        ),
+                      ),
+                    }))
+                    .sort((a, b) => b.to - a.to || b.face - a.face)[0].face;
           const next = transition(
             current,
             actor,

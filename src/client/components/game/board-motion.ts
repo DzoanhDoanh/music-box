@@ -1,4 +1,5 @@
 import type { GameState } from '../../../shared/game/contracts';
+import { lastPosition } from '../../../shared/game/board';
 import { piecePoint } from './board-geometry';
 
 export type PiecePosition = { x: number; y: number; scale: number; stack: number };
@@ -6,7 +7,11 @@ export function pieceLayout(state: GameState) {
   const all = state.players
     .filter((p) => p.status !== 'FORFEITED')
     .flatMap((p) =>
-      p.pieces.map((n, i) => ({ key: p.id + ':' + i, n, point: piecePoint(p.color, n, i) })),
+      p.pieces.map((n, i) => ({
+        key: p.id + ':' + i,
+        n,
+        point: piecePoint(p.color, n, i, state.schema),
+      })),
     );
   return new Map(
     all.map((piece) => {
@@ -38,6 +43,7 @@ export function committedMotion(before: GameState, after: GameState) {
   const plans: { key: string; frames: Keyframe[]; duration: number }[] = [];
   if (
     before.id !== after.id ||
+    before.schema !== after.schema ||
     before.round !== after.round ||
     after.version !== before.version + 1 ||
     !['piece_moved', 'finished'].includes(after.last.type)
@@ -53,13 +59,16 @@ export function committedMotion(before: GameState, after: GameState) {
     from === undefined ||
     to === undefined ||
     to < 0 ||
-    to > 57 ||
-    (from === -1 ? to !== 0 : to <= from || to - from > 6) ||
+    to > lastPosition(after.schema) ||
+    (from === -1
+      ? to !== 0
+      : to <= from ||
+        to - from > (after.schema === 2 && after.last.moveKind === 'JUMP' ? 14 : 6)) ||
     before.players.find((p) => p.id === actor)?.pieces[piece] !== from ||
     mover.pieces[piece] !== to
   )
     return plans;
-  const duration = Math.max(360, (to - from) * 115);
+  const duration = Math.min(1100, Math.max(360, (to - from) * 115));
   for (const [key, end] of next) {
     const start = old.get(key);
     if (!start || transform(start) === transform(end)) continue;
@@ -67,7 +76,7 @@ export function committedMotion(before: GameState, after: GameState) {
     if (key === actor + ':' + piece) {
       let last = start;
       for (let n = from + 1; n <= to; n++) {
-        const point = piecePoint(mover.color, n, piece);
+        const point = piecePoint(mover.color, n, piece, after.schema);
         const target = n === to ? end : { x: point[0], y: point[1], scale: 1, stack: 1 };
         frames.push({
           transform: transform({

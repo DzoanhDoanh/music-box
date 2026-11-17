@@ -8,7 +8,7 @@ import {
   transition,
 } from '../../src/shared/game/engine';
 import {
-  defaultRules,
+  legacyRules as defaultRules,
   gameCommandSchema,
   stateSchema,
   type EngineAction,
@@ -17,7 +17,7 @@ import {
 const ids = [1, 2, 3, 4, 5].map((n) => '10000000-0000-4000-8000-' + String(n).padStart(12, '0'));
 const room = '20000000-0000-4000-8000-000000000001';
 function fixture(count = 4) {
-  let s = createInitialGameState(room, room, ids[0], 'Bàn thử', 'Người 1');
+  let s = createInitialGameState(room, room, ids[0], 'Bàn thử', 'Người 1', defaultRules);
   for (let i = 1; i < count; i++)
     s = transition(
       s,

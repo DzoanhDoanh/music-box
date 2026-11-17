@@ -86,6 +86,19 @@ const request = (body?: unknown, suffix = '/' + game, settings = env) =>
     settings,
   );
 describe('trusted game API', () => {
+  it('computes v2 jumps on the server and rejects them when the route is blocked', async () => {
+    state.state.players[0].pieces[0] = 2;
+    state.state.phase = 'MOVE';
+    state.state.dice = 1;
+    const body = { action: 'move', version: state.state.version, piece: 0, moveKind: 'JUMP' };
+    const response = await request(body);
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as GameSnapshot).state.players[0].pieces[0]).toBe(13);
+    state.state.players[1].pieces[0] = 47;
+    calls = [];
+    expect((await request(body)).status).toBe(409);
+    expect(calls.some((c) => c.path.endsWith('/game_commit'))).toBe(false);
+  });
   it('does not call game SQL on a minute tick while the feature is disabled', async () => {
     await worker.scheduled({ cron: '* * * * *' }, { ...env, ENABLE_LUDO: undefined });
     expect(calls).toEqual([]);
@@ -114,6 +127,7 @@ describe('trusted game API', () => {
     { action: 'roll', version: 4, actor: other },
     { action: 'move', version: 4, piece: 0, to: 57 },
     { action: 'move', version: 4, piece: 4 },
+    { action: 'move', version: 4, piece: 0, moveKind: 'TELEPORT' },
     { action: 'roll', version: -1 },
     { action: 'sync', version: 4 },
     { action: 'roll', version: 4, state: {} },

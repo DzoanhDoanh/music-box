@@ -11,13 +11,16 @@ import {
 import type { RoomStore } from '../ports';
 
 /** Rejection sampling avoids modulo bias. This module is never imported by the client. */
-export function secureDice(): number {
+export function secureIndex(count: number): number {
+  if (!Number.isInteger(count) || count < 1 || count > 6) throw new AppError('INVALID_INPUT', 400);
   const buffer = new Uint8Array(1);
+  const limit = 256 - (256 % count);
   do {
     crypto.getRandomValues(buffer);
-  } while (buffer[0] >= 252);
-  return (buffer[0] % 6) + 1;
+  } while (buffer[0] >= limit);
+  return buffer[0] % count;
 }
+export const secureDice = () => secureIndex(6) + 1;
 export class GameService {
   constructor(
     private store: RoomStore,
@@ -165,6 +168,7 @@ export class GameService {
       command,
       now,
       command.action === 'roll' ? secureDice() : undefined,
+      command.action === 'start' && state.schema === 2 ? secureIndex(state.players.length) : 0,
     );
     return this.commit(room, game, key, command, state.version, next);
   }

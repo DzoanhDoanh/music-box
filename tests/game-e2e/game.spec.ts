@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { gameFixture, room, match, ids, openGame, nav, fakeMusic } from './fixture';
 import { getLegalMoves } from '../../src/shared/game/engine';
+import { defaultRules } from '../../src/shared/game/contracts';
 
 test('four independent players create, choose seats, ready, finish a whole game and rematch', async ({
   browser,
@@ -18,14 +19,14 @@ test('four independent players create, choose seats, ready, finish a whole game 
     for (let i = 0; i < 4; i++) {
       await f.attach(contexts[i], i);
       pages.push(await contexts[i].newPage());
+      await pages[i].emulateMedia({ reducedMotion: 'reduce' });
     }
     await pages[0].goto(`/room/${room}`);
     await nav(pages[0], 'Trò chơi');
     await pages[0].getByRole('button', { name: /Tạo bàn mới/ }).click();
     const dialog = pages[0].getByRole('dialog');
     await dialog.getByLabel('Tên bàn', { exact: true }).fill('Đường đua bạn bè');
-    await dialog.getByLabel('Ba lần 6 liên tiếp mất lượt').uncheck();
-    await dialog.getByLabel('Thêm lượt khi một quân về đích').check();
+    await expect(dialog.getByLabel('Ra 1 được nhảy tới cửa chuồng khi đường trống')).toBeChecked();
     await dialog.getByLabel('Thời gian mỗi lượt').selectOption('90');
     await dialog.getByRole('button', { name: 'Tạo bàn', exact: true }).click();
     await expect(pages[0].getByRole('group', { name: /Bàn cờ/ })).toBeVisible();
@@ -44,7 +45,7 @@ test('four independent players create, choose seats, ready, finish a whole game 
     await expect.poll(() => f.games.get(match)?.status).toBe('PLAYING');
     const beforeMusic = structuredClone(f.music.playback);
     let actions = 0;
-    while (f.games.get(match)!.status === 'PLAYING' && actions++ < 400) {
+    while (f.games.get(match)!.status === 'PLAYING' && actions++ < 600) {
       const s = f.games.get(match)!,
         page = pages[ids.indexOf(s.turn!)];
       if (s.phase === 'ROLL')
@@ -55,6 +56,13 @@ test('four independent players create, choose seats, ready, finish a whole game 
           .locator('.game-move-choices')
           .getByRole('button', { name: new RegExp('Ngựa ' + (move.piece + 1)) })
           .click();
+        if (getLegalMoves(s).filter((m) => m.piece === move.piece).length > 1)
+          await page
+            .locator('.game-move-choices')
+            .getByRole('button', {
+              name: move.moveKind === 'JUMP' ? /Nhảy tới cửa chuồng/ : /Đi 1 ô/,
+            })
+            .click();
       }
       await expect.poll(() => f.games.get(match)!.version).toBeGreaterThan(s.version);
     }
@@ -202,4 +210,75 @@ test('legal horses are operable with keyboard and surrender requires confirmatio
   await expect(page.getByRole('dialog', { name: 'Đầu hàng ván này?' })).toBeVisible();
   await page.keyboard.press('Escape');
   expect(f.games.get(match)!.players[0].status).toBe('ACTIVE');
+});
+
+test('v2 shows all home ranks and explicitly chooses a jump without moving on piece selection', async ({
+  page,
+  context,
+}, info) => {
+  const f = gameFixture();
+  const s = f.seed(2, { ...defaultRules, turnSeconds: 90 });
+  s.players[0].pieces[0] = 2;
+  s.dice = 1;
+  s.phase = 'MOVE';
+  s.version++;
+  f.commit(s);
+  await f.attach(context, 0);
+  await openGame(page);
+  await expect(page.locator('[data-track]')).toHaveCount(56);
+  await expect(page.locator('[data-gate]')).toHaveCount(4);
+  await expect(page.locator('[data-home]')).toHaveCount(24);
+  const horse = page
+    .getByRole('group', { name: /Bàn cờ/ })
+    .getByRole('button', { name: /Ngựa 1 · Đỏ/ });
+  await horse.focus();
+  await page.keyboard.press('Enter');
+  expect(f.games.get(match)!.players[0].pieces[0]).toBe(2);
+  const jump = page.getByRole('button', { name: /Ngựa 1 Nhảy tới cửa chuồng/ });
+  await expect(jump).toBeVisible();
+  await expect(page.getByRole('button', { name: /Ngựa 1 Đi 1 ô/ })).toBeFocused();
+  if (info.project.name === 'desktop') {
+    for (const [width, height] of [
+      [1366, 768],
+      [1024, 768],
+      [390, 844],
+      [320, 568],
+      [844, 390],
+    ]) {
+      await page.setViewportSize({ width, height });
+      for (const selector of ['.game-board-frame', '.game-controls', '.game-move-choices']) {
+        const rect = (await page.locator(selector).boundingBox())!;
+        expect(rect.y, selector).toBeGreaterThanOrEqual(0);
+        expect(rect.y + rect.height, selector).toBeLessThanOrEqual(height + 1);
+        expect(rect.x + rect.width, selector).toBeLessThanOrEqual(width + 1);
+      }
+      expect(await page.evaluate(() => scrollY)).toBe(0);
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+  for (const theme of ['dark', 'light']) {
+    await page.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    expect(
+      (
+        await new AxeBuilder({ page })
+          .include('.game-hub')
+          .withTags(['wcag2a', 'wcag2aa'])
+          .analyze()
+      ).violations,
+    ).toEqual([]);
+    await page.screenshot({ path: info.outputPath('cangua-v2-' + theme + '.png'), fullPage: true });
+  }
+  await jump.click();
+  await expect.poll(() => f.games.get(match)!.players[0].pieces[0]).toBe(13);
+  expect(f.games.get(match)!.last.moveKind).toBe('JUMP');
+  await page.reload();
+  await expect(page.getByRole('button', { name: /Ngựa 1 · Đỏ/ })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
+  expect(f.games.get(match)!.players[0].pieces[0]).toBe(13);
+  expect(f.musicCommands).toEqual([]);
 });

@@ -26,9 +26,11 @@ import {
   colorNames,
   defaultRules,
   rulesSchema,
+  isCaNgua,
   statusNames,
   type GameRules,
   type GameSnapshot,
+  type LegalMove,
 } from '../../../shared/game/contracts';
 import { calculateRanking, getLegalMoves } from '../../../shared/game/engine';
 import { api } from '../../lib/api';
@@ -55,6 +57,7 @@ function RulesFields({
   onChange: (r: GameRules) => void;
   disabled?: boolean;
 }) {
+  const v2 = isCaNgua(rules);
   return (
     <fieldset disabled={disabled} className="game-rules-fields">
       <legend>Luật của bàn</legend>
@@ -68,17 +71,29 @@ function RulesFields({
           <option value="ONE_OR_SIX">Tung được 1 hoặc 6</option>
         </select>
       </label>
-      <label>
-        Ô an toàn
-        <select
-          value={rules.safe}
-          onChange={(e) => onChange({ ...rules, safe: e.target.value as GameRules['safe'] })}
-        >
-          <option value="STARS">Ô xuất phát và ô sao</option>
-          <option value="STARTS">Chỉ ô xuất phát</option>
-          <option value="NONE">Không có</option>
-        </select>
-      </label>
+      {!v2 && (
+        <label>
+          Ô an toàn
+          <select
+            value={rules.safe}
+            onChange={(e) => onChange({ ...rules, safe: e.target.value as GameRules['safe'] })}
+          >
+            <option value="STARS">Ô xuất phát và ô sao</option>
+            <option value="STARTS">Chỉ ô xuất phát</option>
+            <option value="NONE">Không có</option>
+          </select>
+        </label>
+      )}
+      {v2 && (
+        <label className="game-check">
+          <input
+            type="checkbox"
+            checked={rules.jumpOnOne}
+            onChange={(e) => onChange({ ...rules, jumpOnOne: e.target.checked })}
+          />
+          Ra 1 được nhảy tới cửa chuồng khi đường trống
+        </label>
+      )}
       <label>
         Thời gian mỗi lượt
         <select
@@ -107,26 +122,70 @@ function RulesFields({
           ))}
         </select>
       </label>
-      {(
-        [
-          ['threeSixes', 'Ba lần 6 liên tiếp mất lượt'],
-          ['captureBonus', 'Thêm lượt khi đá quân'],
-          ['finishBonus', 'Thêm lượt khi một quân về đích'],
-        ] as const
-      ).map(([key, label]) => (
-        <label key={key} className="game-check">
-          <input
-            type="checkbox"
-            checked={rules[key]}
-            onChange={(e) => onChange({ ...rules, [key]: e.target.checked })}
-          />
-          {label}
-        </label>
-      ))}
+      {!v2 &&
+        (
+          [
+            ['threeSixes', 'Ba lần 6 liên tiếp mất lượt'],
+            ['captureBonus', 'Thêm lượt khi đá quân'],
+            ['finishBonus', 'Thêm lượt khi một quân về đích'],
+          ] as const
+        ).map(([key, label]) => (
+          <label key={key} className="game-check">
+            <input
+              type="checkbox"
+              checked={rules[key]}
+              onChange={(e) => onChange({ ...rules, [key]: e.target.checked })}
+            />
+            {label}
+          </label>
+        ))}
     </fieldset>
   );
 }
 function RulesHelp({ rules }: { rules: GameRules }) {
+  if (isCaNgua(rules))
+    return (
+      <div className="game-guide">
+        <p>
+          <strong>Cờ cá ngựa ROOMTUNE · Bộ luật v2</strong>
+        </p>
+        <ol>
+          <li>
+            Mỗi người 4 ngựa; ra {rules.entry === 'SIX' ? '6' : '1 hoặc 6'} để xuất vào ô trống.
+            Không đứng chồng quân.
+          </li>
+          <li>
+            Đi một vòng 56 ô. Ô cuối là cửa chuồng của mình; ô kế tiếp trên đường chung là ô xuất
+            quân. Đến cửa phải dừng, lần tung sau mới vào chuồng.
+          </li>
+          <li>
+            Không vượt bất kỳ quân nào. Đối thủ cách 3 ô: ra 2 được đi, ra 3 đá, ra 4–6 bị chặn.
+            Không có ô an toàn trên đường chung.
+          </li>
+          <li>
+            {rules.jumpOnOne
+              ? 'Ra 1: chọn đi một ô hoặc nhảy tới cửa chuồng kế tiếp nếu cả đoạn và ô cửa đều trống. Nhảy không đá quân và không đi quá cửa của mình.'
+              : 'Đã tắt nhảy cửa chuồng; ra 1 chỉ đi một ô.'}
+          </li>
+          <li>
+            Đứng ở cửa: ra số nào vào bậc đó nếu đường vào trống. Đã ở bậc n: phải ra n + 1 để lên
+            đúng một bậc; không vượt hoặc chồng ngựa trong chuồng.
+          </li>
+          <li>
+            Xếp đủ bốn ngựa ở bậc 6, 5, 4, 3 để hoàn thành. Chỉ ra 6 được tung thêm; không phạt ba
+            lần 6 liên tiếp.
+          </li>
+          <li>
+            Chọn ngẫu nhiên người đi đầu. Mỗi lượt {rules.turnSeconds} giây cho cả tung và đi;{' '}
+            {rules.maxMisses} lượt vắng liên tiếp thì đầu hàng. Mở lại giữ nguyên xúc xắc và thời
+            hạn.
+          </li>
+        </ol>
+        <p>
+          Quản trò có thể tạm dừng. Về phòng nhạc hoặc chat vẫn giữ ghế; đầu hàng là thao tác riêng.
+        </p>
+      </div>
+    );
   return (
     <div className="game-guide">
       <p>
@@ -228,6 +287,41 @@ export default function GameHub({
     navigate('/room/' + room + '/games' + (id ? '/' + encodeURIComponent(id) : ''));
   };
   const state = game.data?.state;
+  const [moveChoice, setMoveChoice] = useState<{
+    game: string;
+    version: number;
+    piece: number;
+  } | null>(null);
+  const choicePanel = useRef<HTMLDivElement>(null);
+  const selectedPiece =
+    state && moveChoice?.game === state.id && moveChoice.version === state.version
+      ? moveChoice.piece
+      : null;
+  useEffect(() => {
+    if (selectedPiece !== null) choicePanel.current?.querySelector('button')?.focus();
+  }, [selectedPiece]);
+  const sendMove = (move: LegalMove) =>
+    game.send({
+      action: 'move',
+      piece: move.piece,
+      ...(move.moveKind ? { moveKind: move.moveKind } : {}),
+    });
+  const choosePiece = async (piece: number) => {
+    if (!state) return;
+    const choices = getLegalMoves(state, actor).filter((m) => m.piece === piece);
+    if (choices.length === 1) await sendMove(choices[0]);
+    else if (choices.length > 1) setMoveChoice({ game: state.id, version: state.version, piece });
+  };
+  const moveLabel = (m: LegalMove) =>
+    m.from === -1
+      ? 'Ra quân'
+      : m.moveKind === 'JUMP'
+        ? `Nhảy tới cửa chuồng · ${m.to - m.from} ô`
+        : state?.schema === 2 && m.to >= 56
+          ? `Vào bậc ${m.to - 55}`
+          : state?.schema === 1 && m.to === 57
+            ? 'Về đích'
+            : 'Đi ' + state?.dice + ' ô';
   useEffect(() => {
     const timer = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -519,6 +613,9 @@ export default function GameHub({
               <div className="game-match-meta">
                 <h3>
                   {state.name} <span className="badge">Ván {state.round}</span>
+                  <span className="badge">
+                    {state.schema === 2 ? 'Cờ cá ngựa v2' : 'Ludo v1 · Bàn cũ'}
+                  </span>
                 </h3>
                 <span className="game-connection">{game.connection}</span>
               </div>
@@ -548,7 +645,9 @@ export default function GameHub({
                                 : 'Chưa sẵn sàng'
                               : p.rank
                                 ? 'Hạng ' + p.rank + (p.status === 'FORFEITED' ? ' · Đầu hàng' : '')
-                                : p.pieces.filter((n) => n === 57).length + '/4 về đích'
+                                : state.schema === 2
+                                  ? p.pieces.filter((n) => n >= 56).length + '/4 vào chuồng'
+                                  : p.pieces.filter((n) => n === 57).length + '/4 về đích'
                             : 'Mời bạn vào chơi'}
                         </small>
                       </div>
@@ -600,8 +699,9 @@ export default function GameHub({
                       state={state}
                       actor={actor}
                       disabled={busy}
+                      selectedPiece={selectedPiece}
                       onMove={(piece) => {
-                        void game.send({ action: 'move', piece }).catch(() => {});
+                        void choosePiece(piece).catch(() => {});
                       }}
                     />
                   </div>
@@ -611,6 +711,7 @@ export default function GameHub({
                     <span className="game-eyebrow">
                       {statusNames[state.status]}
                       {waiting || ended ? '' : ' · Ván ' + state.round}
+                      {state.schema === 1 ? ' · Luật v1' : ' · Cờ cá ngựa'}
                     </span>
                     <h3 aria-live="polite" aria-atomic="true">
                       {waiting
@@ -659,23 +760,45 @@ export default function GameHub({
                           </AsyncButton>
                         )}
                         {moves.length > 0 && (
-                          <div className="game-move-choices">
-                            {moves.map((m) => (
+                          <div
+                            className={
+                              'game-move-choices' + (selectedPiece !== null ? ' choosing-move' : '')
+                            }
+                            ref={choicePanel}
+                          >
+                            {selectedPiece !== null && (
+                              <p className="game-choice-hint">
+                                Ngựa {selectedPiece + 1}: chọn cách đi
+                              </p>
+                            )}
+                            {(selectedPiece !== null
+                              ? moves.filter((m) => m.piece === selectedPiece)
+                              : moves.filter(
+                                  (m, i) =>
+                                    moves.findIndex((other) => other.piece === m.piece) === i,
+                                )
+                            ).map((m) => (
                               <AsyncButton
-                                key={m.piece}
+                                key={m.piece + ':' + m.moveKind}
                                 disabled={busy}
-                                onClick={() => game.send({ action: 'move', piece: m.piece })}
+                                onClick={() =>
+                                  selectedPiece !== null ? sendMove(m) : choosePiece(m.piece)
+                                }
                               >
                                 Ngựa {m.piece + 1}
                                 <small>
-                                  {m.from === -1
-                                    ? 'Ra quân'
-                                    : m.to === 57
-                                      ? 'Về đích'
-                                      : 'Đi ' + state.dice + ' ô'}
+                                  {selectedPiece === null &&
+                                  moves.filter((other) => other.piece === m.piece).length > 1
+                                    ? 'Chọn đi 1 ô hoặc nhảy'
+                                    : moveLabel(m)}
                                 </small>
                               </AsyncButton>
                             ))}
+                            {selectedPiece !== null && (
+                              <Button disabled={busy} onClick={() => setMoveChoice(null)}>
+                                Chọn ngựa khác
+                              </Button>
+                            )}
                           </div>
                         )}
                       </>

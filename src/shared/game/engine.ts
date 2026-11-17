@@ -1,12 +1,17 @@
 import { AppError } from '../domain';
 import {
   defaultRules,
+  isCaNgua,
   stateSchema,
   type EngineAction,
   type GamePlayer,
   type GameRules,
   type GameState,
+  type LegalMove,
+  type MoveKind,
 } from './contracts';
+import { boardCell, trackLength, nextGate } from './board';
+export { boardCell } from './board';
 
 function fail(code = 'GAME_ACTION_INVALID'): never {
   throw new AppError(code, 409);
@@ -20,7 +25,7 @@ export function createInitialGameState(
   rules: GameRules = defaultRules,
 ): GameState {
   return stateSchema.parse({
-    schema: 1,
+    schema: isCaNgua(rules) ? 2 : 1,
     id,
     room,
     host: actor,
@@ -51,16 +56,10 @@ function newPlayer(id: string, name: string, color: number): GamePlayer {
     misses: 0,
   };
 }
-export function boardCell(color: number, progress: number) {
-  return (color * 13 + progress) % 52;
-}
 export function isSafe(cell: number, rules: GameRules) {
   return rules.safe !== 'NONE' && (cell % 13 === 0 || (rules.safe === 'STARS' && cell % 13 === 8));
 }
-export function getLegalMoves(
-  state: GameState,
-  actor = state.turn,
-): { piece: number; from: number; to: number }[] {
+export function getLegalMoves(state: GameState, actor = state.turn): LegalMove[] {
   const p = state.players.find((p) => p.id === actor);
   if (
     state.status !== 'PLAYING' ||
@@ -72,6 +71,7 @@ export function getLegalMoves(
   )
     return [];
   const dice = state.dice;
+  if (state.schema === 2) return caNguaMoves(state, p, dice);
   return p.pieces.flatMap((from, piece) => {
     if (from === 57) return [];
     const to =
@@ -83,8 +83,56 @@ export function getLegalMoves(
     return to >= 0 && to <= 57 ? [{ piece, from, to }] : [];
   });
 }
-export function validateMove(state: GameState, actor: string, piece: number) {
-  return getLegalMoves(state, actor).find((m) => m.piece === piece) ?? fail('GAME_ILLEGAL_MOVE');
+/** Occupancy uses the common route, not each opponent's relative progress. */
+function caNguaMoves(state: GameState, player: GamePlayer, dice: number): LegalMove[] {
+  const occupants = new Map<number, string>();
+  for (const p of state.players) {
+    if (p.status === 'FORFEITED') continue;
+    for (const n of p.pieces) if (n >= 0 && n < 56) occupants.set(boardCell(p.color, n, 2), p.id);
+  }
+  const occupied = (n: number) => occupants.get(boardCell(player.color, n, 2));
+  const clear = (from: number, to: number) => {
+    for (let n = from + 1; n <= to; n++) if (occupied(n)) return false;
+    return true;
+  };
+  return player.pieces.flatMap((from, piece): LegalMove[] => {
+    const step = (to: number): LegalMove[] => [{ piece, from, to, moveKind: 'STEP' }];
+    if (from === -1)
+      return (dice === 6 || (state.rules.entry === 'ONE_OR_SIX' && dice === 1)) && !occupied(0)
+        ? step(0)
+        : [];
+    if (from >= 55) {
+      const to = from === 55 ? 55 + dice : from + 1;
+      if (from === 61 || (from > 55 && dice !== to - 55)) return [];
+      for (let n = from + 1; n <= to; n++) if (player.pieces.includes(n)) return [];
+      return step(to);
+    }
+    const moves: LegalMove[] = [];
+    const to = from + dice;
+    if (to <= 55 && clear(from, to - 1) && occupied(to) !== player.id) moves.push(...step(to));
+    const gate = nextGate(from);
+    if (
+      dice === 1 &&
+      isCaNgua(state.rules) &&
+      state.rules.jumpOnOne &&
+      gate !== to &&
+      clear(from, gate)
+    )
+      moves.push({ piece, from, to: gate, moveKind: 'JUMP' });
+    return moves;
+  });
+}
+export function validateMove(
+  state: GameState,
+  actor: string,
+  piece: number,
+  moveKind: MoveKind = 'STEP',
+) {
+  return (
+    getLegalMoves(state, actor).find(
+      (m) => m.piece === piece && (m.moveKind ?? 'STEP') === moveKind,
+    ) ?? fail('GAME_ILLEGAL_MOVE')
+  );
 }
 export function getNextPlayer(state: GameState, current = state.turn) {
   const start = state.players.findIndex((p) => p.id === current);
@@ -94,8 +142,10 @@ export function getNextPlayer(state: GameState, current = state.turn) {
   }
   return null;
 }
-export function checkWinCondition(player: GamePlayer) {
-  return player.pieces.every((n) => n === 57);
+export function checkWinCondition(player: GamePlayer, schema: GameState['schema'] = 1) {
+  return schema === 2
+    ? [58, 59, 60, 61].every((n) => player.pieces.includes(n))
+    : player.pieces.every((n) => n === 57);
 }
 export function calculateRanking(state: GameState) {
   return [...state.players].sort((a, b) => (a.rank ?? 5) - (b.rank ?? 5) || a.color - b.color);
@@ -128,11 +178,13 @@ function nextTurn(state: GameState, now: number, extra = false) {
 }
 export function resolveCapture(state: GameState, player: GamePlayer, position: number) {
   const captured: string[] = [];
-  if (position >= 52 || isSafe(boardCell(player.color, position), state.rules)) return captured;
+  const length = trackLength(state.schema);
+  const cell = boardCell(player.color, position, state.schema);
+  if (position >= length || isSafe(cell, state.rules)) return captured;
   for (const opponent of state.players) {
     if (opponent.id === player.id || opponent.status !== 'ACTIVE') continue;
     opponent.pieces.forEach((n, i) => {
-      if (n >= 0 && n < 52 && boardCell(opponent.color, n) === boardCell(player.color, position)) {
+      if (n >= 0 && n < length && boardCell(opponent.color, n, state.schema) === cell) {
         opponent.pieces[i] = -1;
         captured.push(opponent.id + ':' + i);
       }
@@ -160,15 +212,21 @@ export function evaluateDiceRoll(state: GameState, actor: string, dice: number, 
     nextTurn(state, now, dice === 6);
   }
 }
-export function applyMove(state: GameState, actor: string, piece: number, now: number) {
-  const move = validateMove(state, actor, piece);
+export function applyMove(
+  state: GameState,
+  actor: string,
+  piece: number,
+  now: number,
+  moveKind?: MoveKind,
+) {
+  const move = validateMove(state, actor, piece, moveKind);
   const p = state.players.find((p) => p.id === actor)!;
   const dice = state.dice!;
   p.pieces[piece] = move.to;
   p.misses = 0;
   const captures = resolveCapture(state, p, move.to);
   state.last = { type: 'piece_moved', actor, ...move, dice, captures };
-  if (checkWinCondition(p)) {
+  if (checkWinCondition(p, state.schema)) {
     p.status = 'FINISHED';
     p.rank = state.players.filter((p) => p.status === 'FINISHED').length;
   }
@@ -247,6 +305,7 @@ export function transition(
   action: EngineAction,
   now: number,
   dice?: number,
+  firstPlayer = 0,
 ): GameState {
   if (action.version !== input.version) fail('GAME_STALE');
   const s = structuredClone(input);
@@ -285,6 +344,7 @@ export function transition(
     case 'settings':
       requireHost();
       if (!waiting) fail();
+      if (isCaNgua(action.rules) !== (s.schema === 2)) fail('INVALID_INPUT');
       s.rules = action.rules;
       s.players.forEach((p) => (p.ready = false));
       waitingStatus(s);
@@ -293,7 +353,9 @@ export function transition(
       requireHost();
       if (s.status !== 'READY') fail('GAME_NOT_READY');
       s.status = 'PLAYING';
-      s.turn = s.players[0].id;
+      if (!Number.isInteger(firstPlayer) || firstPlayer < 0 || firstPlayer >= s.players.length)
+        fail('INVALID_INPUT');
+      s.turn = s.players[s.schema === 2 ? firstPlayer : 0].id;
       s.phase = 'ROLL';
       s.deadline = now + s.rules.turnSeconds * 1000;
       break;
@@ -302,7 +364,7 @@ export function transition(
       evaluateDiceRoll(s, actor, dice, now);
       break;
     case 'move':
-      applyMove(s, actor, action.piece, now);
+      applyMove(s, actor, action.piece, now, action.moveKind);
       break;
     case 'leave':
       if (!waiting || !player) fail();

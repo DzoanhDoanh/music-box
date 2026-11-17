@@ -1,4 +1,4 @@
-import { boardCell } from '../../../shared/game/engine';
+import { boardCell, trackLength, type BoardVersion } from '../../../shared/game/board';
 // A continuous 52-cell clockwise cross. First start is the red quadrant's exit.
 export const track: [number, number][] = [
   [1, 6],
@@ -54,6 +54,29 @@ export const track: [number, number][] = [
   [0, 7],
   [0, 6],
 ];
+const quarter: [number, number][] = [
+  [0, 6],
+  [1, 6],
+  [2, 6],
+  [3, 6],
+  [4, 6],
+  [5, 6],
+  [6, 6],
+  [6, 5],
+  [6, 4],
+  [6, 3],
+  [6, 2],
+  [6, 1],
+  [6, 0],
+  [7, 0],
+];
+export const caNguaTrack: [number, number][] = [0, 1, 2, 3].flatMap((color) =>
+  quarter.map(([x, y]) => {
+    for (let i = 0; i < color; i++) [x, y] = [14 - y, x];
+    return [x, y] as [number, number];
+  }),
+);
+export const boardTrack = (schema: BoardVersion) => (schema === 2 ? caNguaTrack : track);
 export const origins = [
   [0, 0],
   [9, 0],
@@ -67,11 +90,18 @@ export const homeLane = (color: number, n: number): [number, number] =>
     [13 - n, 7],
     [7, 13 - n],
   ][color] as [number, number];
-export function piecePoint(color: number, n: number, piece: number): [number, number] {
+export function piecePoint(
+  color: number,
+  n: number,
+  piece: number,
+  schema: BoardVersion = 1,
+): [number, number] {
   if (n === -1) {
     const [x, y] = origins[color];
     return [x + 1.8 + (piece % 2) * 2.3, y + 1.8 + Math.floor(piece / 2) * 2.3];
   }
-  if (n < 52) return track[boardCell(color, n)].map((v) => v + 0.5) as [number, number];
-  return homeLane(color, n - 52).map((v) => v + 0.5) as [number, number];
+  const length = trackLength(schema);
+  if (n < length)
+    return boardTrack(schema)[boardCell(color, n, schema)].map((v) => v + 0.5) as [number, number];
+  return homeLane(color, n - length).map((v) => v + 0.5) as [number, number];
 }

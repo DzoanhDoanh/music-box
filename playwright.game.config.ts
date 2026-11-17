@@ -6,7 +6,8 @@ export default defineConfig({
   timeout: 60000,
   use: { baseURL: 'http://127.0.0.1:5175', trace: 'retain-on-failure' },
   webServer: {
-    command: 'npm run dev -- --port 5175 --strictPort --mode test-game',
+    command:
+      'node node_modules/vite/bin/vite.js --config vite.game-fixture.config.ts --mode test-game',
     url: 'http://127.0.0.1:5175',
     reuseExistingServer: false,
     env: {

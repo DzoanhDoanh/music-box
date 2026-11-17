@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialGameState } from '../../src/shared/game/engine';
+import { legacyRules } from '../../src/shared/game/contracts';
 import { committedMotion, pieceLayout } from '../../src/client/components/game/board-motion';
 import { piecePoint } from '../../src/client/components/game/board-geometry';
 
@@ -11,6 +12,7 @@ function move(from = 10, to = 16) {
     actor,
     'Test',
     'An',
+    legacyRules,
   );
   before.players[0].pieces[0] = from;
   const after = structuredClone(before);

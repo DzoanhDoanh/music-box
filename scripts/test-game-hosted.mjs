@@ -45,6 +45,13 @@ function pass(label) {
   checks.push(label);
   console.log('PASS ' + label);
 }
+async function openGames(page, mobile = false) {
+  await page
+    .getByRole('button', { name: mobile ? 'Thêm mục trong phòng' : 'Giải trí', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Trò chơi', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Tạo bàn mới/ })).toBeVisible({ timeout: 20000 });
+}
 async function api(session, path, body, expected = 200, key = randomUUID(), origin = base) {
   const response = await fetch(`${origin}/api/v1${path}`, {
     method: body ? 'POST' : 'GET',
@@ -141,19 +148,20 @@ try {
   await hostPage.getByLabel('Email', { exact: true }).fill(email);
   await hostPage.getByLabel('Mật khẩu', { exact: true }).fill(password);
   await hostPage.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-  await expect(hostPage.getByRole('button', { name: 'Trò chơi', exact: true }).first()).toBeVisible(
-    { timeout: 20000 },
-  );
+  await expect(hostPage.getByRole('button', { name: 'Giải trí', exact: true })).toBeVisible({
+    timeout: 20000,
+  });
   await memberPage.goto(`${base}/join?code=${room.code}`);
   await memberPage.getByLabel('Tên của bạn', { exact: true }).fill('Bạn chơi thử');
   await memberPage.getByLabel(/PIN/).fill('8426');
   await memberPage.getByRole('button', { name: 'Cùng nghe nhạc' }).click();
   await expect(
-    memberPage.getByRole('button', { name: 'Trò chơi', exact: true }).last(),
+    memberPage.getByRole('button', { name: 'Thêm mục trong phòng', exact: true }),
   ).toBeVisible({ timeout: 20000 });
   pass('Real password login and anonymous member PIN join through desktop/mobile UI');
   const musicBefore = await api(ownerSession, `/rooms/${room.id}/snapshot`);
-  await hostPage.getByRole('button', { name: 'Trò chơi', exact: true }).first().click();
+  await openGames(memberPage, true);
+  await openGames(hostPage);
   await hostPage.getByRole('button', { name: /Tạo bàn mới/ }).click();
   const dialog = hostPage.getByRole('dialog');
   await dialog.getByLabel('Tên bàn', { exact: true }).fill('Bàn thử hosted');
@@ -166,8 +174,30 @@ try {
   const game = games[0].id,
     path = `/rooms/${room.id}/games/${game}`;
   const read = () => api(ownerSession, path);
+  const created = (await read()).state;
+  assert.equal(created.schema, 2);
+  assert.equal(created.rules.variant, 'CANGUA_V2');
+  assert.equal(created.rules.jumpOnOne, true);
   await memberPage.goto(`${base}/room/${room.id}/games/${game}`);
   await expect(memberPage.getByRole('group', { name: /Bàn cờ/ })).toBeVisible({ timeout: 15000 });
+  for (const page of [hostPage, memberPage]) {
+    await expect(page.locator('[data-track]')).toHaveCount(56);
+    await expect(page.locator('[data-home]')).toHaveCount(24);
+    for (const color of [0, 1, 2, 3]) {
+      await expect(page.locator(`[data-gate="${color}"]`)).toHaveAttribute(
+        'data-track',
+        String((color * 14 + 55) % 56),
+      );
+      await expect(page.locator(`[data-start="${color}"]`)).toHaveAttribute(
+        'data-track',
+        String(color * 14),
+      );
+      await expect(page.locator(`[data-home="${color}:6"] text`)).toHaveText('6');
+    }
+  }
+  pass(
+    'New hosted table uses schema 2 / CANGUA_V2; desktop/mobile show 56 squares, correct gates/starts and all six home ranks',
+  );
   await memberPage.locator('.game-player').nth(1).getByRole('button', { name: 'Ngồi đây' }).click();
   await expect.poll(async () => (await read()).state.players.length, { timeout: 15000 }).toBe(2);
   await expect(hostPage.locator('.game-connection')).toHaveText('Đã kết nối', { timeout: 15000 });
@@ -310,7 +340,7 @@ try {
   await expect(
     musicPage.getByRole('button', { name: 'Rời phòng', exact: true }).first(),
   ).toBeVisible({ timeout: 15000 });
-  await musicPage.getByRole('button', { name: 'Trò chơi', exact: true }).first().click();
+  await openGames(musicPage);
   await expect(musicPage).toHaveURL(`${base}/room/${room.id}/games`);
   await musicPage.reload();
   await expect(musicPage.getByRole('button', { name: /Tạo bàn mới/ })).toBeVisible({

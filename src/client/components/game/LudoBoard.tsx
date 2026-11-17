@@ -1,7 +1,8 @@
 import { useId, useLayoutEffect, useRef } from 'react';
 import { getLegalMoves, isSafe } from '../../../shared/game/engine';
 import { colorNames, type GameState } from '../../../shared/game/contracts';
-import { track, origins, homeLane, piecePoint } from './board-geometry';
+import { boardTrack, origins, homeLane, piecePoint } from './board-geometry';
+import { lastPosition, trackLength } from '../../../shared/game/board';
 import { committedMotion, pieceLayout } from './board-motion';
 export { track, piecePoint } from './board-geometry';
 
@@ -9,15 +10,20 @@ export default function LudoBoard({
   state,
   actor,
   disabled,
+  selectedPiece,
   onMove,
 }: {
   state: GameState;
   actor: string;
   disabled: boolean;
+  selectedPiece?: number | null;
   onMove: (piece: number) => void;
 }) {
   const id = useId().replace(/:/g, '');
   const legal = getLegalMoves(state, actor);
+  const v2 = state.schema === 2;
+  const track = boardTrack(state.schema);
+  const quarter = trackLength(state.schema) / 4;
   const board = useRef<SVGSVGElement>(null);
   const previous = useRef(state);
   const animations = useRef<Animation[]>([]);
@@ -38,7 +44,9 @@ export default function LudoBoard({
     }
     if (
       plans.length &&
-      (state.last.captures?.length || state.last.type === 'finished' || state.last.to === 57)
+      (state.last.captures?.length ||
+        state.last.type === 'finished' ||
+        state.last.to === lastPosition(state.schema))
     ) {
       const effect = board.current?.querySelector(
         '[data-piece="' + state.last.actor + ':' + state.last.piece + '"] .ludo-event-ring',
@@ -112,54 +120,101 @@ export default function LudoBoard({
           ))}
         </g>
       ))}
-      {track.map(([x, y], i) => (
-        <g key={i} className={i % 13 === 0 ? 'ludo-color-' + Math.floor(i / 13) : ''}>
-          <rect
-            x={x + 0.035}
-            y={y + 0.035}
-            width=".93"
-            height=".93"
-            rx=".14"
-            className={'ludo-cell ' + (i % 13 === 0 ? 'ludo-start' : '')}
-          />
-          {isSafe(i, state.rules) && (
-            <text x={x + 0.5} y={y + 0.66} textAnchor="middle" className="ludo-star">
-              ✧
-            </text>
-          )}
-        </g>
-      ))}
+      {track.map(([x, y], i) => {
+        const start = i % quarter === 0;
+        const gate = v2 && i % quarter === quarter - 1;
+        const color = start ? i / quarter : ((i + 1) / quarter) % 4;
+        return (
+          <g
+            key={i}
+            data-track={i}
+            data-gate={gate ? color : undefined}
+            data-start={start ? color : undefined}
+            className={start || gate ? 'ludo-color-' + color : ''}
+          >
+            <title>
+              {start
+                ? 'Xuất quân · ' + colorNames[color]
+                : gate
+                  ? 'Cửa chuồng · ' + colorNames[color]
+                  : 'Đường đi'}
+            </title>
+            <rect
+              x={x + 0.035}
+              y={y + 0.035}
+              width=".93"
+              height=".93"
+              rx=".14"
+              className={'ludo-cell ' + (start ? 'ludo-start' : gate ? 'ludo-gate' : '')}
+            />
+            {v2 && (start || gate) && (
+              <path
+                d="M-.23,0 H.23 M.04,-.18 L.23,0 L.04,.18"
+                transform={`translate(${x + 0.5} ${y + 0.5}) rotate(${color * 90})`}
+                className="ludo-route-arrow"
+              />
+            )}
+            {isSafe(i, state.rules) && (
+              <text x={x + 0.5} y={y + 0.66} textAnchor="middle" className="ludo-star">
+                ✧
+              </text>
+            )}
+          </g>
+        );
+      })}
       {[0, 1, 2, 3].map((color) => (
         <g key={color} className={'ludo-color-' + color}>
           {[0, 1, 2, 3, 4, 5].map((n) => {
             const [x, y] = homeLane(color, n);
             return (
-              <rect
-                key={n}
-                x={x + 0.04}
-                y={y + 0.04}
-                width=".92"
-                height=".92"
-                rx=".13"
-                className="ludo-lane"
-              />
+              <g key={n} data-home={color + ':' + (n + 1)}>
+                <rect
+                  x={x + 0.04}
+                  y={y + 0.04}
+                  width=".92"
+                  height=".92"
+                  rx=".13"
+                  className="ludo-lane"
+                />
+                {v2 && (
+                  <text x={x + 0.5} y={y + 0.65} textAnchor="middle" className="ludo-lane-number">
+                    {n + 1}
+                  </text>
+                )}
+              </g>
             );
           })}
         </g>
       ))}
-      <path d="M6,6 L7.5,7.5 L6,9 Z" fill="var(--horse-0)" />
-      <path d="M6,6 L9,6 L7.5,7.5 Z" fill="var(--horse-1)" />
-      <path d="M9,6 L9,9 L7.5,7.5 Z" fill="var(--horse-2)" />
-      <path d="M6,9 L9,9 L7.5,7.5 Z" fill="var(--horse-3)" />
-      <circle cx="7.5" cy="7.5" r=".55" className="ludo-finish" />
+      {!v2 && (
+        <>
+          <path d="M6,6 L7.5,7.5 L6,9 Z" fill="var(--horse-0)" />
+          <path d="M6,6 L9,6 L7.5,7.5 Z" fill="var(--horse-1)" />
+          <path d="M9,6 L9,9 L7.5,7.5 Z" fill="var(--horse-2)" />
+          <path d="M6,9 L9,9 L7.5,7.5 Z" fill="var(--horse-3)" />
+        </>
+      )}
+      <circle cx="7.5" cy="7.5" r={v2 ? '.42' : '.55'} className="ludo-finish" />
       <text x="7.5" y="7.72" textAnchor="middle" className="ludo-trophy">
         ♛
       </text>
-      {legal.map((move) => {
-        const p = state.players.find((p) => p.id === actor)!;
-        const [x, y] = piecePoint(p.color, move.to, move.piece);
-        return <circle key={move.piece} cx={x} cy={y} r=".43" className="ludo-destination" />;
-      })}
+      {legal
+        .filter((move) => selectedPiece == null || move.piece === selectedPiece)
+        .map((move) => {
+          const p = state.players.find((p) => p.id === actor)!;
+          const [x, y] = piecePoint(p.color, move.to, move.piece, state.schema);
+          return (
+            <circle
+              key={move.piece + ':' + move.moveKind}
+              cx={x}
+              cy={y}
+              r=".43"
+              className="ludo-destination"
+            >
+              <title>{move.moveKind === 'JUMP' ? 'Nhảy tới cửa chuồng' : 'Ô đến'}</title>
+            </circle>
+          );
+        })}
       {state.players
         .filter((p) => p.status !== 'FORFEITED')
         .flatMap((p) =>
@@ -179,7 +234,7 @@ export default function LudoBoard({
                   p.color +
                   (allowed ? ' can-move' : '') +
                   (moved ? ' just-moved' : '') +
-                  (moved && n === 57 ? ' just-finished' : '') +
+                  (moved && n === lastPosition(state.schema) ? ' just-finished' : '') +
                   (state.last.captures?.includes(p.id + ':' + piece) ? ' just-captured' : '')
                 }
                 style={{
@@ -197,7 +252,15 @@ export default function LudoBoard({
                   ' · ' +
                   p.name +
                   ' · ' +
-                  (n === -1 ? 'chưa ra quân' : n === 57 ? 'đã về đích' : 'ô ' + n)
+                  (n === -1
+                    ? 'chưa ra quân'
+                    : v2 && n >= 56
+                      ? 'chuồng bậc ' + (n - 55)
+                      : v2 && n === 55
+                        ? 'cửa chuồng của mình'
+                        : n === lastPosition(state.schema)
+                          ? 'đã về đích'
+                          : 'ô ' + n)
                 }
                 onClick={() => {
                   if (allowed) onMove(piece);

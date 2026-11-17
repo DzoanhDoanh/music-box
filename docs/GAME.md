@@ -1,5 +1,16 @@
 # Cờ cá ngựa ROOMTUNE
 
+Ngày 17/11/2026 đã triển khai [bộ luật cờ cá ngựa v2](GAME_RULES_V2.md) trong source:
+chặn đường, đá đúng số bước, lựa chọn nhảy khi ra 1, dừng ở cửa rồi xếp chuồng 6–5–4–3.
+Bàn mới có 56 ô; ô cuối là cửa lên chuồng, ô tiếp theo là ô xuất quân. Sáu bậc chuồng đều
+hiển thị và có số. Xem [rà soát và kiểm thử v2](GAME_RULES_AUDIT.md).
+
+**Chưa phát hành v2:** public vẫn dùng bản trước. Migration bổ sung
+`202611170001_cangua_v2.sql` mới được kiểm thử trên PostgreSQL cô lập, chưa áp dụng hosted.
+Không dùng bản thử v2 ghi vào database chung khi public chưa hỗ trợ v2. Khi phát hành cần
+backup/dry-run migration và đổi API/UI cùng đợt. Ván cũ giữ schema/luật v1, cả khi chơi lại;
+muốn dùng luật mới cần tạo bàn mới. Mục luật v1 dưới đây dùng để đọc ván/lịch sử cũ.
+
 Tính năng phát hành tại **https://roomtune.dzoanh.me** cùng các chức năng nghe nhạc.
 Trong phòng, chọn **Trò chơi → Tạo bàn mới**. Cả giao diện và API được bật qua hai flags
 `VITE_ENABLE_LUDO=true` và `ENABLE_LUDO=true`. Xem [kiểm thử public](GAME_PUBLIC_CHECK.md).
@@ -107,7 +118,7 @@ không có tùy chọn test dice trong API production.
 | `POST /games/:game`                | Lệnh strict và receipt key                                   |
 
 Lệnh có `version`: `join/color` kèm `color:0..3`, `ready` kèm boolean, `settings` kèm rules,
-`move` kèm `piece:0..3`, hoặc `start/roll/leave/surrender/pause/resume/cancel/rematch`.
+`move` kèm `piece:0..3` và `moveKind:STEP|JUMP` cho v2, hoặc `start/roll/leave/surrender/pause/resume/cancel/rematch`.
 `watch/unwatch` không có version, chỉ cập nhật hiện diện, không đổi ván hay tung xúc xắc.
 Không nhận actor, điểm đến, dice hoặc board từ client.
 

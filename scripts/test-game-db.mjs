@@ -10,7 +10,7 @@ export async function testGame({ sql, owner, check }) {
   const bundle = await build({
     stdin: {
       contents:
-        "export * from './src/server/services/game'; export * from './src/shared/game/engine'; export {rpc} from './src/server/repository';",
+        "export * from './src/server/services/game'; export * from './src/shared/game/engine'; export {defaultRules} from './src/shared/game/contracts'; export {rpc} from './src/server/repository';",
       resolveDir: process.cwd(),
       loader: 'ts',
     },
@@ -22,8 +22,15 @@ export async function testGame({ sql, owner, check }) {
   await mkdir('.roomtune', { recursive: true });
   const bundlePath = resolve('.roomtune/game-test-bundle.mjs');
   await writeFile(bundlePath, bundle.outputFiles[0].text);
-  const { GameService, reconcileGame, rpc, transition, getLegalMoves, settleDueGames } =
-    await import(pathToFileURL(bundlePath).href);
+  const {
+    GameService,
+    reconcileGame,
+    rpc,
+    transition,
+    getLegalMoves,
+    settleDueGames,
+    defaultRules,
+  } = await import(pathToFileURL(bundlePath).href);
   const people = [owner, ...Array.from({ length: 4 }, () => randomUUID())];
   for (const id of people.slice(1)) await sql`insert into auth.users(id) values(${id})`;
   const room = (
@@ -388,4 +395,6 @@ export async function testGame({ sql, owner, check }) {
       assert.equal((await service(owner).read(room.id, state.id)).results.length, ended.round);
     },
   );
+  const { testCaNgua } = await import('./test-cangua-db.mjs');
+  await testCaNgua({ sql, owner, check, store, GameService, defaultRules, transition });
 }
