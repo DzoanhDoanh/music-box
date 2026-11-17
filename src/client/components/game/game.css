@@ -1388,7 +1388,7 @@ body:has(.game-screen) .chat-dock .theme-switch {
 }
 @media (min-width: 761px) and (min-height: 541px) {
   .game-depth .ludo-board-surface {
-    transform: scale(0.98);
+    transform: skewY(-1.5deg) scale(0.98);
     transform-origin: center;
     filter: none;
   }
