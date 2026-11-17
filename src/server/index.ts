@@ -25,6 +25,8 @@ import { PlaylistService } from './services/library';
 import { MaintenanceService, SearchService } from './services/search';
 import { RecommendationService } from './services/recommendations';
 import { wheelCommandSchema, type WheelSnapshot, type WheelResult } from '../shared/wheel';
+import { BauCuaService } from './services/bau-cua';
+import { commandSchema as bauCommandSchema } from '../shared/bau-cua/contracts';
 
 type Services = {
   auth: AuthService;
@@ -35,6 +37,7 @@ type Services = {
   recommendations: RecommendationService;
   chat: ChatService;
   game: GameService;
+  bau: BauCuaService;
   store: SupabaseRepository;
 };
 type Context = {
@@ -89,6 +92,7 @@ app.get('/api/v1/system/health', (c) =>
         ? 'configured'
         : 'configuration_required',
     youtubeConfigured: Boolean(c.env.YOUTUBE_API_KEY),
+    bauCuaEnabled: c.env.ENABLE_BAU_CUA === 'true',
     version: '0.1.0',
   }),
 );
@@ -114,6 +118,7 @@ app.use('/api/v1/*', async (c, next) => {
     recommendations: new RecommendationService(store, youtube, actor),
     chat: new ChatService(store, actor),
     game: new GameService(store, actor),
+    bau: new BauCuaService(store, actor),
     store,
   });
   await next();
@@ -126,6 +131,51 @@ const pageNumber = (value?: string) =>
     .max(10000)
     .parse(value ?? 0);
 const requestKey = (value?: string) => uuid.parse(value);
+app.use('/api/v1/rooms/:id/bau-cua', async (c, next) => {
+  if (c.env.ENABLE_BAU_CUA !== 'true') throw new AppError('NOT_FOUND', 404);
+  await next();
+});
+app.use('/api/v1/rooms/:id/bau-cua/*', async (c, next) => {
+  if (c.env.ENABLE_BAU_CUA !== 'true') throw new AppError('NOT_FOUND', 404);
+  await next();
+});
+app.get('/api/v1/rooms/:id/bau-cua', async (c) =>
+  c.json(await c.get('services').bau.read(uuid.parse(c.req.param('id')), null)),
+);
+app.post('/api/v1/rooms/:id/bau-cua', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .bau.execute(
+        uuid.parse(c.req.param('id')),
+        null,
+        requestKey(c.req.header('Idempotency-Key')),
+        bauCommandSchema.parse(await c.req.json()),
+      ),
+  ),
+);
+app.get('/api/v1/rooms/:id/bau-cua/notices', async (c) =>
+  c.json(await c.get('services').bau.notices(uuid.parse(c.req.param('id')))),
+);
+app.get('/api/v1/rooms/:id/bau-cua/:table', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .bau.read(uuid.parse(c.req.param('id')), uuid.parse(c.req.param('table'))),
+  ),
+);
+app.post('/api/v1/rooms/:id/bau-cua/:table', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .bau.execute(
+        uuid.parse(c.req.param('id')),
+        uuid.parse(c.req.param('table')),
+        requestKey(c.req.header('Idempotency-Key')),
+        bauCommandSchema.parse(await c.req.json()),
+      ),
+  ),
+);
 app.post('/api/v1/rooms/:id/delete', async (c) =>
   c.json(
     await c

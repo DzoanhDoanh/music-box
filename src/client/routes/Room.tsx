@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, matchPath, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
@@ -49,6 +49,8 @@ import {
 } from '../components/ui';
 const HostPlayer = lazy(() => import('../components/HostPlayer')),
   GameHub = lazy(() => import('../components/game/GameHub')),
+  BauParty = lazy(() => import('../components/bau-cua/BauParty')),
+  BauNotifications = lazy(() => import('../components/bau-cua/BauNotifications')),
   LuckyWheel = lazy(() => import('../components/LuckyWheel')),
   ListenerPlayer = lazy(() => import('../components/ListenerPlayer')),
   SearchPanel = lazy(() => import('../components/SearchPanel')),
@@ -56,6 +58,7 @@ const HostPlayer = lazy(() => import('../components/HostPlayer')),
   Library = lazy(() => import('../components/Library')),
   AdminPanel = lazy(() => import('../components/AdminPanel'));
 const ludoEnabled = import.meta.env.VITE_ENABLE_LUDO === 'true';
+const bauEnabled = import.meta.env.VITE_ENABLE_BAU_CUA === 'true';
 const wheelEnabled = import.meta.env.VITE_ENABLE_WHEEL === 'true';
 export default function RoomPage() {
   const [hostVisible, setHostVisible] = useState(false);
@@ -73,7 +76,10 @@ export default function RoomPage() {
     [mine, setMine] = useState(false),
     [drag, setDrag] = useState<{ source: string; target: string } | null>(null);
   const [roomCode, setRoomCode] = useState('');
-  const gamePage = ludoEnabled && route.pathname.startsWith(`/room/${id}/games`);
+  const gamePage = (ludoEnabled || bauEnabled) && route.pathname.startsWith(`/room/${id}/games`);
+  const bauRoute = matchPath('/room/:id/games/bau-cua/:table?', route.pathname);
+  const bauPage = bauEnabled && !!bauRoute;
+  const gameLobby = gamePage && route.pathname.replace(/\/$/, '') === `/room/${id}/games`;
   const wheelPage = wheelEnabled && new URLSearchParams(route.search).get('tool') === 'wheel';
   const tab = gamePage ? 'games' : wheelPage ? 'wheel' : musicTab;
   const setTab = (next: Tab) => {
@@ -148,7 +154,9 @@ export default function RoomPage() {
     { id: 'search', label: 'Tìm & thêm bài', icon: Search },
     { id: 'library', label: 'Thư viện của tôi', icon: Heart },
     { id: 'history', label: 'Lịch sử phát', icon: History },
-    ...(ludoEnabled ? [{ id: 'games' as const, label: 'Trò chơi', icon: Gamepad2 }] : []),
+    ...(ludoEnabled || bauEnabled
+      ? [{ id: 'games' as const, label: 'Trò chơi', icon: Gamepad2 }]
+      : []),
     ...(wheelEnabled
       ? [{ id: 'wheel' as const, label: 'Vòng quay may mắn', icon: CircleDot }]
       : []),
@@ -197,6 +205,11 @@ export default function RoomPage() {
   }
   return (
     <div className={'dashboard' + (gamePage ? ' game-screen' : wheelPage ? ' wheel-screen' : '')}>
+      {bauEnabled && !accessRevoked && !sessionLost && (
+        <Suspense fallback={null}>
+          <BauNotifications room={id} actor={snapshot.me} />
+        </Suspense>
+      )}
       <aside className="sidebar">
         <Brand />
         <div className="sidebar-room">
@@ -515,12 +528,32 @@ export default function RoomPage() {
             </div>
             <div className="room-content">
               <ReorderVotePanel snapshot={snapshot} execute={send} />
+              {bauEnabled && gameLobby && (
+                <Link className="party-game-card panel" to={`/room/${id}/games/bau-cua`}>
+                  <span aria-hidden="true">🦀</span>
+                  <div>
+                    <small>MỚI · COIN GIẢI TRÍ</small>
+                    <h2>Bầu Cua Party</h2>
+                    <p>Cùng mở bát, thử vận may và cầm cái với bạn bè.</p>
+                  </div>
+                  <ArrowUp size={22} aria-hidden="true" />
+                </Link>
+              )}
+              {bauPage && (
+                <Suspense fallback={<Loading />}>
+                  <BauParty
+                    key={playerKey + ':' + (bauRoute.params.table ?? 'lobby')}
+                    snapshot={snapshot}
+                    table={bauRoute.params.table ?? null}
+                  />
+                </Suspense>
+              )}
               {ludoEnabled && (
                 <Suspense fallback={tab === 'games' ? <Loading /> : null}>
                   <GameHub
                     key={playerKey}
                     snapshot={snapshot}
-                    visible={tab === 'games'}
+                    visible={tab === 'games' && !bauPage}
                     onShow={() => setTab('games')}
                   />
                 </Suspense>

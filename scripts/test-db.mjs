@@ -426,6 +426,8 @@ try {
   await testChat({ sql, owner, check });
   const { testGame } = await import('./test-game-db.mjs');
   await testGame({ sql, owner, check });
+  const { testBauCua } = await import('./test-bau-cua-db.mjs');
+  await testBauCua({ sql, owner, check });
   await check('backup and restore into a separate database preserves records', async () => {
     const binary = process.env.PG_BIN
       ? process.env.PG_BIN.replace(/[\\/]?$/, '/')
@@ -474,6 +476,19 @@ try {
         'game_events',
         'game_results',
         'game_spectators',
+        'coin_wallets',
+        'coin_ledger',
+        'coin_claims',
+        'bau_cua_settings',
+        'bau_cua_tables',
+        'bau_cua_table_members',
+        'bau_cua_dealer_queue',
+        'bau_cua_dealer_sessions',
+        'bau_cua_rounds',
+        'bau_cua_bets',
+        'bau_cua_round_events',
+        'bau_cua_penalty_executions',
+        'bau_cua_penalty_songs',
       ]) {
         const original = (await sql.unsafe(`select count(*)::int n from public.${table}`))[0].n;
         assert.equal(
@@ -492,6 +507,17 @@ try {
       const state = (
         await restored`select public.room_snapshot(${owner}::uuid,${room.id}::uuid) r`
       )[0].r;
+      for (const table of [
+        'public.coin_wallets',
+        'public.coin_ledger',
+        'public.bau_cua_rounds',
+        'private.bau_seeds',
+        'private.bau_receipts',
+        'private.bau_outbox',
+      ]) {
+        const query = `select jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text) rows from ${table} t`;
+        assert.deepEqual(await restored.unsafe(query), await sql.unsafe(query));
+      }
       assert.equal(state.room.id, room.id);
       assert.equal(
         (await restored`select relrowsecurity from pg_class where oid='public.rooms'::regclass`)[0]

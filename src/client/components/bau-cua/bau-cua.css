@@ -1,0 +1,1081 @@
+.bau-party {
+  container-type: inline-size;
+  --bau-gold: #edc47c;
+  --bau-red: #bc4850;
+  min-width: 0;
+}
+.bau-header,
+.bau-header-actions,
+.bau-row,
+.bau-table-meta,
+.bau-round-heading,
+.bau-dealer-heading,
+.bau-visual-controls,
+.bau-chip-picker,
+.bau-wallet-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bau-header {
+  justify-content: space-between;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.bau-header h1 {
+  font-size: clamp(25px, 3vw, 38px);
+  margin: 7px 0;
+}
+.bau-header h1 > span {
+  color: var(--bau-gold);
+}
+.bau-header p {
+  font-size: 13px;
+}
+.bau-header-actions {
+  flex-wrap: wrap;
+}
+.bau-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--bau-gold);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.bau-wallet-strip {
+  padding: 14px 18px;
+  border: 1px solid color-mix(in srgb, var(--bau-gold) 25%, var(--line));
+  border-radius: 16px;
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--bau-gold) 8%, var(--panel)),
+    var(--panel)
+  );
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.bau-wallet-strip > button {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--bau-gold);
+  background: none;
+  border: 0;
+  text-align: left;
+  margin-right: auto;
+  min-height: 44px;
+}
+.bau-wallet-strip strong {
+  display: block;
+  font-size: 24px;
+  color: var(--text);
+}
+.bau-wallet-strip small,
+.bau-wallet-strip > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.bau-wallet-strip strong small {
+  font-weight: 400;
+}
+.bau-wallet-strip > small {
+  border-left: 1px solid var(--line);
+  padding-left: 12px;
+}
+.bau-warning,
+.bau-penalty-note {
+  font-size: 12px;
+  line-height: 1.65;
+  border: 1px solid color-mix(in srgb, var(--bau-gold) 25%, transparent);
+  background: color-mix(in srgb, var(--bau-gold) 7%, var(--panel));
+  padding: 12px 16px;
+  border-radius: 12px;
+  color: var(--text);
+  margin: 12px 0;
+}
+.bau-warning button,
+.bau-penalty-note button {
+  color: var(--accent);
+  border: 0;
+  background: none;
+  text-decoration: underline;
+  min-height: 32px;
+}
+.bau-penalty-note.near-empty {
+  border-color: var(--danger);
+}
+.bau-lobby-hero {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.75fr) 1.5fr;
+  align-items: center;
+  gap: 28px;
+  border-radius: 22px;
+  padding: clamp(22px, 4vw, 42px);
+  background: radial-gradient(ellipse at 0 50%, #7d35354a, transparent 70%), var(--panel);
+  border: 1px solid var(--line);
+}
+.bau-lobby-hero h2 {
+  margin-bottom: 12px;
+}
+.bau-lobby-hero p {
+  margin-bottom: 22px;
+  line-height: 1.7;
+}
+.bau-hero-icons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  transform: rotate(-5deg);
+}
+.bau-hero-icons span {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border: 1px solid #d7a55d44;
+  border-radius: 18px;
+  background: #e4b86315;
+  font-size: clamp(28px, 4vw, 52px);
+  box-shadow: 0 5px 15px #0002;
+}
+.bau-table-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+.bau-table-list article {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+  padding: 22px;
+}
+.bau-table-list h3 {
+  margin: 12px 0;
+}
+.bau-table-list p {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.bau-table-art {
+  font-size: 32px;
+  margin-right: 16px;
+}
+.bau-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 50px 20px;
+  color: var(--muted);
+}
+.bau-empty h3,
+.bau-empty h2 {
+  color: var(--text);
+  margin: 12px;
+}
+.bau-status {
+  font-size: 11px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bau-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--bau-gold);
+}
+.bau-status i.online {
+  background: #80caae;
+}
+.bau-table-meta {
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.bau-table-meta > button:not(.button) {
+  background: none;
+  color: var(--text);
+  border: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 44px;
+}
+.bau-table-meta > .button:first-of-type {
+  margin-left: auto;
+}
+.bau-arena {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 18px;
+  align-items: start;
+}
+.bau-play {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #9d494655;
+  border-radius: 22px;
+  background: radial-gradient(ellipse at 50% 0, #7d353529, transparent 65%), var(--panel);
+}
+.bau-round-heading {
+  justify-content: space-between;
+}
+.bau-round-heading h2 {
+  font-size: 22px;
+  margin-top: 5px;
+}
+.bau-countdown {
+  min-width: 56px;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--bau-gold);
+  font-variant-numeric: tabular-nums;
+}
+.bau-countdown small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.bau-countdown.urgent {
+  color: var(--danger);
+}
+.bau-stage {
+  height: 245px;
+  position: relative;
+  margin: 0 -12px;
+}
+.bau-stage > div:first-child {
+  height: 190px !important;
+}
+.bau-results {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+.bau-results > span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  min-width: 70px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+.bau-results b {
+  font-size: 22px;
+}
+.bau-results small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.bau-bowl-2d {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 50% 70%, #a5672630, transparent 60%);
+}
+.bau-bowl-2d > span {
+  font-size: 90px;
+  line-height: 1.3;
+  filter: drop-shadow(0 10px 10px #0004);
+}
+.bau-bowl-2d small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.bau-shaking > span {
+  animation: bau-shake 0.2s infinite alternate;
+}
+.bau-visual-controls {
+  justify-content: center;
+  margin: 12px 0 18px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.bau-visual-controls label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  font-size: 11px;
+}
+.bau-visual-controls input[type='checkbox'],
+.bau-check input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.bau-visual-controls .button {
+  font-size: 11px;
+  min-height: 36px;
+  padding: 6px 10px;
+}
+.bau-chip-picker {
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.bau-chip-picker > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.bau-chip-picker > button {
+  border: 2px dashed #b88558;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  background: #643d2840;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  transition: transform 0.15s;
+}
+.bau-chip-picker > button.selected {
+  border-color: var(--bau-gold);
+  background: var(--bau-gold);
+  color: #37250b;
+  box-shadow: 0 0 0 3px #edc47c26;
+  transform: translateY(-2px);
+}
+.bau-chip-picker label {
+  margin: 0;
+  width: 86px;
+}
+.bau-chip-picker input {
+  padding: 8px;
+  height: 42px;
+}
+.bau-chip-picker small {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+}
+.bau-betting-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.bau-bet-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg);
+  overflow: hidden;
+  position: relative;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.bau-bet-card.has-bet {
+  border-color: var(--accent);
+}
+.bau-bet-card.won {
+  border-color: var(--bau-gold);
+  box-shadow: 0 0 18px #edc47c15;
+  background: color-mix(in srgb, var(--bau-gold) 9%, var(--bg));
+}
+.bau-bet-card .bau-symbol-button {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  min-height: 122px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 10px;
+  position: relative;
+}
+.bau-symbol-button:disabled {
+  opacity: 1;
+}
+.bau-symbol-button:not(:disabled):hover {
+  background: var(--soft);
+}
+.bau-symbol-button:not(:disabled):active .bau-symbol {
+  transform: scale(0.9);
+}
+.bau-symbol {
+  font-size: 39px;
+  line-height: 1.3;
+  transition: transform 0.15s;
+}
+.bau-symbol-total {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+.bau-symbol-button em {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 11px;
+  background: var(--bau-gold);
+  color: #37250b;
+  padding: 3px 7px;
+  border-radius: 12px;
+  font-style: normal;
+}
+.bau-my-stake {
+  border-top: 1px solid var(--line);
+  padding: 6px 8px;
+  font-size: 10px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  gap: 3px;
+}
+.bau-my-stake b {
+  color: var(--text);
+}
+.bau-my-stake .button {
+  font-size: 10px;
+  padding: 3px 7px;
+  min-height: 30px;
+}
+.bau-bet-hint {
+  font-size: 11px;
+  margin: 12px 0;
+  line-height: 1.6;
+}
+.bau-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.bau-dealer,
+.bau-feed,
+.bau-management {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+  padding: 18px;
+}
+.bau-crown {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: #edc47c1a;
+  color: var(--bau-gold);
+  flex-shrink: 0;
+}
+.bau-dealer-heading h3 {
+  margin-top: 5px;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+.bau-dealer dl {
+  margin: 20px 0;
+  font-size: 12px;
+}
+.bau-dealer dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0;
+}
+.bau-dealer dt {
+  color: var(--muted);
+}
+.bau-dealer dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.bau-guarantee {
+  display: flex;
+  gap: 5px;
+  font-size: 10px;
+  color: #8dceb5;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.bau-guarantee svg {
+  flex-shrink: 0;
+}
+.bau-dealer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.bau-dealer-actions .button,
+.bau-dealer > .button {
+  width: 100%;
+  font-size: 12px;
+}
+.bau-dealer-queue {
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding-top: 12px;
+}
+.bau-dealer-queue h4 {
+  font-size: 12px;
+  margin: 0 0 10px;
+}
+.bau-dealer-queue p {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  padding: 6px 0;
+}
+.bau-feed h3 {
+  font-size: 15px;
+}
+.bau-reactions {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+.bau-reactions .button {
+  padding: 5px;
+  min-width: 34px;
+  min-height: 38px;
+  font-size: 19px;
+}
+.bau-feed ol {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.bau-feed li {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 11px;
+  padding: 7px 0;
+  color: var(--muted);
+}
+.bau-feed-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.bau-management summary {
+  font-size: 12px;
+  cursor: pointer;
+}
+.bau-management > small {
+  font-size: 10px;
+  color: var(--muted);
+}
+.bau-join {
+  padding: 14px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.bau-join p {
+  width: 100%;
+  font-size: 12px;
+}
+.bau-modal {
+  max-width: 720px;
+}
+.bau-guide p,
+.bau-guide li,
+.bau-fairness p {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.bau-guide li {
+  margin: 10px 0;
+}
+.bau-guide h3 {
+  margin: 20px 0 12px;
+}
+.bau-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 12px 0;
+}
+.bau-fields label {
+  margin: 0;
+  font-size: 12px;
+}
+.bau-fields .bau-check,
+.bau-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bau-settings fieldset {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin: 18px 0;
+  padding: 16px;
+}
+.bau-settings legend {
+  font-weight: 600;
+  padding: 0 8px;
+}
+.bau-settings > p,
+.bau-settings details p {
+  font-size: 12px;
+}
+.bau-settings details {
+  margin-top: 24px;
+}
+.bau-history article {
+  border-bottom: 1px solid var(--line);
+  padding: 16px 0;
+}
+.bau-row {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.bau-history ol {
+  padding: 0;
+  list-style: none;
+}
+.bau-history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  padding: 8px 0;
+}
+.bau-history small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.bau-history li small {
+  display: block;
+  margin-top: 4px;
+}
+.bau-positive {
+  color: #82c9a9;
+}
+.bau-negative {
+  color: var(--danger);
+}
+.bau-fairness dl {
+  overflow-wrap: anywhere;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: 12px;
+  font-size: 12px;
+}
+.bau-fairness dt {
+  color: var(--muted);
+  margin-top: 12px;
+}
+.bau-fairness dd {
+  margin: 6px 0;
+  font-family: monospace;
+}
+.bau-fairness details {
+  margin-top: 18px;
+}
+.bau-wallet-detail p {
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 10px 0;
+}
+.bau-bonuses {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.bau-ledger {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  list-style: none;
+  margin: 18px 0;
+}
+.bau-ledger li {
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+.bau-ledger small {
+  color: var(--muted);
+  display: block;
+  font-size: 10px;
+  margin-top: 5px;
+}
+.bau-people > div,
+.bau-members > div {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.bau-people small,
+.bau-members small {
+  color: var(--muted);
+}
+.bau-penalties article {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.bau-penalties p {
+  font-size: 12px;
+  margin: 8px 0;
+}
+:root[data-theme='light'] .bau-party {
+  --bau-gold: #8b5514;
+}
+:root[data-theme='light'] .bau-chip-picker > button.selected,
+:root[data-theme='light'] .bau-symbol-button em {
+  color: #fff;
+}
+.bau-mobile-dealer {
+  display: none;
+}
+.bau-result-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  margin: 12px 0;
+  font-size: 13px;
+}
+.bau-result-summary p {
+  font-size: 11px;
+  margin-top: 6px;
+}
+.bau-result-summary svg {
+  flex-shrink: 0;
+  color: var(--bau-gold);
+}
+.bau-result-summary.is-win {
+  animation: bau-win 0.7s ease-out;
+  border-color: var(--bau-gold);
+}
+.bau-leaderboard h3 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.bau-leaderboard p {
+  font-size: 11px;
+  margin: 10px 0;
+}
+.bau-leaderboard ol {
+  padding: 0;
+  list-style: none;
+}
+.bau-leaderboard li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg);
+  padding: 12px;
+  border-radius: 12px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.bau-leaderboard li > div {
+  flex: 1;
+}
+.bau-leaderboard small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 4px;
+}
+.bau-rank {
+  color: var(--bau-gold);
+  font-weight: 700;
+}
+@keyframes bau-win {
+  from {
+    transform: translateY(8px);
+    box-shadow: 0 0 28px #edc47c55;
+  }
+  to {
+    transform: none;
+    box-shadow: none;
+  }
+}
+.bau-members article {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.bau-members article > div:nth-child(2) {
+  flex: 1;
+}
+.bau-members article small {
+  display: block;
+  margin-top: 5px;
+}
+.bau-avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--soft);
+  font-size: 12px;
+}
+.bau-avatar.online {
+  box-shadow: 0 0 0 2px #82c9a9;
+}
+.bau-member-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.bau-penalty-history {
+  margin: 14px 0;
+  padding: 14px;
+  background: var(--bg);
+  border-radius: 12px;
+  font-size: 12px;
+}
+.bau-penalty-history > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+@container (min-width: 1050px) {
+  .bau-play {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.8fr) minmax(330px, 1.2fr);
+    gap: 12px 20px;
+    grid-template-areas: 'heading heading' 'stage chips' 'stage bets' 'visual bets' 'summary summary' 'hint hint' 'penalty penalty';
+  }
+  .bau-round-heading {
+    grid-area: heading;
+  }
+  .bau-stage {
+    grid-area: stage;
+    height: 270px;
+    align-self: center;
+  }
+  .bau-stage > div:first-child {
+    height: 220px !important;
+  }
+  .bau-visual-controls {
+    grid-area: visual;
+    margin: 0;
+    align-self: start;
+  }
+  .bau-chip-picker,
+  .bau-join {
+    grid-area: chips;
+    border: 0;
+    padding: 0;
+  }
+  .bau-betting-grid {
+    grid-area: bets;
+  }
+  .bau-result-summary {
+    grid-area: summary;
+  }
+  .bau-bet-hint {
+    grid-area: hint;
+    margin: 0;
+  }
+  .bau-penalty-note {
+    grid-area: penalty;
+    margin: 0;
+  }
+  .bau-side {
+    max-height: max(480px, calc(100dvh - 390px));
+    overflow-y: auto;
+    padding-right: 6px;
+  }
+}
+@media (max-width: 600px) {
+  .bau-header {
+    margin-bottom: 14px;
+    gap: 12px;
+  }
+  .bau-header h1 {
+    font-size: 24px;
+  }
+  .bau-header p,
+  .bau-header .bau-eyebrow {
+    display: none;
+  }
+  .bau-header-actions {
+    width: 100%;
+  }
+  .bau-wallet-strip > button {
+    width: auto;
+  }
+  .bau-wallet-strip strong {
+    font-size: 21px;
+  }
+  .bau-wallet-strip > small {
+    width: 100%;
+    border: 0;
+    padding: 0;
+  }
+  .bau-stage {
+    height: 175px;
+  }
+  .bau-stage > div:first-child {
+    height: 125px !important;
+  }
+  .bau-visual-controls {
+    margin: 8px 0;
+  }
+  .bau-bet-card .bau-symbol-button {
+    min-height: 100px;
+  }
+  .bau-mobile-dealer {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .bau-mobile-dealer .button {
+    flex: 1;
+    font-size: 12px;
+  }
+  .bau-side .bau-primary-action {
+    display: none;
+  }
+}
+:root[data-theme='light'] .bau-positive,
+:root[data-theme='light'] .bau-guarantee {
+  color: #276c50;
+}
+@keyframes bau-shake {
+  from {
+    transform: rotate(-6deg) translateX(-3px);
+  }
+  to {
+    transform: rotate(6deg) translateX(3px);
+  }
+}
+@media (max-width: 1240px) {
+  .bau-arena {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bau-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .bau-header-actions {
+    gap: 6px;
+  }
+  .bau-header-actions .button {
+    padding: 9px;
+    font-size: 11px;
+  }
+  .bau-wallet-strip {
+    padding: 12px;
+    gap: 10px;
+  }
+  .bau-wallet-strip > button {
+    width: 100%;
+  }
+  .bau-wallet-strip > small {
+    margin-left: auto;
+    font-size: 10px;
+  }
+  .bau-lobby-hero {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+  .bau-hero-icons {
+    max-width: 260px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .bau-lobby-hero h2 {
+    font-size: 23px;
+  }
+  .bau-play {
+    padding: 12px;
+  }
+  .bau-round-heading h2 {
+    font-size: 20px;
+  }
+  .bau-side {
+    grid-template-columns: 1fr;
+  }
+  .bau-betting-grid {
+    gap: 6px;
+  }
+  .bau-symbol {
+    font-size: 32px;
+  }
+  .bau-bet-card .bau-symbol-button {
+    min-height: 112px;
+    padding: 8px 3px;
+  }
+  .bau-my-stake {
+    flex-wrap: wrap;
+    justify-content: center;
+    font-size: 9px;
+  }
+  .bau-fields {
+    grid-template-columns: 1fr;
+  }
+  .bau-chip-picker {
+    gap: 8px;
+  }
+  .bau-chip-picker > span {
+    width: 100%;
+  }
+  .bau-table-meta {
+    gap: 8px;
+  }
+  .bau-table-meta .button {
+    font-size: 11px;
+    padding: 8px;
+  }
+  .bau-stage {
+    height: 225px;
+  }
+  .bau-stage > div:first-child {
+    height: 170px !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bau-party *,
+  .bau-party *::before,
+  .bau-party *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

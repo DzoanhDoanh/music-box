@@ -297,7 +297,11 @@ export default function GameHub({
     actor = snapshot.me;
   const route = useLocation();
   const navigate = useNavigate();
-  const routeMatch = matchPath('/room/:id/games/:match', route.pathname)?.params.match ?? null;
+  const matchParam = matchPath('/room/:id/games/:match', route.pathname)?.params.match ?? null;
+  const routeMatch =
+    matchParam && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(matchParam)
+      ? matchParam
+      : null;
   // Retain the subscription/outbox while visiting music. The lobby deliberately clears selection.
   const [lastMatch, setLastMatch] = useState<string | null>(routeMatch);
   const match = visible ? routeMatch : lastMatch;

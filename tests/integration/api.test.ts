@@ -15,6 +15,7 @@ describe('Hono boundary', () => {
     expect(await response.json()).toEqual({
       status: 'configuration_required',
       youtubeConfigured: false,
+      bauCuaEnabled: false,
       version: '0.1.0',
     });
     expect(response.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');

@@ -66,6 +66,17 @@ export function orderQueue(entries: QueueEntry[], mode: Settings['queue_mode']):
   );
 }
 export const errorMessages: Record<string, string> = {
+  BAU_INSUFFICIENT_COINS: 'Không đủ coin khả dụng. Coin đang khóa vẫn thuộc ví của bạn.',
+  BAU_COLLATERAL: 'Quỹ cái chưa đủ bảo đảm khoản cược này. Hãy giảm số coin.',
+  BAU_PHASE: 'Thao tác chưa phù hợp với pha hiện tại. Bàn đã được đồng bộ lại.',
+  BAU_BET_CLOSED: 'Vòng đã khóa cược hoặc chưa mở. Coin chưa bị trừ.',
+  BAU_BET_LIMIT: 'Mức cược vượt giới hạn của vòng. Hãy kiểm tra luật đang áp dụng.',
+  BAU_DEALER_REQUIRED: 'Cần người cầm cái đang online và đủ quỹ.',
+  BAU_PLAYERS_REQUIRED: 'Cần ít nhất một người chơi khác đang online để mở vòng.',
+  BAU_TABLE_LIMIT: 'Bàn hoặc phòng đã đủ chỗ. Hãy chọn bàn khác.',
+  BAU_DISABLED: 'Chủ phòng đang tắt Bầu Cua. Các vòng đã nhận cược vẫn được xử lý.',
+  BAU_BONUS_UNAVAILABLE: 'Chưa đủ điều kiện nhận thưởng hoặc bạn đã nhận trong kỳ này.',
+  BAU_RESTORE_UNAVAILABLE: 'Bài này không còn đủ điều kiện khôi phục từ hình phạt.',
   WHEEL_EMPTY:
     'Cần ít nhất hai lựa chọn hợp lệ để quay. Với thưởng nhạc, chỉ tính người online có bài đang chờ.',
   WHEEL_BUSY: 'Phòng vừa quay. Hãy chờ vòng quay hiện tại kết thúc.',

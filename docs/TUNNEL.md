@@ -42,12 +42,18 @@ Trong lúc build/restart, domain tạm không phục vụ. `npm.cmd run dev` v�
 - DNS CNAME của `roomtune.dzoanh.me` trỏ tunnel trên, bật proxy Cloudflare. Hai ứng dụng của tunnel cũ không thay đổi.
 - `APP_BASE_URL` trong `.dev.vars` và Supabase Auth Site URL đều là `https://roomtune.dzoanh.me`; giữ hai URL local cho phát triển.
 - Preview chỉ nghe loopback, chỉ cho Host `roomtune.dzoanh.me` cùng localhost/IP theo Vite. Inspector và Local Explorer bị tắt.
-- Tunnel chỉ cho `/`, `/join`, `/login`, `/rooms`, `/room/<uuid>`, `/room/<uuid>/games`, `/room/<uuid>/games/<uuid>`, `/privacy`, `/assets/*`, favicon/robots và `/api/v1/*`. Đường dẫn debug, mã nguồn, `.env`, `.dev.vars`, `dist/roomtune` nhận 404. Không serve toàn bộ `dist`.
+- Tunnel chỉ cho `/`, `/join`, `/login`, `/rooms`, `/room/<uuid>`, `/room/<uuid>/games`, `/room/<uuid>/games/<uuid>`, `/room/<uuid>/games/bau-cua`, `/room/<uuid>/games/bau-cua/<uuid>`, `/privacy`, `/assets/*`, favicon/robots và `/api/v1/*`. Đường dẫn debug, mã nguồn, `.env`, `.dev.vars`, `dist/roomtune` nhận 404. Không serve toàn bộ `dist`.
 - Cloudflare Vite sao chép `.dev.vars` vào `dist/roomtune/.dev.vars` cho preview; file này chứa secrets và không phải static asset. Chỉ `dist/client` được phục vụ.
 
 Khi thao tác DNS bằng CLI phải chỉ định `--config cloudflared.roomtune.yml`. CLI trên máy này ưu tiên tunnel trong config mặc định ngay cả khi truyền tên khác; không dùng `--overwrite-dns` với bản ghi chưa đối chiếu.
 
 ## Cách dùng sau khi mở được domain
+
+Bầu Cua Party đã phát hành ngày 17/11/2026: vào **Trò chơi → Bầu Cua Party**.
+Ba migrations đã áp dụng sau backup; bật `VITE_ENABLE_BAU_CUA`/`ENABLE_BAU_CUA`.
+Đã kiểm tra Auth/Realtime và hai browser contexts qua HTTPS, gỡ/khôi phục đúng
+bài khi phá sản, 225 assets khớp bản build. Tải lại tab để nhận giao diện mới.
+Xem [kiểm thử Bầu Cua](BAU_CUA_TESTING.md) và [vận hành](BAU_CUA_OPERATIONS.md).
 
 Bản cập nhật lúc 19:19 ngày 16/11/2026 bổ sung danh sách online/offline và sửa tìm kiếm,
 thêm link YouTube. Tìm kiếm tự chạy sau khi ngừng gõ 650 ms; hai trần search riêng của

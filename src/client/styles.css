@@ -2,6 +2,32 @@
 @theme {
   --font-sans: 'Segoe UI', system-ui, sans-serif;
 }
+.party-game-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 22px;
+  padding: 22px;
+  background: linear-gradient(110deg, #7d353529, transparent), var(--panel);
+}
+.party-game-card > span {
+  font-size: 44px;
+}
+.party-game-card > div {
+  flex: 1;
+}
+.party-game-card small {
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+.party-game-card h2 {
+  font-size: 22px;
+  margin: 6px 0;
+}
+.party-game-card p {
+  font-size: 13px;
+}
 :root {
   font-family: 'Segoe UI', system-ui, sans-serif;
   color: #f3f1f6;

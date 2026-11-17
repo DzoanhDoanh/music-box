@@ -7,3 +7,5 @@ APP_BASE_URL=http://localhost:5173
 ENABLE_LUDO=true
 # Requires migration 202611160001_lucky_wheel.sql and VITE_ENABLE_WHEEL=true at build time.
 ENABLE_WHEEL=false
+# Apply all 202611170007–009 Bầu Cua migrations before enabling the API.
+ENABLE_BAU_CUA=false

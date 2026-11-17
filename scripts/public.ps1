@@ -46,9 +46,21 @@ function Stop-OwnedProcesses($records) {
     if (Test-Path -LiteralPath $statePath) { Remove-Item -LiteralPath $statePath }
 }
 function Process-Record($name, $process) {
+    # Start-Process can return before Windows exposes the executable path.
+    # Record a fresh verified snapshot so a healthy tunnel remains manageable.
+    $expectedTicks = $process.StartTime.ToUniversalTime().Ticks
+    for ($attempt = 0; $attempt -lt 20; $attempt++) {
+        $current = Get-Process -Id $process.Id -ErrorAction Stop
+        if ($current.StartTime.ToUniversalTime().Ticks -ne $expectedTicks) {
+            throw 'Process identity changed during startup.'
+        }
+        if ($current.Path) { break }
+        Start-Sleep -Milliseconds 100
+    }
+    if (!$current.Path) { throw 'Cannot record the executable path of the started process.' }
     return [pscustomobject]@{
-        name = $name; id = $process.Id; path = $process.Path
-        startedTicks = $process.StartTime.ToUniversalTime().Ticks
+        name = $name; id = $current.Id; path = $current.Path
+        startedTicks = $expectedTicks
     }
 }
 

@@ -9,6 +9,7 @@ export interface RoomSubscription {
   onResync(): void;
   onChat?(): void;
   onGames?(): void;
+  onBauNotice?(): void;
 }
 type Observer = { callbacks: Partial<RoomSubscription>; presence: boolean };
 type SharedChannel = {
@@ -45,6 +46,12 @@ export class RealtimeService {
   }
   subscribeGame(game: string, actor: string, callbacks: Partial<RoomSubscription>): () => void {
     return this.watch('game:' + game, actor, callbacks, false);
+  }
+  subscribeBau(table: string, actor: string, callbacks: Partial<RoomSubscription>): () => void {
+    return this.watch('bau:' + table, actor, callbacks, false);
+  }
+  subscribeNotices(room: string, actor: string, callbacks: Partial<RoomSubscription>): () => void {
+    return this.watch(room, actor, callbacks, false);
   }
   private watch(
     room: string,
@@ -155,7 +162,7 @@ export class RealtimeService {
     };
     const start = () => {
       if (entry.stopped) return;
-      const channel = this.client.channel(room.startsWith('game:') ? room : `room:${room}`, {
+      const channel = this.client.channel(/^(game|bau):/.test(room) ? room : `room:${room}`, {
         config: { private: true, presence: { key: actor } },
       });
       entry.channel = channel;
@@ -163,6 +170,8 @@ export class RealtimeService {
         .on('broadcast', { event: 'room.updated' }, ({ payload }) => {
           if (!entry.stopped && typeof payload?.version === 'number')
             for (const { callbacks } of entry.observers) callbacks.onVersion?.(payload.version);
+          if (!entry.stopped && payload?.kind === 'penalty.updated')
+            for (const { callbacks } of entry.observers) callbacks.onBauNotice?.();
         })
         .on('broadcast', { event: 'chat.updated' }, () => {
           if (!entry.stopped) for (const { callbacks } of entry.observers) callbacks.onChat?.();
@@ -171,6 +180,10 @@ export class RealtimeService {
           if (!entry.stopped) for (const { callbacks } of entry.observers) callbacks.onGames?.();
         })
         .on('broadcast', { event: 'game.state_updated' }, ({ payload }) => {
+          if (!entry.stopped && typeof payload?.version === 'number')
+            for (const { callbacks } of entry.observers) callbacks.onVersion?.(payload.version);
+        })
+        .on('broadcast', { event: 'table.updated' }, ({ payload }) => {
           if (!entry.stopped && typeof payload?.version === 'number')
             for (const { callbacks } of entry.observers) callbacks.onVersion?.(payload.version);
         })
