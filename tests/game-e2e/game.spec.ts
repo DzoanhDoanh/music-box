@@ -134,6 +134,19 @@ test('spectator, keyboard, mobile layout, themes, rules and reduced motion', asy
   await f.attach(context, 4);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openGame(page);
+  await expect(page.getByText('BÀN LUẬT CŨ · 52 Ô', { exact: true })).toBeVisible();
+  await expect(page.locator('[data-home] .ludo-lane-number')).toHaveCount(24);
+  // The old central decoration used to cover rank 6 in all four home lanes.
+  const center = (await page.locator('.ludo-center').boundingBox())!;
+  for (const color of [0, 1, 2, 3]) {
+    const rank = (await page.locator(`[data-home="${color}:6"]`).boundingBox())!;
+    expect(
+      center.x >= rank.x + rank.width ||
+        center.x + center.width <= rank.x ||
+        center.y >= rank.y + rank.height ||
+        center.y + center.height <= rank.y,
+    ).toBe(true);
+  }
   await expect(page.getByRole('button', { name: 'Tung xúc xắc', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Đầu hàng', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Luật chơi', exact: true }).click();

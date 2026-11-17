@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createInitialGameState } from '../../src/shared/game/engine';
 import { legacyRules } from '../../src/shared/game/contracts';
 import { committedMotion, pieceLayout } from '../../src/client/components/game/board-motion';
-import { piecePoint } from '../../src/client/components/game/board-geometry';
+import { boardTrack, homeLane, piecePoint } from '../../src/client/components/game/board-geometry';
+import { boardCell, trackLength } from '../../src/shared/game/board';
 
 const actor = '20000000-0000-4000-8000-000000000001';
 function move(from = 10, to = 16) {
@@ -22,6 +23,26 @@ function move(from = 10, to = 16) {
   return { before, after };
 }
 describe('presentation of committed moves', () => {
+  it.each([1, 2] as const)(
+    'aligns all four entrances and starts with home lanes on board v%i',
+    (schema) => {
+      const route = boardTrack(schema);
+      for (const color of [0, 1, 2, 3]) {
+        const gate = route[boardCell(color, trackLength(schema) - 1, schema)];
+        const start = route[boardCell(color, 0, schema)];
+        const firstHome = homeLane(color, 0);
+        expect(Math.abs(gate[0] - start[0]) + Math.abs(gate[1] - start[1])).toBe(1);
+        expect(Math.abs(gate[0] - firstHome[0]) + Math.abs(gate[1] - firstHome[1])).toBe(1);
+        for (let rank = 0; rank < 6; rank++) {
+          const home = homeLane(color, rank);
+          expect(route).not.toContainEqual(home);
+          expect(piecePoint(color, trackLength(schema) + rank, 0, schema)).toEqual(
+            home.map((n) => n + 0.5),
+          );
+        }
+      }
+    },
+  );
   it('visits each actual track corner before settling on the committed cell', () => {
     const { before, after } = move();
     const copy = structuredClone(after);

@@ -1,5 +1,9 @@
 # Cờ cá ngựa ROOMTUNE
 
+**Bản sửa hình bàn theo ảnh (17/11):** đã có ở source và bản thử 5180, chưa đưa lên public.
+Ô tròn, nhà chờ tròn, chuồng 1–6 đầy đủ và dấu cửa/xuất quân được sửa cho cả bàn cũ lẫn mới.
+Xem [đối chiếu và kiểm chứng](GAME_BOARD_REFERENCE.md).
+
 Ngày 17/11/2026 đã phát hành [bộ luật cờ cá ngựa v2](GAME_RULES_V2.md):
 chặn đường, đá đúng số bước, lựa chọn nhảy khi ra 1, dừng ở cửa rồi xếp chuồng 6–5–4–3.
 Bàn mới có 56 ô; ô cuối là cửa lên chuồng, ô tiếp theo là ô xuất quân. Sáu bậc chuồng đều

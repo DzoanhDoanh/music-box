@@ -5,6 +5,8 @@ import { boardTrack, origins, homeLane, piecePoint } from './board-geometry';
 import { lastPosition, trackLength } from '../../../shared/game/board';
 import { committedMotion, pieceLayout } from './board-motion';
 export { track, piecePoint } from './board-geometry';
+const horseShape =
+  'M-.32,.28 Q-.4,.1 -.2,-.04 L-.13,-.22 L-.3,-.24 L-.2,-.42 L.02,-.39 L.1,-.5 L.18,-.3 Q.38,-.18 .27,.1 L.34,.28 Z';
 
 export default function LudoBoard({
   state,
@@ -80,6 +82,7 @@ export default function LudoBoard({
     <svg
       ref={board}
       className="ludo-board"
+      data-board-version={state.schema}
       viewBox="-0.3 -0.3 15.6 15.6"
       role="group"
       aria-label="Bàn cờ cá ngựa. Quân hợp lệ có vòng sáng; dùng Tab và Enter để di chuyển."
@@ -97,15 +100,15 @@ export default function LudoBoard({
       <rect x="0" y="0" width="15" height="15" rx=".45" className="ludo-board-base" />
       {origins.map(([x, y], color) => (
         <g key={color} className={'ludo-color-' + color}>
-          <rect x={x + 0.25} y={y + 0.25} width="5.5" height="5.5" rx=".6" className="ludo-home" />
           <rect
-            x={x + 0.8}
-            y={y + 0.8}
-            width="4.4"
-            height="4.4"
-            rx=".55"
-            className="ludo-home-inner"
+            x={x + 0.12}
+            y={y + 0.12}
+            width="5.76"
+            height="5.76"
+            rx=".22"
+            className="ludo-home"
           />
+          <circle cx={x + 3} cy={y + 3.05} r="2.3" className="ludo-home-inner" />
           <text x={x + 3} y={y + 0.62} className="ludo-home-label" textAnchor="middle">
             {['◆', '♣', '★', '●'][color]} {colorNames[color]}
           </text>
@@ -122,15 +125,15 @@ export default function LudoBoard({
       ))}
       {track.map(([x, y], i) => {
         const start = i % quarter === 0;
-        const gate = v2 && i % quarter === quarter - 1;
-        const color = start ? i / quarter : ((i + 1) / quarter) % 4;
+        const gate = i % quarter === quarter - 1;
+        const color = gate ? ((i + 1) / quarter) % 4 : Math.floor(i / quarter);
         return (
           <g
             key={i}
             data-track={i}
             data-gate={gate ? color : undefined}
             data-start={start ? color : undefined}
-            className={start || gate ? 'ludo-color-' + color : ''}
+            className={'ludo-color-' + color}
           >
             <title>
               {start
@@ -139,15 +142,20 @@ export default function LudoBoard({
                   ? 'Cửa chuồng · ' + colorNames[color]
                   : 'Đường đi'}
             </title>
-            <rect
-              x={x + 0.035}
-              y={y + 0.035}
-              width=".93"
-              height=".93"
-              rx=".14"
+            <circle
+              cx={x + 0.5}
+              cy={y + 0.5}
+              r=".39"
               className={'ludo-cell ' + (start ? 'ludo-start' : gate ? 'ludo-gate' : '')}
             />
-            {v2 && (start || gate) && (
+            {start && (
+              <path
+                d={horseShape}
+                transform={`translate(${x + 0.5} ${y + 0.57}) scale(.68)`}
+                className="ludo-start-symbol"
+              />
+            )}
+            {gate && (
               <path
                 d="M-.23,0 H.23 M.04,-.18 L.23,0 L.04,.18"
                 transform={`translate(${x + 0.5} ${y + 0.5}) rotate(${color * 90})`}
@@ -155,9 +163,9 @@ export default function LudoBoard({
               />
             )}
             {isSafe(i, state.rules) && (
-              <text x={x + 0.5} y={y + 0.66} textAnchor="middle" className="ludo-star">
-                ✧
-              </text>
+              <circle cx={x + 0.5} cy={y + 0.5} r=".47" className="ludo-safe">
+                <title>Ô an toàn · Luật bàn cũ</title>
+              </circle>
             )}
           </g>
         );
@@ -173,31 +181,23 @@ export default function LudoBoard({
                   y={y + 0.04}
                   width=".92"
                   height=".92"
-                  rx=".13"
+                  rx=".04"
                   className="ludo-lane"
                 />
-                {v2 && (
-                  <text x={x + 0.5} y={y + 0.65} textAnchor="middle" className="ludo-lane-number">
-                    {n + 1}
-                  </text>
-                )}
+                <text x={x + 0.5} y={y + 0.65} textAnchor="middle" className="ludo-lane-number">
+                  {n + 1}
+                </text>
               </g>
             );
           })}
         </g>
       ))}
-      {!v2 && (
-        <>
-          <path d="M6,6 L7.5,7.5 L6,9 Z" fill="var(--horse-0)" />
-          <path d="M6,6 L9,6 L7.5,7.5 Z" fill="var(--horse-1)" />
-          <path d="M9,6 L9,9 L7.5,7.5 Z" fill="var(--horse-2)" />
-          <path d="M6,9 L9,9 L7.5,7.5 Z" fill="var(--horse-3)" />
-        </>
-      )}
-      <circle cx="7.5" cy="7.5" r={v2 ? '.42' : '.55'} className="ludo-finish" />
-      <text x="7.5" y="7.72" textAnchor="middle" className="ludo-trophy">
-        ♛
-      </text>
+      <g className="ludo-center" aria-hidden="true">
+        <path d="M7.12,7.12 L7.5,7.5 L7.12,7.88 Z" fill="var(--horse-0)" />
+        <path d="M7.12,7.12 L7.88,7.12 L7.5,7.5 Z" fill="var(--horse-1)" />
+        <path d="M7.88,7.12 L7.88,7.88 L7.5,7.5 Z" fill="var(--horse-2)" />
+        <path d="M7.12,7.88 L7.88,7.88 L7.5,7.5 Z" fill="var(--horse-3)" />
+      </g>
       {legal
         .filter((move) => selectedPiece == null || move.piece === selectedPiece)
         .map((move) => {
@@ -279,15 +279,8 @@ export default function LudoBoard({
                 <circle r=".52" className="ludo-hit" />
                 {allowed && <circle r=".47" className="ludo-halo" />}
                 <ellipse cy=".13" rx=".36" ry=".28" className="ludo-piece-shadow" />
-                <path
-                  d="M-.32,.28 Q-.4,.1 -.2,-.04 L-.13,-.22 L-.3,-.24 L-.2,-.42 L.02,-.39 L.1,-.5 L.18,-.3 Q.38,-.18 .27,.1 L.34,.28 Z"
-                  className="ludo-horse"
-                />
-                <path
-                  d="M-.32,.28 Q-.4,.1 -.2,-.04 L-.13,-.22 L-.3,-.24 L-.2,-.42 L.02,-.39 L.1,-.5 L.18,-.3 Q.38,-.18 .27,.1 L.34,.28 Z"
-                  fill={'url(#' + id + 'gloss)'}
-                  pointerEvents="none"
-                />
+                <path d={horseShape} className="ludo-horse" />
+                <path d={horseShape} fill={'url(#' + id + 'gloss)'} pointerEvents="none" />
                 <circle
                   className="ludo-event-ring"
                   r=".64"

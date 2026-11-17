@@ -1,6 +1,8 @@
 import { boardCell, trackLength, type BoardVersion } from '../../../shared/game/board';
-// A continuous 52-cell clockwise cross. First start is the red quadrant's exit.
+// Legacy keeps its 52 positions; align its final square with the home entrance too.
+// Only screen coordinates change, never saved progress or the rules of an old match.
 export const track: [number, number][] = [
+  [0, 6],
   [1, 6],
   [2, 6],
   [3, 6],
@@ -52,7 +54,6 @@ export const track: [number, number][] = [
   [1, 8],
   [0, 8],
   [0, 7],
-  [0, 6],
 ];
 const quarter: [number, number][] = [
   [0, 6],

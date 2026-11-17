@@ -251,15 +251,20 @@
 }
 .ludo-board-base {
   fill: var(--panel);
+  stroke: var(--line);
+  stroke-width: 0.04;
 }
 .ludo-home {
   fill: var(--horse);
-  fill-opacity: 0.2;
+  fill-opacity: 0.16;
   stroke: var(--horse);
   stroke-width: 0.035;
 }
 .ludo-home-inner {
   fill: var(--panel);
+  stroke: var(--horse);
+  stroke-opacity: 0.35;
+  stroke-width: 0.035;
 }
 .ludo-nest {
   fill: var(--horse);
@@ -273,18 +278,24 @@
   font-weight: 600;
 }
 .ludo-cell {
-  fill: var(--bg);
-  stroke: var(--line);
-  stroke-width: 0.025;
+  fill: color-mix(in srgb, var(--horse) 38%, var(--panel));
+  stroke: var(--horse);
+  stroke-opacity: 0.75;
+  stroke-width: 0.045;
 }
 .ludo-start {
   fill: var(--horse);
-  fill-opacity: 0.55;
+  stroke-width: 0.06;
+}
+.ludo-start-symbol {
+  fill: #201c29;
+  pointer-events: none;
 }
 .ludo-gate {
+  fill: var(--panel);
   stroke: var(--horse);
-  stroke-width: 0.07;
-  stroke-dasharray: 0.12 0.06;
+  stroke-width: 0.09;
+  stroke-opacity: 1;
 }
 .ludo-route-arrow {
   fill: none;
@@ -305,20 +316,16 @@
   font-size: 12px;
   margin: 0;
 }
-.ludo-star {
-  fill: var(--muted);
-  font-size: 0.5px;
+.ludo-safe {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 0.025;
+  stroke-dasharray: 0.06 0.06;
 }
 .ludo-lane {
-  fill: var(--horse);
-  fill-opacity: 0.55;
-}
-.ludo-finish {
-  fill: var(--panel);
-}
-.ludo-trophy {
-  fill: var(--text);
-  font-size: 0.65px;
+  fill: color-mix(in srgb, var(--horse) 45%, var(--panel));
+  stroke: var(--horse);
+  stroke-width: 0.025;
 }
 .ludo-piece {
   transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);

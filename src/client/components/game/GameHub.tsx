@@ -156,7 +156,8 @@ function RulesHelp({ rules }: { rules: GameRules }) {
           </li>
           <li>
             Đi một vòng 56 ô. Ô cuối là cửa chuồng của mình; ô kế tiếp trên đường chung là ô xuất
-            quân. Đến cửa phải dừng, lần tung sau mới vào chuồng.
+            quân. Ô có hình ngựa là xuất quân, ô có mũi tên là cửa chuồng. Đến cửa phải dừng, lần
+            tung sau mới vào chuồng.
           </li>
           <li>
             Không vượt bất kỳ quân nào. Đối thủ cách 3 ô: ra 2 được đi, ra 3 đá, ra 4–6 bị chặn.
@@ -190,6 +191,10 @@ function RulesHelp({ rules }: { rules: GameRules }) {
     <div className="game-guide">
       <p>
         <strong>Ludo ROOMTUNE · Bộ luật v1</strong>
+      </p>
+      <p>
+        Bàn này giữ luật cũ. Để chơi luật cờ cá ngựa mới, vào Danh sách bàn → Tạo bàn mới. Các ô có
+        vòng viền chấm là ô an toàn theo thiết lập của bàn này.
       </p>
       <ol>
         <li>
@@ -443,7 +448,8 @@ export default function GameHub({
       <div className="game-header">
         <div>
           <span className="game-eyebrow">
-            <Gamepad2 size={15} /> ROOMTUNE PLAY
+            <Gamepad2 size={15} />
+            {state?.schema === 1 && match ? 'BÀN LUẬT CŨ · 52 Ô' : 'ROOMTUNE PLAY'}
           </span>
           <h2>{match ? (state?.name ?? 'Bàn cờ cá ngựa') : 'Nhạc hay. Bạn vui. Vào ván thôi.'}</h2>
           {!match && <p>Chơi cùng những người trong phòng. Giai điệu vẫn tiếp tục.</p>}
