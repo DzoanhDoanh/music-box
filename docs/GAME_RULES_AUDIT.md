@@ -65,7 +65,8 @@ xúc xắc giả ngẫu nhiên được kiểm tra riêng trong engine suite.
   `.roomtune/cangua-v2-build` đạt; script kiểm tra hash `dist` không thay đổi và khôi phục
   con trỏ Wrangler. Quét client artifacts không thấy dấu hiệu server secret đã biết.
 - Build vẫn có cảnh báo kích thước chunk chính trên 500 kB và chú thích của dependency Zod;
-  không có lỗi build. Chưa chạy v2 trên hosted hoặc thiết bị vật lý.
+  không có lỗi build. Kiểm tra hosted của đợt phát hành được ghi riêng trong
+  [bằng chứng public v2](CANGUA_V2_PUBLIC_CHECK.md); chưa kiểm tra thiết bị vật lý.
 
 Ảnh fixture: [desktop tối](cangua-v2-desktop-dark.png),
 [desktop sáng](cangua-v2-desktop-light.png), [mobile tối](cangua-v2-mobile-dark.png),
@@ -73,6 +74,8 @@ xúc xắc giả ngẫu nhiên được kiểm tra riêng trong engine suite.
 
 ## Phạm vi phát hành
 
-Thay đổi mới nằm trong source; chưa commit/push hoặc thay public, chưa migrate Supabase.
-Không tự đổi ván đang chơi. Cần đưa migration và API/UI tương thích lên cùng đợt trước khi
-cho bản thử ghi v2 vào database dùng chung.
+Đã commit/push `66f8053` lên `master` và `codex/voice-lucky-wheel`, áp dụng migration
+`202611170001_cangua_v2.sql` và thay public lúc 11:06 ngày 17/11/2026 (giờ Việt Nam).
+Bản thử local cũng dùng build mới. Không tự đổi ván đang chơi; cần tải lại trang và tạo
+bàn mới để dùng v2. Chi tiết xác minh, backup và giới hạn khôi phục nằm trong
+[bằng chứng public v2](CANGUA_V2_PUBLIC_CHECK.md).

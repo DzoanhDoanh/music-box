@@ -1,7 +1,8 @@
 # Cờ cá ngựa ROOMTUNE — bộ luật v2
 
-Ngày 17/11/2026: đã triển khai engine, bàn cờ và giao diện chọn nước cho v2 trong source.
-Bản public vẫn chạy bản đã phát hành trước đó; migration v2 chưa áp dụng lên Supabase hosted.
+Ngày 17/11/2026: đã phát hành engine, bàn cờ và giao diện chọn nước v2 lên public,
+cùng migration Supabase hosted. Tải lại trang và tạo bàn mới để dùng luật v2;
+ván cũ giữ nguyên luật của bàn, kể cả khi chơi lại. Xem [kiểm tra phát hành](CANGUA_V2_PUBLIC_CHECK.md).
 
 Đây là biến thể ROOMTUNE, không khẳng định là bộ luật duy nhất của cờ cá ngựa. Theo xác nhận
 của người dùng: ra 1 có thể nhảy cửa chuồng khi đường trống; không vượt quân cản; đối thủ cách
@@ -142,7 +143,7 @@ những tùy chọn của bộ v2 này.
 
 ## 9. Phiên bản dữ liệu và triển khai
 
-| Phần           | Bản đang chạy                      | V2 trong source                                   |
+| Phần           | Ván cũ v1                          | Bàn mới v2                                        |
 | -------------- | ---------------------------------- | ------------------------------------------------- |
 | Bàn và đường   | 52 ô; chưa tách mốc cửa cho nhảy   | 56 ô, có cửa/ô xuất phát riêng                    |
 | Chặn đường     | Cho đi xuyên, cho chồng            | Chặn bởi mọi quân; mỗi ô đường chung một quân     |
@@ -160,9 +161,9 @@ JUMP cùng số quân; server tự tính ô đích. Thiếu moveKind được hi
 
 Migration bổ sung là 202611170001_cangua_v2.sql; không sửa migration đã áp dụng. Nó kiểm tra
 vị trí, không chồng quân ở v2, giữ nguyên validator v1 và chặn đổi phiên bản/luật giữa ván.
-Cần backup/dry-run rồi áp dụng migration trước khi bật API/UI mới. Không để bản thử ghi v2
-vào database dùng chung khi server public còn chỉ đọc được v1. Luật và bàn trong UI luôn
-chọn theo schema của ván. Máy chủ sinh xúc xắc và chọn người đi đầu bằng random an toàn.
+Migration đã được backup/dry-run và áp dụng trước khi thay API/UI. Public và bản thử local
+đều hỗ trợ v1/v2; không chạy lại runtime chỉ hiểu v1 khi database đã có bàn v2. Luật và bàn
+trong UI luôn chọn theo schema của ván. Máy chủ sinh xúc xắc và chọn người đi đầu bằng random an toàn.
 
 ## 10. Tình huống kiểm thử
 

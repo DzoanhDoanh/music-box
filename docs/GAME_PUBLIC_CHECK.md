@@ -1,11 +1,12 @@
 # Kiểm thử game public qua HTTPS
 
-UTC: 2026-11-16T01:16:05.152Z
+UTC: 2026-11-17T04:09:15.269Z
 URL: https://roomtune.dzoanh.me
 
 Kết quả: PASS
 
 - Real password login and anonymous member PIN join through desktop/mobile UI
+- New hosted table uses schema 2 / CANGUA_V2; desktop/mobile show 56 squares, correct gates/starts and all six home ranks
 - Desktop creates table; mobile joins; both real private game channels connect
 - Hosted game API/RLS deny outsider, direct writes, service RPC and forged client Broadcast
 - Real server dice and legal UI move; duplicate receipt preserves the exact outcome; committed Broadcast received

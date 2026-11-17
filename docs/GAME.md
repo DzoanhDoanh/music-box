@@ -1,18 +1,19 @@
 # Cờ cá ngựa ROOMTUNE
 
-Ngày 17/11/2026 đã triển khai [bộ luật cờ cá ngựa v2](GAME_RULES_V2.md) trong source:
+Ngày 17/11/2026 đã phát hành [bộ luật cờ cá ngựa v2](GAME_RULES_V2.md):
 chặn đường, đá đúng số bước, lựa chọn nhảy khi ra 1, dừng ở cửa rồi xếp chuồng 6–5–4–3.
 Bàn mới có 56 ô; ô cuối là cửa lên chuồng, ô tiếp theo là ô xuất quân. Sáu bậc chuồng đều
 hiển thị và có số. Xem [rà soát và kiểm thử v2](GAME_RULES_AUDIT.md).
 
-**Chưa phát hành v2:** public vẫn dùng bản trước. Migration bổ sung
-`202611170001_cangua_v2.sql` mới được kiểm thử trên PostgreSQL cô lập, chưa áp dụng hosted.
-Không dùng bản thử v2 ghi vào database chung khi public chưa hỗ trợ v2. Khi phát hành cần
-backup/dry-run migration và đổi API/UI cùng đợt. Ván cũ giữ schema/luật v1, cả khi chơi lại;
-muốn dùng luật mới cần tạo bàn mới. Mục luật v1 dưới đây dùng để đọc ván/lịch sử cũ.
+**V2 đã public lúc 11:06 ngày 17/11/2026 (giờ Việt Nam).** Migration bổ sung
+`202611170001_cangua_v2.sql` đã áp dụng hosted sau backup/dry-run; API và UI đã cập nhật.
+Bản thử local tại 5180 cũng dùng build v2. Ván cũ giữ schema/luật v1, cả khi chơi lại;
+muốn dùng luật mới cần tải lại trang và tạo bàn mới. Mục luật v1 dưới đây dùng để đọc
+ván/lịch sử cũ. Xem [bằng chứng phát hành v2](CANGUA_V2_PUBLIC_CHECK.md).
 
 Tính năng phát hành tại **https://roomtune.dzoanh.me** cùng các chức năng nghe nhạc.
-Trong phòng, chọn **Trò chơi → Tạo bàn mới**. Cả giao diện và API được bật qua hai flags
+Trong phòng, chọn **Giải trí → Trò chơi → Tạo bàn mới** trên desktop, hoặc
+**Thêm → Trò chơi → Tạo bàn mới** trên mobile. Cả giao diện và API được bật qua hai flags
 `VITE_ENABLE_LUDO=true` và `ENABLE_LUDO=true`. Xem [kiểm thử public](GAME_PUBLIC_CHECK.md).
 Migration `202611140004_ludo.sql` đã áp dụng ngày 14/11/2026 sau backup và dry-run.
 Không sửa các migration đã áp dụng. Chưa deploy Worker production hoặc cron phút;
@@ -26,7 +27,7 @@ npm.cmd run game:start
 ```
 
 Mở **http://127.0.0.1:5180/login**, đăng nhập tài khoản chủ phòng hiện có. Trong phòng,
-chọn **Trò chơi → Tạo bàn mới**. Để tự thử hai người, mở cửa sổ ẩn danh vào cùng địa chỉ,
+chọn **Giải trí → Trò chơi → Tạo bàn mới**. Để tự thử hai người, mở cửa sổ ẩn danh vào cùng địa chỉ,
 chọn vào phòng bằng mã/PIN với tên khác, rồi ngồi ghế trống. Hai tab thường dùng chung
 tài khoản nên không đại diện cho hai người. Mỗi người cần bấm sẵn sàng trước khi bắt đầu.
 
