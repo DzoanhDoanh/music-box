@@ -33,6 +33,10 @@ export default function AdminPanel({
         <h2>Thành viên trong phòng</h2>
         <span className="badge">{snapshot.members.length} người</span>
       </div>
+      <p className="muted">
+        Mời khỏi phòng để kết thúc quyền truy cập hiện tại. Chọn Chặn nếu muốn ngăn người đó vào lại
+        bằng mã phòng.
+      </p>
       {snapshot.members.map((member) => (
         <div className="member-row" key={member.user_id}>
           <span className="avatar">{member.name.slice(0, 2).toUpperCase()}</span>
@@ -46,35 +50,38 @@ export default function AdminPanel({
                   : 'Thành viên'}
             </small>
           </div>
-          {member.user_id !== snapshot.me && member.role !== 'owner' && (
-            <div className="member-actions">
-              {snapshot.role === 'owner' && (
-                <AsyncButton
-                  loadingLabel="Đang cập nhật…"
-                  onClick={() =>
-                    send({
-                      action: member.role === 'moderator' ? 'demote' : 'moderator',
-                      user_id: member.user_id,
-                    })
-                  }
+          {member.user_id !== snapshot.me &&
+            member.role !== 'owner' &&
+            (snapshot.role === 'owner' || member.role === 'member') && (
+              <div className="member-actions">
+                {snapshot.role === 'owner' && (
+                  <AsyncButton
+                    loadingLabel="Đang cập nhật…"
+                    onClick={() =>
+                      send({
+                        action: member.role === 'moderator' ? 'demote' : 'moderator',
+                        user_id: member.user_id,
+                      })
+                    }
+                  >
+                    {member.role === 'moderator' ? 'Bỏ điều hành' : 'Cấp điều hành'}
+                  </AsyncButton>
+                )}
+                <Confirm
+                  title={`Mời ${member.name} ra khỏi phòng?`}
+                  description="Người này sẽ rời phòng nhạc và mất quyền tham gia các bàn chơi. Họ có thể dùng mã phòng để vào lại nếu không bị chặn."
+                  onConfirm={() => send({ action: 'kick', user_id: member.user_id })}
                 >
-                  {member.role === 'moderator' ? 'Bỏ điều hành' : 'Cấp điều hành'}
-                </AsyncButton>
-              )}
-              <Confirm
-                title={`Mời ${member.name} ra khỏi phòng?`}
-                onConfirm={() => send({ action: 'kick', user_id: member.user_id })}
-              >
-                <Button>Đưa ra</Button>
-              </Confirm>
-              <Confirm
-                title={`Chặn ${member.name}?`}
-                onConfirm={() => send({ action: 'ban', user_id: member.user_id })}
-              >
-                <Button variant="danger">Chặn</Button>
-              </Confirm>
-            </div>
-          )}
+                  <Button>Mời khỏi phòng</Button>
+                </Confirm>
+                <Confirm
+                  title={`Chặn ${member.name}?`}
+                  onConfirm={() => send({ action: 'ban', user_id: member.user_id })}
+                >
+                  <Button variant="danger">Chặn</Button>
+                </Confirm>
+              </div>
+            )}
         </div>
       ))}
       <h2>Danh sách chặn</h2>
@@ -118,6 +125,7 @@ export default function AdminPanel({
                     reorder: 'Sắp xếp hàng chờ',
                     moderator: 'Cấp điều hành',
                     demote: 'Thu hồi điều hành',
+                    'game.delete': 'Xóa bàn cờ',
                   } as Record<string, string>
                 )[event.action] ?? event.action}
               </strong>

@@ -194,13 +194,16 @@ export function Confirm({
   description = 'Thao tác này có hiệu lực ngay trong phòng. Vui lòng kiểm tra trước khi tiếp tục.',
   children,
   onConfirm,
+  confirmationText,
 }: {
   title: string;
   description?: string;
   children: ReactNode;
   onConfirm: () => void | Promise<unknown>;
+  confirmationText?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [confirmation, setConfirmation] = useState('');
   const [pending, setPending] = useState(false);
   const running = useRef(false);
   return (
@@ -210,9 +213,23 @@ export function Confirm({
       trigger={children}
       open={open}
       onOpenChange={(value) => {
-        if (!running.current) setOpen(value);
+        if (!running.current) {
+          setOpen(value);
+          setConfirmation('');
+        }
       }}
     >
+      {confirmationText && (
+        <label className="delete-confirmation">
+          Nhập “{confirmationText}” để xác nhận
+          <input
+            value={confirmation}
+            autoComplete="off"
+            disabled={pending}
+            onChange={(event) => setConfirmation(event.target.value)}
+          />
+        </label>
+      )}
       <div className="dialog-actions">
         <Dialog.Close asChild>
           <Button disabled={pending}>Hủy</Button>
@@ -220,6 +237,7 @@ export function Confirm({
         <Button
           variant="danger"
           loading={pending}
+          disabled={!!confirmationText && confirmation !== confirmationText}
           loadingLabel="Đang xử lý…"
           onClick={async () => {
             if (running.current) return;

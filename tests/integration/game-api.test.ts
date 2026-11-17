@@ -63,6 +63,8 @@ beforeEach(() => {
       if (path.endsWith('/game_create')) return Response.json({ ...state, state: body.p_state });
       if (path.endsWith('/game_list')) return Response.json([state.state]);
       if (path.endsWith('/game_watch')) return Response.json(state);
+      if (path.endsWith('/game_delete') || path.endsWith('/room_delete'))
+        return Response.json({ deleted: true });
       throw new Error('Unexpected upstream ' + path);
     }),
   );
@@ -86,6 +88,82 @@ const request = (body?: unknown, suffix = '/' + game, settings = env) =>
     settings,
   );
 describe('trusted game API', () => {
+  it('safe starts allow passage but reject foreign landing and a second spawn without committing', async () => {
+    state.state.phase = 'MOVE';
+    state.state.dice = 1;
+    state.state.players[0].pieces[0] = 13;
+    const body = { action: 'move', version: state.state.version, piece: 0, moveKind: 'STEP' };
+    for (const occupied of [false, true]) {
+      state.state.players[1].pieces[0] = occupied ? 0 : -1;
+      calls = [];
+      expect((await request(body)).status).toBe(409);
+      expect(calls.some((c) => c.path.endsWith('/game_commit'))).toBe(false);
+    }
+    state.state.dice = 2;
+    const response = await request(body);
+    expect(response.status).toBe(200);
+    const result = (await response.json()) as GameSnapshot;
+    expect(result.state.players[0].pieces[0]).toBe(15);
+    expect(result.state.players[1].pieces[0]).toBe(0);
+    expect(result.state.last.captures).toEqual([]);
+    state.state.players[0].pieces = [-1, 0, -1, -1];
+    state.state.dice = 6;
+    calls = [];
+    expect((await request(body)).status).toBe(409);
+    expect(calls.some((c) => c.path.endsWith('/game_commit'))).toBe(false);
+  });
+
+  it('validates deletion confirmation and routes verified identity, scope and receipt to SQL', async () => {
+    expect((await request({ name: 'Bàn thử' }, '/' + game + '/delete')).status).toBe(200);
+    expect(calls.find((c) => c.path.endsWith('/game_delete'))?.body).toEqual({
+      p_actor: actor,
+      p_room: room,
+      p_game: game,
+      p_request: key,
+      p_name: 'Bàn thử',
+    });
+    expect((await request({ name: 'Bàn thử', actor: other }, '/' + game + '/delete')).status).toBe(
+      400,
+    );
+    expect(
+      (await request({ name: 'Bàn thử' }, '/' + game + '/delete', { ...env, ENABLE_LUDO: 'false' }))
+        .status,
+    ).toBe(404);
+    denied = true;
+    expect((await request({ name: 'Bàn thử' }, '/' + game + '/delete')).status).toBe(403);
+  });
+  it('room deletion uses the authenticated identity and requires a request ID', async () => {
+    const result = await app.request(
+      `/api/v1/rooms/${room}/delete`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer fixture',
+          'Content-Type': 'application/json',
+          'Idempotency-Key': key,
+        },
+        body: JSON.stringify({ name: 'Phòng thử' }),
+      },
+      env,
+    );
+    expect(result.status).toBe(200);
+    expect(calls.find((c) => c.path.endsWith('/room_delete'))?.body).toEqual({
+      p_actor: actor,
+      p_room: room,
+      p_request: key,
+      p_name: 'Phòng thử',
+    });
+    const invalid = await app.request(
+      `/api/v1/rooms/${room}/delete`,
+      {
+        method: 'POST',
+        headers: { Authorization: 'Bearer fixture', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Phòng thử' }),
+      },
+      env,
+    );
+    expect(invalid.status).toBe(400);
+  });
   it('computes v2 jumps on the server and rejects them when the route is blocked', async () => {
     state.state.players[0].pieces[0] = 2;
     state.state.phase = 'MOVE';

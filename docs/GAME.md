@@ -1,5 +1,14 @@
 # Cờ cá ngựa ROOMTUNE
 
+**Ô xuất quân an toàn và góc nhìn phẳng (source, chưa public):** bàn mới bảo vệ bốn ô
+xuất quân, chỉ một ngựa cùng màu; màu khác chỉ được đi qua, không dừng dù trống. Tung 6
+không được xuất chồng. Bàn đã lưu giữ luật cũ; đổi được ở phòng chờ. Góc nhìn mới mặc định
+phẳng và vẫn nhớ lựa chọn cá nhân. Xem [bộ luật cập nhật](GAME_RULES_V2.md).
+
+**Bản quản lý phòng/bàn (source, chưa public):** đã bổ sung xóa phòng, xóa bàn và kick ghế,
+kèm kiểm tra quyền, xác nhận tên và khôi phục yêu cầu khi mất phản hồi.
+Xem [phạm vi, vị trí nút và kiểm thử](OWNER_MANAGEMENT.md).
+
 **Bản sửa hình bàn theo ảnh (17/11):** đã public lúc 11:26 giờ Việt Nam; bản thử 5180 cũng đã cập nhật.
 Ô tròn, nhà chờ tròn, chuồng 1–6 đầy đủ và dấu cửa/xuất quân được sửa cho cả bàn cũ lẫn mới.
 Xem [đối chiếu và kiểm chứng](GAME_BOARD_REFERENCE.md).

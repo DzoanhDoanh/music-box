@@ -137,7 +137,13 @@ export default function LudoBoard({
           >
             <title>
               {start
-                ? 'Xuất quân · ' + colorNames[color]
+                ? 'Xuất quân · ' +
+                  colorNames[color] +
+                  (v2
+                    ? isSafe(i, state.rules)
+                      ? ' · Ô an toàn, chỉ một ngựa cùng màu; màu khác chỉ đi qua'
+                      : ' · Luật cũ, không an toàn'
+                    : '')
                 : gate
                   ? 'Cửa chuồng · ' + colorNames[color]
                   : 'Đường đi'}
@@ -164,7 +170,11 @@ export default function LudoBoard({
             )}
             {isSafe(i, state.rules) && (
               <circle cx={x + 0.5} cy={y + 0.5} r=".47" className="ludo-safe">
-                <title>Ô an toàn · Luật bàn cũ</title>
+                <title>
+                  {v2
+                    ? 'Ô xuất quân an toàn · Màu khác chỉ đi qua, không được dừng'
+                    : 'Ô an toàn · Luật bàn cũ'}
+                </title>
               </circle>
             )}
           </g>
@@ -277,12 +287,13 @@ export default function LudoBoard({
                   {stack > 1 ? ` · ${stack} quân trên ô` : ''}
                 </title>
                 <circle r=".52" className="ludo-hit" />
-                {allowed && <circle r=".47" className="ludo-halo" />}
+                {allowed && <circle r=".47" className="ludo-halo" pointerEvents="none" />}
                 <ellipse cy=".13" rx=".36" ry=".28" className="ludo-piece-shadow" />
                 <path d={horseShape} className="ludo-horse" />
                 <path d={horseShape} fill={'url(#' + id + 'gloss)'} pointerEvents="none" />
                 <circle
                   className="ludo-event-ring"
+                  pointerEvents="none"
                   r=".64"
                   fill="none"
                   stroke="var(--horse)"

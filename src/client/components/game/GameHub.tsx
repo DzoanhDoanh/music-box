@@ -19,6 +19,7 @@ import {
   MoreHorizontal,
   History,
   Layers3,
+  UserMinus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Snapshot } from '../../../shared/contracts';
@@ -34,6 +35,8 @@ import {
 } from '../../../shared/game/contracts';
 import { calculateRanking, getLegalMoves } from '../../../shared/game/engine';
 import { api } from '../../lib/api';
+import { AppError } from '../../../shared/domain';
+import DeleteResource from '../DeleteResource';
 import { useGame } from '../../lib/game';
 import {
   clearGameRequest,
@@ -85,13 +88,27 @@ function RulesFields({
         </label>
       )}
       {v2 && (
+        <label>
+          Ô xuất quân
+          <select
+            value={rules.safe}
+            onChange={(event) =>
+              onChange({ ...rules, safe: event.target.value as 'NONE' | 'STARTS' })
+            }
+          >
+            <option value="STARTS">An toàn · một ngựa, được đi vượt</option>
+            <option value="NONE">Luật v2 cũ · không có ô an toàn</option>
+          </select>
+        </label>
+      )}
+      {v2 && (
         <label className="game-check">
           <input
             type="checkbox"
             checked={rules.jumpOnOne}
             onChange={(e) => onChange({ ...rules, jumpOnOne: e.target.checked })}
           />
-          Ra 1 được nhảy tới cửa chuồng khi đường trống
+          Ra 1 được nhảy tới cửa chuồng khi không bị chặn
         </label>
       )}
       <label>
@@ -160,12 +177,14 @@ function RulesHelp({ rules }: { rules: GameRules }) {
             tung sau mới vào chuồng.
           </li>
           <li>
-            Không vượt bất kỳ quân nào. Đối thủ cách 3 ô: ra 2 được đi, ra 3 đá, ra 4–6 bị chặn.
-            Không có ô an toàn trên đường chung.
+            {rules.safe === 'STARTS'
+              ? 'Bốn ô xuất quân là ô an toàn, mỗi ô chỉ chứa một ngựa cùng màu. Quân màu khác chỉ được đi qua, không được dừng dù ô trống; vẫn tính ô đó là một bước. Ngựa ở ô an toàn không bị đá và không chặn quân đi qua; các chướng ngại ở ô thường vẫn chặn đường.'
+              : 'Luật cũ của bàn: không có ô an toàn trên đường chung; không vượt bất kỳ quân nào. Ô xuất quân vẫn có thể bị đá khi đi đúng số.'}{' '}
+            Ở ô thường, đối thủ cách 3 ô: ra 2 được đi, ra 3 đá, ra 4–6 bị chặn.
           </li>
           <li>
             {rules.jumpOnOne
-              ? 'Ra 1: chọn đi một ô hoặc nhảy tới cửa chuồng kế tiếp nếu cả đoạn và ô cửa đều trống. Nhảy không đá quân và không đi quá cửa của mình.'
+              ? `Ra 1: chọn đi một ô hoặc nhảy tới cửa chuồng kế tiếp nếu đoạn đường không bị chặn và ô cửa trống.${rules.safe === 'STARTS' ? ' Được vượt ngựa đang ở ô xuất quân an toàn.' : ''} Nhảy không đá quân và không đi quá cửa của mình.`
               : 'Đã tắt nhảy cửa chuồng; ra 1 chỉ đi một ô.'}
           </li>
           <li>
@@ -274,7 +293,7 @@ export default function GameHub({
     [history, setHistory] = useState(false);
   const [sound, setSound] = useState(false),
     [clock, setClock] = useState(Date.now());
-  const [depth, setDepth] = useState(() => localStorage.getItem('roomtune:ludo:depth') !== 'flat');
+  const [depth, setDepth] = useState(() => localStorage.getItem('roomtune:ludo:depth') === 'depth');
   const context = useRef<AudioContext | null>(null),
     lastSound = useRef<number | null>(null),
     lastTurn = useRef<string | null>(null);
@@ -292,6 +311,14 @@ export default function GameHub({
     navigate('/room/' + room + '/games' + (id ? '/' + encodeURIComponent(id) : ''));
   };
   const state = game.data?.state;
+  const deleted = game.query.error instanceof AppError && game.query.error.code === 'NOT_FOUND';
+  useEffect(() => {
+    if (!match || !deleted) return;
+    toast.info('Bàn chơi đã được xóa.', { id: 'game-deleted-' + match });
+    setLastMatch(null);
+    if (visible) navigate('/room/' + room + '/games', { replace: true });
+    void client.invalidateQueries({ queryKey: ['games', room, actor] });
+  }, [deleted, match, visible, room, actor, client, navigate]);
   const [moveChoice, setMoveChoice] = useState<{
     game: string;
     version: number;
@@ -426,6 +453,7 @@ export default function GameHub({
   const player = state?.players.find((p) => p.id === actor);
   const manager = snapshot.role !== 'member';
   const host = state?.host === actor || manager;
+  const canManage = state?.host === actor || snapshot.role === 'owner';
   const waiting = state && ['WAITING', 'READY'].includes(state.status);
   const ended = state && ['FINISHED', 'CANCELLED'].includes(state.status);
   const turn = state?.players.find((p) => p.id === state.turn);
@@ -657,6 +685,27 @@ export default function GameHub({
                             : 'Mời bạn vào chơi'}
                         </small>
                       </div>
+                      {p &&
+                        canManage &&
+                        p.id !== actor &&
+                        p.status === 'ACTIVE' &&
+                        !ended &&
+                        !snapshot.members.some((m) => m.user_id === p.id && m.role === 'owner') && (
+                          <Confirm
+                            title={`Mời ${p.name} khỏi bàn?`}
+                            description="Người này mất ghế; nếu đang chơi sẽ tính là đầu hàng. Họ vẫn được nghe nhạc và xem bàn, có thể tự chọn ghế lại khi bàn chờ."
+                            onConfirm={() => game.send({ action: 'kick', user_id: p.id })}
+                          >
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              disabled={busy}
+                              aria-label={`Mời ${p.name} khỏi bàn`}
+                            >
+                              <UserMinus size={16} />
+                            </Button>
+                          </Confirm>
+                        )}
                       {!p && waiting && (
                         <AsyncButton
                           disabled={busy}
@@ -669,6 +718,12 @@ export default function GameHub({
                   );
                 })}
               </div>
+              {game.data?.removedPlayers?.includes(actor) && (
+                <p className="notice" role="status">
+                  Bạn đã được mời rời ghế. Bạn vẫn nghe nhạc và xem bàn được; khi bàn chờ, bạn có
+                  thể tự chọn ghế lại.
+                </p>
+              )}
               <div className="game-arena">
                 <div className="game-board-frame">
                   {state.status === 'FINISHED' && (
@@ -944,6 +999,25 @@ export default function GameHub({
             <AsyncButton disabled={busy} onClick={() => game.send({ action: 'leave' })}>
               Rời ghế
             </AsyncButton>
+          )}
+          {canManage && (
+            <div className="delete-zone">
+              <DeleteResource
+                key={state.id}
+                path={`/rooms/${room}/games/${state.id}/delete`}
+                actor={actor}
+                name={state.name}
+                label="Xóa bàn"
+                disabled={busy}
+                description="Xóa vĩnh viễn bàn và lịch sử các ván tại bàn này. Ván đang chơi sẽ dừng. Phòng nhạc và các bàn khác vẫn hoạt động."
+                onDeleted={() => {
+                  setMatch(null);
+                  void client.invalidateQueries({ queryKey: ['games', room, actor] });
+                  void client.cancelQueries({ queryKey: ['game', room, actor, state.id] });
+                  client.removeQueries({ queryKey: ['game', room, actor, state.id] });
+                }}
+              />
+            </div>
           )}
           {player?.status === 'ACTIVE' && ['PLAYING', 'PAUSED'].includes(state.status) && (
             <Confirm

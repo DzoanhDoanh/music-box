@@ -397,4 +397,8 @@ export async function testGame({ sql, owner, check }) {
   );
   const { testCaNgua } = await import('./test-cangua-db.mjs');
   await testCaNgua({ sql, owner, check, store, GameService, defaultRules, transition });
+  const { testSafeStarts } = await import('./test-safe-starts-db.mjs');
+  await testSafeStarts({ sql, owner, check, store, GameService, defaultRules });
+  const { testManagement } = await import('./test-management-db.mjs');
+  await testManagement({ sql, owner, check, store, GameService, defaultRules });
 }

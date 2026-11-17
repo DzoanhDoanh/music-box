@@ -16,6 +16,14 @@ export class RoomService {
   list() {
     return this.store.listRooms(this.actor);
   }
+  delete(room: string, key: string, name: string) {
+    return this.store.call<{ deleted: true }>('room_delete', {
+      p_actor: this.actor,
+      p_room: room,
+      p_request: key,
+      p_name: name,
+    });
+  }
   create(input: z.infer<typeof createRoomSchema>, key: string) {
     return this.store.call<Room>('create_room', {
       p_actor: this.actor,

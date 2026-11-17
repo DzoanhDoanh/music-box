@@ -4,9 +4,13 @@ Ngày 17/11/2026: đã phát hành engine, bàn cờ và giao diện chọn nư�
 cùng migration Supabase hosted. Tải lại trang và tạo bàn mới để dùng luật v2;
 ván cũ giữ nguyên luật của bàn, kể cả khi chơi lại. Xem [kiểm tra phát hành](CANGUA_V2_PUBLIC_CHECK.md).
 
+**Bản sửa ô xuất quân an toàn đang ở mã nguồn, chưa public.** Bàn mới mặc định dùng
+`safe: STARTS`; bốn ô xuất quân chỉ chứa quân cùng màu. Bàn v2 đã lưu với `safe: NONE`
+giữ nguyên luật cũ, kể cả khi chơi lại. Quản trò có thể đổi tùy chọn ở phòng chờ.
+
 Đây là biến thể ROOMTUNE, không khẳng định là bộ luật duy nhất của cờ cá ngựa. Theo xác nhận
 của người dùng: ra 1 có thể nhảy cửa chuồng khi đường trống; không vượt quân cản; đối thủ cách
-3 ô thì ra 2 được đi, ra 3 đá, ra 4–6 bị chặn. Ô cuối vòng chính là cửa lên chuồng; ô tiếp theo
+3 ô trên ô thường thì ra 2 được đi, ra 3 đá, ra 4–6 bị chặn. Ô cuối vòng chính là cửa lên chuồng; ô tiếp theo
 trên đường chung là ô xuất quân. Các mặc định còn lại được ghi rõ bên dưới.
 Xem [kết quả rà soát và kiểm thử](GAME_RULES_AUDIT.md).
 
@@ -16,7 +20,10 @@ Xem [kết quả rà soát và kiểm thử](GAME_RULES_AUDIT.md).
 - Bàn cờ v2 có 56 ô đường chung, bốn cửa chuồng cách đều nhau; mỗi màu có dãy
   chuồng riêng gồm bậc 1 đến 6. Mọi quân đi cùng chiều mũi tên được vẽ trên bàn.
 - **Nhà chờ** là nơi để ngựa chưa xuất hoặc vừa bị đá.
-- **Ô xuất phát** là ô đường chung ngựa được đặt vào khi ra quân.
+- **Ô xuất phát** (hình ngựa, có vòng viền an toàn) là nơi đặt ngựa khi ra quân.
+  Mỗi ô chỉ chứa **một ngựa cùng màu**; ngựa đó không bị đá và không chặn quân đi qua.
+  Quân màu khác **chỉ được đi qua, không được dừng**, kể cả khi ô trống.
+  Đi qua vẫn tính ô này là một bước; không tự nhảy thêm ô khi số tung kết thúc tại đây.
 - **Cửa chuồng** là ô đường chung tại lối vào dãy chuồng của một màu, ngay trước ô xuất phát
   theo chiều đi. Cửa chuồng khác ô xuất phát và khác bậc 1 trong chuồng.
 - Ngựa đi quanh đường chung từ ô xuất phát tới cửa chuồng của chính mình, rồi vào chuồng.
@@ -46,22 +53,27 @@ không dùng con số 52 của bàn Ludo hiện tại làm quy ước chung cho 
 ## 3. Đi thường, chặn đường và đá quân
 
 - Đi đúng số ô của xúc xắc, chỉ đi về phía trước. Không đi thiếu bước để dừng trước vật cản.
-- Không vượt qua quân nào ở giữa đường, kể cả quân của mình. Nếu gặp quân trước khi đủ
+- Không vượt qua quân nào ở **ô thường** giữa đường, kể cả quân của mình. Nếu gặp quân trước khi đủ
   số bước thì nước đó không hợp lệ; chọn quân hoặc hành động khác.
-- Ô đích trống: được đứng vào. Ô đích có quân mình: không được đi. Ô đích có quân đối thủ:
+- Ngựa đứng trên ô xuất quân an toàn không cản đi qua. Chướng ngại trên ô thường trước hoặc
+  sau ô an toàn vẫn chặn đường như bình thường.
+- Ô đích là ô xuất quân khác màu: không được dừng, dù trống hay có quân.
+- Ô đích thường trống: được đứng vào. Ô đích có quân mình: không được đi. Ô đích thường có quân đối thủ:
   được đá quân đó về nhà chờ, miễn đoạn đường trước ô đích không bị cản.
 - Đếm khoảng cách bằng **số bước dọc đường đi**, không tính ô đang đứng, không dùng số ghi
-  trên quân hoặc khoảng cách hình học trên màn hình. Nếu đối thủ đầu tiên phía trước cách
+  trên quân hoặc khoảng cách hình học trên màn hình. Nếu đối thủ đầu tiên trên ô thường phía trước cách
   `k` bước và xúc xắc là `d`: `d < k` được tiến `d` bước; `d = k` được đá; `d > k` không được đi
   quân đó. Nếu trước đối thủ còn một quân khác thì phải xử lý quân cản gần hơn trước.
-- Không được tự rút bước để đá, không nhảy qua đối thủ rồi đứng phía sau và không làm đối thủ
+- Không được tự rút bước để đá, không nhảy qua đối thủ ở ô thường rồi đứng phía sau và không làm đối thủ
   biến mất khi số tung chưa tới. Chặn một quân không đồng nghĩa cả lượt bị chặn: xét các quân còn lại.
-- Mặc định không có ô sao hoặc ô xuất phát được miễn đá. Quân đứng ở cửa chuồng vẫn có thể
+- Chỉ bốn ô xuất quân được bảo vệ trên đường chung. Quân đứng ở cửa chuồng vẫn có thể
   bị đá. Ngựa đã vào dãy chuồng riêng không bị đối thủ đá.
 - Quân bị đá mất tiến độ vòng chạy; phải xuất lại từ đầu khi có kết quả cho phép.
 
-Ví dụ: đối thủ cách 3 bước thì ra 3 được đá, ra 4 không được vượt qua, ra 2 được tiến hai ô
+Ví dụ: đối thủ trên ô thường cách 3 bước thì ra 3 được đá, ra 4 không được vượt qua, ra 2 được tiến hai ô
 nếu đoạn đó trống. Nếu quân cách 3 bước là quân mình thì ra 3 cũng không được đứng chồng lên.
+Nếu ô cách 3 bước là ô xuất quân khác màu, ra 3 không đi được; ra 4 được đi qua nếu
+không có chướng ngại trên những ô thường. Quân ở ô an toàn vẫn ở nguyên chỗ.
 
 ## 4. Ra 1 được nhảy tới cửa chuồng kế tiếp
 
@@ -72,8 +84,9 @@ với ô xuất phát như câu hỏi làm rõ trước đó.
 - Khi ra **1**, ngoài nước đi thường một ô, có thể chọn **nhảy tới cửa chuồng gần nhất ở
   phía trước theo chiều đi**. Không cần đang đứng tại một cửa chuồng mới được nhảy.
 - Chỉ nhảy đến cửa kế tiếp; không bỏ qua một cửa để đến cửa xa hơn.
-- Kiểm tra toàn bộ đoạn sau ô đang đứng đến hết ô đích: **tất cả phải trống**.
-  Có quân mình hoặc đối thủ ở giữa hay ngay cửa đích đều không nhảy được.
+- Kiểm tra toàn bộ đoạn sau ô đang đứng: **không có quân cản trên ô thường và cửa đích phải trống**.
+  Được nhảy qua ngựa ở ô xuất quân an toàn. Quân mình hoặc đối thủ trên ô thường giữa đường
+  hay ngay cửa đích đều chặn nhảy.
 - Nếu không nhảy được, nước đi thường một ô vẫn được xét độc lập: có thể tiến vào ô trống
   hoặc đá đối thủ ở ngay ô kế bên. Không có nước hợp lệ cho quân này thì chọn quân khác.
 - Một lần ra 1 chỉ nhảy một chặng. Phải có lần tung tiếp theo mới được đi hoặc nhảy nữa.
@@ -83,7 +96,7 @@ với ô xuất phát như câu hỏi làm rõ trước đó.
 - Nếu đi thường một ô và nhảy đều dẫn tới cùng một ô thì giao diện chỉ cần hiện một lựa chọn.
 
 Ví dụ: cửa kế tiếp cách 8 ô, cả 8 ô đều trống, ra 1 có thể chọn đi một ô hoặc nhảy đủ 8 ô.
-Nếu ô thứ 5 có quân thì không được nhảy, nhưng vẫn có thể đi một ô nếu ô đó hợp lệ.
+Nếu ô thường thứ 5 có quân thì không được nhảy, nhưng vẫn có thể đi một ô nếu ô đó hợp lệ.
 
 Luật ra 1 đi thẳng đến cửa gần nhất trên đoạn không bị cản cũng được mô tả trong
 [hướng dẫn Thủ Thuật Chơi](https://thuthuatchoi.com/cach-choi-co-ca-ngua-cho-nguoi-moi-bat-dau.html).
@@ -130,29 +143,33 @@ chuồng được quy định tường minh cho bộ ROOMTUNE này.
 
 ## 8. Các tùy chọn trước ván
 
-| Tùy chọn                         | Mặc định                        | Lựa chọn khác     |
-| -------------------------------- | ------------------------------- | ----------------- |
-| Ra quân                          | Chỉ bằng 6                      | Bằng 1 hoặc 6     |
-| Nhảy khi ra 1                    | Bật, đoạn đường và ô đích trống | Tắt               |
-| Thời gian một lần tung/chọn nước | 45 giây                         | 30 / 60 / 90 giây |
-| Số lượt vắng trước đầu hàng      | 3                               | 2–5               |
+| Tùy chọn                         | Mặc định                                            | Lựa chọn khác             |
+| -------------------------------- | --------------------------------------------------- | ------------------------- |
+| Ra quân                          | Chỉ bằng 6                                          | Bằng 1 hoặc 6             |
+| Ô xuất quân                      | An toàn, chỉ một ngựa cùng màu; màu khác chỉ đi qua | Luật v2 cũ: không an toàn |
+| Nhảy khi ra 1                    | Bật, đường không bị chặn và cửa đích trống          | Tắt                       |
+| Thời gian một lần tung/chọn nước | 45 giây                                             | 30 / 60 / 90 giây         |
+| Số lượt vắng trước đầu hàng      | 3                                                   | 2–5                       |
 
 Bật xuất quân bằng 1 không tự thay đổi luật thưởng lượt: trong bộ này vẫn chỉ ra 6 được tung thêm.
+Góc nhìn mặc định là **phẳng**. Tùy chọn bàn cho phép đổi sang góc nhìn nổi; thiết bị nhớ
+lựa chọn cá nhân này, không thay đổi góc nhìn của người chơi khác.
+
 Các luật chồng quân, ô sao an toàn và cả bốn quân cùng về một ô đích thuộc bộ cũ; không đưa vào
 những tùy chọn của bộ v2 này.
 
 ## 9. Phiên bản dữ liệu và triển khai
 
-| Phần           | Ván cũ v1                          | Bàn mới v2                                        |
-| -------------- | ---------------------------------- | ------------------------------------------------- |
-| Bàn và đường   | 52 ô; chưa tách mốc cửa cho nhảy   | 56 ô, có cửa/ô xuất phát riêng                    |
-| Chặn đường     | Cho đi xuyên, cho chồng            | Chặn bởi mọi quân; mỗi ô đường chung một quân     |
-| An toàn        | Xuất phát/sao theo cấu hình        | Chỉ an toàn sau khi vào chuồng riêng              |
-| Ra 1           | Đi một bước                        | Chọn đi thường hoặc nhảy hợp lệ                   |
-| Lệnh di chuyển | Chỉ nhận quân vì mỗi quân một đích | Nhận quân và loại nước; server tự tính đích       |
-| Về chuồng      | Cộng số bước, cả bốn cùng tới 57   | Dừng cửa; vào bậc theo số; leo từng bậc           |
-| Chiến thắng    | Cả bốn quân cùng giá trị 57        | Bốn quân ở bốn bậc 3–6                            |
-| Ván đang chơi  | Schema/luật v1                     | Tiếp tục dùng v1 tới hết; không đổi luật giữa ván |
+| Phần           | Ván cũ v1                          | Bàn mới v2                                                  |
+| -------------- | ---------------------------------- | ----------------------------------------------------------- |
+| Bàn và đường   | 52 ô; chưa tách mốc cửa cho nhảy   | 56 ô, có cửa/ô xuất phát riêng                              |
+| Chặn đường     | Cho đi xuyên, cho chồng            | Ô thường chặn; được qua ô xuất quân an toàn; mỗi ô một quân |
+| An toàn        | Xuất phát/sao theo cấu hình        | Bàn mới bảo vệ ô xuất quân; ô này chỉ chứa quân cùng màu    |
+| Ra 1           | Đi một bước                        | Chọn đi thường hoặc nhảy hợp lệ                             |
+| Lệnh di chuyển | Chỉ nhận quân vì mỗi quân một đích | Nhận quân và loại nước; server tự tính đích                 |
+| Về chuồng      | Cộng số bước, cả bốn cùng tới 57   | Dừng cửa; vào bậc theo số; leo từng bậc                     |
+| Chiến thắng    | Cả bốn quân cùng giá trị 57        | Bốn quân ở bốn bậc 3–6                                      |
+| Ván đang chơi  | Schema/luật v1                     | Tiếp tục dùng v1 tới hết; không đổi luật giữa ván           |
 
 State v2 dùng schema 2, rules.variant = CANGUA_V2, tiến độ -1 (nhà), 0–55 (đường chung),
 56–61 (bậc 1–6). Ván v1 giữ schema 1, kể cả khi chơi lại; muốn dùng luật mới cần tạo bàn mới.
@@ -165,14 +182,20 @@ Migration đã được backup/dry-run và áp dụng trước khi thay API/UI. 
 đều hỗ trợ v1/v2; không chạy lại runtime chỉ hiểu v1 khi database đã có bàn v2. Luật và bàn
 trong UI luôn chọn theo schema của ván. Máy chủ sinh xúc xắc và chọn người đi đầu bằng random an toàn.
 
+Migration **chưa áp dụng hosted** `202611170003_safe_start_squares.sql` bổ sung `safe: STARTS`
+cho schema 2, giữ hàm CHECK hiện có và validator của `NONE`/v1. Không cập nhật hàng dữ liệu cũ.
+Validator từ chối chồng quân và quân khác màu dừng trên ô xuất quân. Bàn cũ `safe: NONE`
+vẫn cho đá ở ô xuất quân và bị chặn bởi mọi quân như trước; chỉ khi quản trò đổi tùy chọn
+trong phòng chờ thì bàn mới chuyển sang luật an toàn. Không đổi luật giữa ván.
+
 ## 10. Tình huống kiểm thử
 
 1. Chỉ xuất quân vào ô trống; ô có quân mình/đối thủ chặn xuất theo mặc định;
    không dùng kết quả đó để đi thêm.
-2. Đối thủ ở cách đúng số bước thì đá; gần hơn thì chặn; cùng màu ở đích thì không đi.
+2. Đối thủ trên ô thường ở cách đúng số bước thì đá; gần hơn thì chặn; cùng màu ở đích thì không đi.
 3. Không đi thiếu bước, đi lùi hoặc đứng chồng.
 4. Ra 1 có đồng thời lựa chọn đi thường và nhảy; chọn một nước chỉ di chuyển một lần.
-5. Mọi quân giữa đường và quân ở cửa đích đều chặn nhảy; quân ngoài đoạn đó không chặn.
+5. Quân ở ô thường giữa đường và ở cửa đích chặn nhảy; quân ở ô xuất quân an toàn hoặc ngoài đoạn không chặn.
 6. Nhảy đến cửa gần nhất từ từng vị trí, đủ bốn màu, kể cả qua điểm nối cuối/đầu đường chung.
 7. Tại cửa của màu khác có thể nhảy tới cửa tiếp; tại cửa của mình cuối vòng chỉ vào chuồng.
 8. Đến cửa bằng nhảy không vào chuồng bằng cùng lần tung, không bắt đầu vòng thứ hai.
@@ -186,3 +209,6 @@ trong UI luôn chọn theo schema của ván. Máy chủ sinh xúc xắc và ch�
     bỏ qua quân ở nhà chờ hoặc trong chuồng riêng khi kiểm tra cản trên đường chung.
 16. Bậc 6 của cả bốn màu phải hiện đầy đủ, cửa nối thẳng bậc 1; dấu xuất phát và chiều đi
     trên giao diện phải dùng cùng định nghĩa đường với máy chủ.
+17. Đi đúng số vào ô xuất quân khác màu bị từ chối dù ô trống; đi qua vẫn đếm một bước.
+18. Ra 6 khi ngựa mình đang ở ô xuất quân không được xuất thêm; có thể đi ngựa đó ra ngoài.
+19. Mặc định góc nhìn phẳng; bật góc nhìn nổi rồi tải lại vẫn giữ lựa chọn.

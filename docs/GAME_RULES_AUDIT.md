@@ -2,12 +2,32 @@
 
 ## Yêu cầu đã xác nhận
 
-- Đối thủ cách 3 bước: tung 2 đi được, tung 3 đá, tung 4–6 không vượt qua.
+- Đối thủ trên ô thường cách 3 bước: tung 2 đi được, tung 3 đá, tung 4–6 không vượt qua.
 - Ra 1 có thể nhảy tới cửa chuồng kế tiếp khi đoạn đường trống.
 - Ô cuối của vòng là cửa lên chuồng của chính mình; ô kế tiếp trên đường chung là ô xuất quân.
+- Bổ sung ở mã nguồn (chưa public): ô xuất quân là ô an toàn chỉ chứa một ngựa cùng màu.
+  Quân màu khác chỉ được đi qua, không dừng dù trống; ngựa ở ô này không bị đá và không chặn đường.
+  Tung 6 không được xuất thêm nếu ô xuất quân đang có ngựa mình. Bàn mới dùng luật này;
+  bàn cũ giữ cấu hình đã lưu, có thể đổi khi chờ. Góc nhìn mặc định là phẳng.
 
 Không coi một biến thể cờ cá ngựa là luật duy nhất. Các mặc định về xuất quân, thêm lượt và
 xếp chuồng được ghi trong [bộ luật ROOMTUNE v2](GAME_RULES_V2.md).
+
+## Kiểm chứng bản ô xuất quân an toàn (source, chưa public)
+
+- 381 unit/API tests đạt, gồm đủ bốn màu, đi qua ô an toàn, cấm dừng ở ô xuất quân khác màu,
+  cấm xuất chồng khi ra 6, chặn/đá ở ô thường, nhảy cửa và giữ luật v1/v2 cũ khi rematch.
+- 80 kiểm tra PostgreSQL cô lập đạt: migration mới, CHECK dữ liệu, retry/CAS, cấm đổi luật
+  giữa ván, xóa/kick và bảo toàn dữ liệu phòng khác. Chưa áp dụng migration hosted.
+- 32 kịch bản browser đạt; 2 kịch bản mobile được bỏ qua có chủ đích vì đã chạy trong
+  ma trận desktop. Bao gồm ván hoàn chỉnh bốn người và rematch, quản lý phòng/bàn,
+  ô an toàn và góc nhìn mặc định phẳng. Một selector nhãn cũ được cập nhật rồi chạy lại đạt.
+- Kiểm thử chuột phát hiện vòng hiệu ứng trong suốt của ngựa bên cạnh chặn bấm quân.
+  Vòng hiệu ứng/halo đã bỏ nhận pointer; kiểm thử bấm thật qua trên desktop/mobile.
+- Lint, typecheck, build riêng và quét 26 client artifacts đạt. Build tại
+  `.roomtune/management-build`, entry `index-C0w48bKw.js`, game `GameHub-Cwp1cuNv.js`.
+  Hash xác nhận `dist` public và con trỏ deploy được giữ nguyên. Chưa restart public/trial,
+  chưa commit/push hoặc chạy migration trên Supabase hosted.
 
 ## Lỗi và sửa đổi
 

@@ -14,7 +14,8 @@ export const legacyRulesSchema = z
 export const caNguaRulesSchema = legacyRulesSchema.extend({
   variant: z.literal('CANGUA_V2'),
   jumpOnOne: z.boolean().default(true),
-  safe: z.literal('NONE').default('NONE'),
+  // Missing/old values retain the original v2 rules. New tables opt into safe starts below.
+  safe: z.enum(['NONE', 'STARTS']).default('NONE'),
   captureBonus: z.literal(false).default(false),
   finishBonus: z.literal(false).default(false),
   threeSixes: z.literal(false).default(false),
@@ -23,7 +24,7 @@ export const caNguaRulesSchema = legacyRulesSchema.extend({
 export const rulesSchema = z.union([caNguaRulesSchema, legacyRulesSchema]);
 export type GameRules = z.infer<typeof rulesSchema>;
 export const legacyRules = legacyRulesSchema.parse({});
-export const defaultRules = caNguaRulesSchema.parse({ variant: 'CANGUA_V2' });
+export const defaultRules = caNguaRulesSchema.parse({ variant: 'CANGUA_V2', safe: 'STARTS' });
 export const isCaNgua = (rules: GameRules): rules is z.infer<typeof caNguaRulesSchema> =>
   'variant' in rules && rules.variant === 'CANGUA_V2';
 export const moveKindSchema = z.enum(['STEP', 'JUMP']);
@@ -98,6 +99,8 @@ export const stateSchema = z
       for (const p of s.players)
         for (const n of p.pieces) {
           if (n === -1 || p.status === 'FORFEITED') continue;
+          if (s.rules.safe === 'STARTS' && n > 0 && n < 56 && n % 14 === 0)
+            ctx.addIssue({ code: 'custom', message: 'Cannot occupy another color start' });
           const cell = n < 56 ? 'track:' + ((p.color * 14 + n) % 56) : p.id + ':' + n;
           if (cells.has(cell)) ctx.addIssue({ code: 'custom', message: 'Occupied square' });
           cells.add(cell);
@@ -144,6 +147,7 @@ export const createGameSchema = z
   .object({ name: z.string().trim().min(1).max(60), rules: rulesSchema })
   .strict();
 export const gameCommandSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('kick'), user_id: z.uuid(), version }).strict(),
   z.object({ action: z.literal('join'), color: z.number().int().min(0).max(3), version }).strict(),
   z.object({ action: z.literal('color'), color: z.number().int().min(0).max(3), version }).strict(),
   z.object({ action: z.literal('ready'), ready: z.boolean(), version }).strict(),
@@ -177,6 +181,8 @@ export type GameCommand = z.infer<typeof gameCommandSchema>;
 export type EngineAction = Exclude<GameCommand, { action: 'watch' | 'unwatch' }>;
 export type GameSnapshot = {
   state: GameState;
+  /** Removed seats stay out of automatic rematches; explicitly joining clears this marker. */
+  removedPlayers?: string[];
   serverNow: number;
   spectators: { id: string; name: string }[];
   results: { round: number; rankings: GamePlayer[]; created_at: string }[];

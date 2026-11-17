@@ -37,6 +37,8 @@ export function gameFixture() {
     dropReplies = new Set<string>();
   const requests: { actor: string; key: string; body: unknown }[] = [];
   const musicCommands: Record<string, unknown>[] = [];
+  const removed = new Map<string, Set<string>>();
+  let deletedRoom = false;
   let muteBroadcast = false;
   const music: Snapshot = {
     room: {
@@ -94,6 +96,7 @@ export function gameFixture() {
   };
   const view = (id: string): GameSnapshot => ({
     state: structuredClone(games.get(id)!),
+    removedPlayers: [...(removed.get(id) ?? [])],
     serverNow: Date.now(),
     spectators: [...(watchers.get(id) ?? [])]
       .filter((id) => !revoked.has(id))
@@ -226,6 +229,32 @@ export function gameFixture() {
       const body = route.request().method() === 'POST' ? route.request().postDataJSON() : null;
       const key = route.request().headers()['idempotency-key'];
       try {
+        if (path.endsWith('/delete')) {
+          if (index !== 0) throw new AppError('PERMISSION_DENIED', 403);
+          const tableId = path.split('/games/')[1]?.split('/')[0];
+          if (tableId) {
+            if (!games.has(tableId)) throw new AppError('NOT_FOUND', 404);
+            games.delete(tableId);
+            broadcast(tableId);
+          } else {
+            deletedRoom = true;
+            music.version++;
+            for (const channel of sockets)
+              for (const topic of channel.topics)
+                if (topic === 'realtime:room:' + room)
+                  send(
+                    channel,
+                    'broadcast',
+                    {
+                      type: 'broadcast',
+                      event: 'room.updated',
+                      payload: { version: music.version },
+                    },
+                    topic,
+                  );
+          }
+          return route.fulfill({ json: { deleted: true } });
+        }
         if (path.includes('/games')) {
           if (revoked.has(actor)) throw new AppError('PERMISSION_DENIED', 403);
           const id = path.split('/games/')[1];
@@ -247,7 +276,7 @@ export function gameFixture() {
             receipts.set(actor + key, { body: JSON.stringify(body), result });
             return route.fulfill({ status: 201, json: result });
           }
-          const current = games.get(id);
+          let current = games.get(id);
           if (!current) throw new AppError('NOT_FOUND', 404);
           if (!body) {
             const next = reconcileGame(
@@ -274,6 +303,17 @@ export function gameFixture() {
             if (dropReplies.has(actor)) return route.abort('failed');
             return route.fulfill({ json: receipt.result });
           }
+          if (command.action === 'kick') {
+            const targets = removed.get(id) ?? new Set<string>();
+            targets.add(command.user_id);
+            removed.set(id, targets);
+          }
+          if (command.action === 'join') removed.get(id)?.delete(actor);
+          if (command.action === 'rematch')
+            current = {
+              ...current,
+              players: current.players.filter((p) => !removed.get(id)?.has(p.id)),
+            };
           const player = current.players.find((p) => p.id === actor),
             progress = player?.pieces.find((n) => n !== 57) ?? -1;
           // Deterministic browser scenario: one active player completes their circuit
@@ -316,14 +356,20 @@ export function gameFixture() {
         if (path === '/api/v1/rooms')
           return route.fulfill({
             json: {
-              rooms: [{ role: index === 0 ? 'owner' : 'member', room: music.room }],
+              rooms:
+                deletedRoom || revoked.has(actor)
+                  ? []
+                  : [{ role: index === 0 ? 'owner' : 'member', room: music.room }],
               canCreate: index === 0,
             },
           });
-        if (path.endsWith('/snapshot'))
+        if (path.endsWith('/snapshot')) {
+          if (deletedRoom || revoked.has(actor)) throw new AppError('PERMISSION_DENIED', 403);
           return route.fulfill({
             json: { ...music, me: actor, role: index === 0 ? 'owner' : 'member' },
           });
+        }
+        if (path.includes('/admin')) return route.fulfill({ json: { audit: [], bans: [] } });
         if (path.endsWith('/chat'))
           return route.fulfill({
             json: { messages: [], latest_sequence: 0, read_sequence: 0, unread_count: 0 },
@@ -331,6 +377,10 @@ export function gameFixture() {
         if (path.endsWith('/presence')) return route.fulfill({ json: { online_count: 5 } });
         if (path.endsWith('/commands')) {
           musicCommands.push(body);
+          if (body.action === 'kick') {
+            revoked.add(body.user_id);
+            music.members = music.members.filter((m) => m.user_id !== body.user_id);
+          }
           if (body.action === 'claim')
             music.playback = {
               ...music.playback,
@@ -342,6 +392,15 @@ export function gameFixture() {
             music.playback.lease_until = new Date(Date.now() + 60000).toISOString();
           if (body.action === 'report') music.playback.state = body.state;
           music.version++;
+          for (const channel of sockets)
+            for (const topic of channel.topics)
+              if (topic === 'realtime:room:' + room)
+                send(
+                  channel,
+                  'broadcast',
+                  { type: 'broadcast', event: 'room.updated', payload: { version: music.version } },
+                  topic,
+                );
           return route.fulfill({ json: { version: music.version, playback: music.playback } });
         }
         if (path.endsWith('/library'))

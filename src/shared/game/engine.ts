@@ -57,6 +57,7 @@ function newPlayer(id: string, name: string, color: number): GamePlayer {
   };
 }
 export function isSafe(cell: number, rules: GameRules) {
+  if (isCaNgua(rules)) return rules.safe === 'STARTS' && cell >= 0 && cell < 56 && cell % 14 === 0;
   return rules.safe !== 'NONE' && (cell % 13 === 0 || (rules.safe === 'STARS' && cell % 13 === 8));
 }
 export function getLegalMoves(state: GameState, actor = state.turn): LegalMove[] {
@@ -91,8 +92,10 @@ function caNguaMoves(state: GameState, player: GamePlayer, dice: number): LegalM
     for (const n of p.pieces) if (n >= 0 && n < 56) occupants.set(boardCell(p.color, n, 2), p.id);
   }
   const occupied = (n: number) => occupants.get(boardCell(player.color, n, 2));
+  const safe = (n: number) => isSafe(boardCell(player.color, n, 2), state.rules);
   const clear = (from: number, to: number) => {
-    for (let n = from + 1; n <= to; n++) if (occupied(n)) return false;
+    // A horse sheltered on a start does not block passage. Ordinary occupied cells still do.
+    for (let n = from + 1; n <= to; n++) if (occupied(n) && !safe(n)) return false;
     return true;
   };
   return player.pieces.flatMap((from, piece): LegalMove[] => {
@@ -109,14 +112,22 @@ function caNguaMoves(state: GameState, player: GamePlayer, dice: number): LegalM
     }
     const moves: LegalMove[] = [];
     const to = from + dice;
-    if (to <= 55 && clear(from, to - 1) && occupied(to) !== player.id) moves.push(...step(to));
+    // Safe starts belong to their color: other horses may pass, never land there.
+    if (
+      to <= 55 &&
+      !safe(to) &&
+      clear(from, to - 1) &&
+      (!occupied(to) || (!safe(to) && occupied(to) !== player.id))
+    )
+      moves.push(...step(to));
     const gate = nextGate(from);
     if (
       dice === 1 &&
       isCaNgua(state.rules) &&
       state.rules.jumpOnOne &&
       gate !== to &&
-      clear(from, gate)
+      clear(from, gate - 1) &&
+      !occupied(gate)
     )
       moves.push({ piece, from, to: gate, moveKind: 'JUMP' });
     return moves;
@@ -388,6 +399,24 @@ export function transition(
       s.deadline = null;
       s.status = 'PAUSED';
       break;
+    case 'kick': {
+      requireHost();
+      const target = s.players.find((p) => p.id === action.user_id);
+      if (action.user_id === actor) fail('PERMISSION_DENIED');
+      if (
+        !target ||
+        (!waiting && !['PLAYING', 'PAUSED'].includes(s.status)) ||
+        target.status !== 'ACTIVE'
+      )
+        fail();
+      if (waiting) {
+        s.players = s.players.filter((p) => p.id !== action.user_id);
+        waitingStatus(s);
+      } else forfeit(s, action.user_id, now);
+      if (s.host === action.user_id)
+        s.host = s.players.find((p) => p.status !== 'FORFEITED')?.id ?? actor;
+      break;
+    }
     case 'resume':
       requireHost();
       if (s.status !== 'PAUSED') fail();

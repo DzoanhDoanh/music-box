@@ -4,6 +4,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import {
   commandSchema,
+  deleteResourceSchema,
   createRoomSchema,
   joinSchema,
   librarySchema,
@@ -125,6 +126,17 @@ const pageNumber = (value?: string) =>
     .max(10000)
     .parse(value ?? 0);
 const requestKey = (value?: string) => uuid.parse(value);
+app.post('/api/v1/rooms/:id/delete', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .rooms.delete(
+        uuid.parse(c.req.param('id')),
+        requestKey(c.req.header('Idempotency-Key')),
+        deleteResourceSchema.parse(await c.req.json()).name,
+      ),
+  ),
+);
 app.use('/api/v1/rooms/:id/wheel', async (c, next) => {
   if (c.env.ENABLE_WHEEL !== 'true') throw new AppError('NOT_FOUND', 404);
   await next();
@@ -180,6 +192,18 @@ app.get('/api/v1/rooms/:id/games/:game', async (c) =>
     await c
       .get('services')
       .game.read(uuid.parse(c.req.param('id')), uuid.parse(c.req.param('game'))),
+  ),
+);
+app.post('/api/v1/rooms/:id/games/:game/delete', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .game.delete(
+        uuid.parse(c.req.param('id')),
+        uuid.parse(c.req.param('game')),
+        requestKey(c.req.header('Idempotency-Key')),
+        deleteResourceSchema.parse(await c.req.json()).name,
+      ),
   ),
 );
 app.post('/api/v1/rooms/:id/games/:game', async (c) =>

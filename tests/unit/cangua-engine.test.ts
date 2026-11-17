@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { boardCell, nextGate } from '../../src/shared/game/board';
 import {
-  defaultRules,
+  defaultRules as safeStartRules,
   legacyRules,
   stateSchema,
   gameCommandSchema,
@@ -20,8 +20,10 @@ import { committedMotion, pieceLayout } from '../../src/client/components/game/b
 
 const ids = [1, 2, 3, 4].map((n) => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`);
 const room = '20000000-0000-4000-8000-000000000001';
+// Existing saved v2 tables keep their original unprotected-start rules.
+const defaultRules = { ...safeStartRules, safe: 'NONE' } as const;
 function fixture(count = 4) {
-  let s = createInitialGameState(room, room, ids[0], 'Cờ cá ngựa', 'An');
+  let s = createInitialGameState(room, room, ids[0], 'Cờ cá ngựa', 'An', defaultRules);
   for (let color = 1; color < count; color++)
     s = transition(s, ids[color], 'Bạn', false, { action: 'join', color, version: s.version }, 0);
   for (const id of ids.slice(0, count))
@@ -47,6 +49,22 @@ function move(s: GameState, piece = 0, moveKind: 'STEP' | 'JUMP' = 'STEP') {
 const ownMoves = (s: GameState) => getLegalMoves(s).filter((m) => m.piece === 0);
 
 describe('cờ cá ngựa v2 route and blocking', () => {
+  it('allows an exact move onto another color start but never loops past its own gate', () => {
+    for (let color = 0; color < 4; color++) {
+      const next = (color + 1) % 4;
+      const s = pending(fixture(), 2, color);
+      s.players[color].pieces[0] = 12;
+      expect(move(s).players[color].pieces[0]).toBe(14);
+      s.players[next].pieces[0] = 0;
+      expect(move(s).players[next].pieces[0]).toBe(-1);
+      expect(() => move(pending(s, 3, color))).toThrow();
+      s.players[color].pieces[0] = 54;
+      expect(() => move(pending(s, 2, color))).toThrow();
+      const gate = move(pending(s, 1, color));
+      expect(gate.players[color].pieces[0]).toBe(55);
+      expect(move(pending(gate, 1, color)).players[color].pieces[0]).toBe(56);
+    }
+  });
   it('has 56 unique adjacent track cells, six visible nonoverlapping ranks and gate immediately before each start', () => {
     expect(caNguaTrack).toHaveLength(56);
     const cells = new Set(caNguaTrack.map((p) => p.join(',')));

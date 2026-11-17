@@ -8,9 +8,10 @@ export async function testCaNgua({
   check,
   store,
   GameService,
-  defaultRules,
+  defaultRules: safeStartRules,
   transition,
 }) {
+  const defaultRules = { ...safeStartRules, safe: 'NONE' };
   const friend = randomUUID();
   await sql`insert into auth.users(id) values(${friend})`;
   const room = (
@@ -175,6 +176,7 @@ export async function testCaNgua({
       await send(owner, { action: 'rematch' });
       assert.equal(state.schema, 2);
       assert.equal(state.round, 2);
+      assert.equal(state.rules.safe, 'NONE');
       assert.equal((await service(owner).read(room.id, state.id)).results.length, 1);
       const changed = transition(
         state,

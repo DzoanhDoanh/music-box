@@ -93,6 +93,17 @@ export default function RoomPage() {
     if (room.data) setRoomCode(room.data.room.code);
   }, [room.data]);
   const sessionLost = room.error instanceof AppError && room.error.code === 'UNAUTHORIZED';
+  const accessRevoked =
+    room.error instanceof AppError &&
+    ['PERMISSION_DENIED', 'ROOM_NOT_FOUND', 'NOT_FOUND', 'BANNED'].includes(room.error.code);
+  useEffect(() => {
+    if (!accessRevoked) return;
+    toast.info('Phòng đã được xóa hoặc bạn không còn là thành viên của phòng.', {
+      id: 'room-access-' + id,
+    });
+    void client.invalidateQueries({ queryKey: ['rooms'] });
+    navigate('/rooms', { replace: true });
+  }, [accessRevoked, id, client, navigate]);
   useEffect(() => {
     if (sessionLost) toast.dismiss();
   }, [sessionLost]);
@@ -240,6 +251,7 @@ export default function RoomPage() {
             </span>
             <span className="header-divider" />
             <RoomMembers
+              onManage={manager ? () => setTab('admin') : undefined}
               key={playerKey}
               members={snapshot.members}
               me={snapshot.me}

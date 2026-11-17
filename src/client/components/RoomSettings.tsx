@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import type { RoomCommand, Settings, Snapshot } from '../../shared/contracts';
 import { settingsSchema } from '../../shared/contracts';
 import { Button, Confirm } from './ui';
+import DeleteResource from './DeleteResource';
 export default function RoomSettings({
   snapshot,
   execute,
@@ -10,6 +13,8 @@ export default function RoomSettings({
   snapshot: Snapshot;
   execute: (c: RoomCommand) => Promise<unknown>;
 }) {
+  const navigate = useNavigate();
+  const client = useQueryClient();
   const [settings, setSettings] = useState(snapshot.settings),
     [name, setName] = useState(snapshot.room.name),
     [description, setDescription] = useState(snapshot.room.description),
@@ -208,6 +213,29 @@ export default function RoomSettings({
       <Button variant="primary" type="submit" loading={pending}>
         {pending ? 'Đang lưu…' : 'Lưu cài đặt'}
       </Button>
+      {snapshot.role === 'owner' && (
+        <fieldset className="delete-zone">
+          <legend>Xóa phòng</legend>
+          <p>
+            Xóa vĩnh viễn phòng này, hàng chờ, chat và mọi bàn chơi trong phòng. Tất cả thành viên
+            sẽ rời phòng. Thư viện cá nhân vẫn được giữ.
+          </p>
+          <DeleteResource
+            path={`/rooms/${snapshot.room.id}/delete`}
+            actor={snapshot.me}
+            name={snapshot.room.name}
+            label="Xóa phòng"
+            disabled={pending}
+            description="Thao tác không thể hoàn tác. Nhạc và các ván chơi trong phòng sẽ dừng; lịch sử phòng cũng bị xóa."
+            onDeleted={() => {
+              void client.cancelQueries({ predicate: (q) => q.queryKey[1] === snapshot.room.id });
+              client.removeQueries({ predicate: (q) => q.queryKey[1] === snapshot.room.id });
+              void client.invalidateQueries({ queryKey: ['rooms'] });
+              navigate('/rooms', { replace: true });
+            }}
+          />
+        </fieldset>
+      )}
     </form>
   );
 }

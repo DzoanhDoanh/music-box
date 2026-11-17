@@ -33,6 +33,15 @@ export class GameService {
       p_page: page,
     });
   }
+  delete(room: string, game: string, key: string, name: string) {
+    return this.store.call<{ deleted: true }>('game_delete', {
+      p_actor: this.actor,
+      p_room: room,
+      p_game: game,
+      p_request: key,
+      p_name: name,
+    });
+  }
   create(room: string, key: string, command: { name: string; rules: GameRules }) {
     const state = createInitialGameState(
       crypto.randomUUID(),
@@ -140,12 +149,22 @@ export class GameService {
     const actor = context.members.find((p) => p.id === this.actor);
     if (!actor) throw new AppError('PERMISSION_DENIED', 403);
     const manager = actor.role !== 'member';
+    if (command.action === 'kick') {
+      if (state.host !== this.actor && actor.role !== 'owner')
+        throw new AppError('PERMISSION_DENIED', 403);
+      if (context.members.some((m) => m.id === command.user_id && m.role === 'owner'))
+        throw new AppError('PERMISSION_DENIED', 403);
+    }
     if (command.action === 'rematch') {
       // Removed players cannot silently rejoin through a new round.
       if (!manager && state.host !== this.actor) throw new AppError('PERMISSION_DENIED', 403);
       state = {
         ...state,
-        players: state.players.filter((p) => context.members.some((m) => m.id === p.id)),
+        players: state.players.filter(
+          (p) =>
+            context.members.some((m) => m.id === p.id) &&
+            !context.snapshot.removedPlayers?.includes(p.id),
+        ),
       };
       if (!state.players.some((p) => p.id === state.host)) state.host = this.actor;
     }

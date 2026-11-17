@@ -3170,3 +3170,23 @@ body:has(.host-player, .listener-player .youtube-container) .theme-switch {
 .profile-form > p {
   font-size: 12px;
 }
+.delete-zone {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 24px;
+}
+.delete-zone p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.delete-confirmation {
+  display: grid;
+  gap: 10px;
+  overflow-wrap: anywhere;
+  margin: 20px 0;
+}
+.delete-confirmation input {
+  width: 100%;
+  min-width: 0;
+}

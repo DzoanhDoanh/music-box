@@ -1,5 +1,6 @@
 import { z } from 'zod';
 export const uuid = z.uuid();
+export const deleteResourceSchema = z.object({ name: z.string().min(1).max(80) }).strict();
 export const roomCode = z
   .string()
   .trim()

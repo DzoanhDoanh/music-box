@@ -71,6 +71,7 @@ export const errorMessages: Record<string, string> = {
   WHEEL_BUSY: 'Phòng vừa quay. Hãy chờ vòng quay hiện tại kết thúc.',
   WHEEL_STALE: 'Có người vừa quay trước bạn. Kết quả đã được cập nhật, hãy xem rồi quay lại.',
   GAME_ACTION_INVALID: 'Thao tác không phù hợp với trạng thái ván hiện tại.',
+  DELETE_NAME_MISMATCH: 'Tên đã thay đổi. Hãy tải lại và xác nhận đúng tên trước khi xóa.',
   GAME_NOT_YOUR_TURN: 'Chưa đến lượt bạn hoặc xúc xắc đã được tung. Hãy đồng bộ lại bàn.',
   GAME_ILLEGAL_MOVE: 'Quân này không thể đi với số xúc xắc hiện tại.',
   GAME_SEAT_TAKEN: 'Ghế đã có người hoặc bàn không còn nhận người chơi.',

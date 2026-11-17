@@ -17,11 +17,14 @@ export default function RoomMembers({
   members,
   me,
   onlineMembers,
+  onManage,
 }: {
   members: Member[];
   me: string;
   onlineMembers: string[] | null;
+  onManage?: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'online' | 'offline'>('all');
   const online = onlineMembers === null ? null : new Set(onlineMembers);
@@ -46,7 +49,9 @@ export default function RoomMembers({
       className="room-members-dialog"
       title="Thành viên trong phòng"
       description="Online là đang mở phòng này, kể cả khi đang chơi trò chơi."
+      open={open}
       onOpenChange={(open) => {
+        setOpen(open);
         if (!open) {
           setSearch('');
           setFilter('all');
@@ -162,6 +167,16 @@ export default function RoomMembers({
         <p className="room-members-footnote">
           Trạng thái có thể cập nhật chậm khi thiết bị mất mạng hoặc đóng đột ngột.
         </p>
+        {onManage && (
+          <Button
+            onClick={() => {
+              setOpen(false);
+              onManage();
+            }}
+          >
+            Quản lý / mời thành viên ra
+          </Button>
+        )}
       </div>
     </Modal>
   );

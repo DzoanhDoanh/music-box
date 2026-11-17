@@ -26,7 +26,12 @@ test('four independent players create, choose seats, ready, finish a whole game 
     await pages[0].getByRole('button', { name: /Tạo bàn mới/ }).click();
     const dialog = pages[0].getByRole('dialog');
     await dialog.getByLabel('Tên bàn', { exact: true }).fill('Đường đua bạn bè');
-    await expect(dialog.getByLabel('Ra 1 được nhảy tới cửa chuồng khi đường trống')).toBeChecked();
+    await expect(
+      dialog.getByLabel('Ra 1 được nhảy tới cửa chuồng khi không bị chặn'),
+    ).toBeChecked();
+    await expect(dialog.getByRole('combobox', { name: 'Ô xuất quân', exact: true })).toHaveValue(
+      'STARTS',
+    );
     await dialog.getByLabel('Thời gian mỗi lượt').selectOption('90');
     await dialog.getByRole('button', { name: 'Tạo bàn', exact: true }).click();
     await expect(pages[0].getByRole('group', { name: /Bàn cờ/ })).toBeVisible();
