@@ -2,6 +2,58 @@ import { test, expect } from '@playwright/test';
 import { caNguaRulesSchema, defaultRules } from '../../src/shared/game/contracts';
 import { gameFixture, ids, match, openGame } from './fixture';
 
+test('one click jumps onto an enemy at another color gate and sends it home', async ({
+  page,
+  context,
+  browser,
+}) => {
+  const f = gameFixture();
+  const state = f.seed(3, { ...defaultRules, turnSeconds: 90 });
+  state.players[0].pieces[0] = 2;
+  state.players[2].pieces[1] = 41; // Yellow horse on green's gate (global 13).
+  state.phase = 'MOVE';
+  state.dice = 1;
+  state.version++;
+  f.commit(state);
+  const second = await browser.newContext();
+  try {
+    await f.attach(context, 0);
+    await f.attach(second, 2);
+    const observer = await second.newPage();
+    await openGame(page);
+    await openGame(observer);
+    const move = page.getByRole('button', {
+      name: 'Ngựa 1 Nhảy tới cửa chuồng · 11 bước',
+      exact: true,
+    });
+    await expect(move).toBeVisible();
+    await expect(page.locator('.game-move-choices').getByRole('button')).toHaveCount(1);
+    await move.click();
+    await expect.poll(() => f.games.get(match)!.players[0].pieces[0]).toBe(13);
+    const after = f.games.get(match)!;
+    expect(after.players[2].pieces[1]).toBe(-1);
+    expect(after.last.captures).toEqual([ids[2] + ':1']);
+    expect(after.turn).toBe(ids[1]);
+    const opponentHorse = observer
+      .getByRole('group', { name: /Bàn cờ/ })
+      .getByRole('button', { name: /Ngựa 2 · Vàng/ });
+    await expect(opponentHorse).toHaveAccessibleName(/chưa ra quân/);
+    await expect(opponentHorse).toHaveClass(/just-captured/);
+    await page.reload();
+    expect(f.games.get(match)!.version).toBe(after.version);
+    expect(f.requests.filter((r) => (r.body as { action: string }).action === 'move')).toHaveLength(
+      1,
+    );
+    expect(f.musicCommands).toEqual([]);
+    await page.getByRole('button', { name: 'Luật chơi', exact: true }).click();
+    await expect(page.getByRole('dialog')).toContainText(
+      'Đối thủ đứng ngay cửa đích sẽ bị đá về nhà',
+    );
+  } finally {
+    await second.close();
+  }
+});
+
 test('rolling one offers a system-decided step for a blocked horse and jump for a clear horse', async ({
   page,
   context,

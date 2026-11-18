@@ -153,12 +153,20 @@ describe('cờ cá ngựa v2 route and blocking', () => {
         }
       }
   });
-  it('every intervening square and destination blocks a jump; a neighboring opponent is still capturable with a normal 1', () => {
+  it('intervening enemies block a jump, while an enemy at the destination can be captured', () => {
     for (let from = 0; from < 54; from++)
       for (let obstacle = from + 1; obstacle <= nextGate(from); obstacle++) {
         const s = pending(fixture(), 1);
         s.players[0].pieces[0] = from;
         s.players[1].pieces[0] = (obstacle - 14 + 56) % 56;
+        if (obstacle === nextGate(from) && obstacle > from + 1) {
+          expect(ownMoves(s)).toContainEqual({ piece: 0, from, to: obstacle, moveKind: 'JUMP' });
+          const after = move(s, 0, 'JUMP');
+          expect(after.players[0].pieces[0]).toBe(obstacle);
+          expect(after.players[1].pieces[0]).toBe(-1);
+          expect(after.last.captures).toEqual([ids[1] + ':0']);
+          continue;
+        }
         expect(ownMoves(s).some((m) => m.moveKind === 'JUMP')).toBe(false);
         expect(() => move(s, 0, 'JUMP')).toThrow();
         if (obstacle === from + 1) expect(move(s).last.captures).toHaveLength(1);

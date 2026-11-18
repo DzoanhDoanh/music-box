@@ -101,6 +101,14 @@ export const phaseNames: Record<Phase, string> = {
   CANCELLED: 'Đã hoàn cược',
 };
 const id = z.uuid();
+// The grant form only credits coins; the existing admin adjustment API also supports debits.
+export const coinGrantSchema = z
+  .object({
+    user: id,
+    amount: coin,
+    reason: z.string().trim().min(5).max(200),
+  })
+  .strict();
 export const commandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('create'), name: z.string().trim().min(2).max(60) }).strict(),
   z.object({ action: z.literal('join'), spectator: z.boolean() }).strict(),

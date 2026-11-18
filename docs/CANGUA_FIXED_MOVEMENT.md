@@ -1,5 +1,9 @@
 # Bộ luật di chuyển cố định — 17/11/2026
 
+**Bổ sung ngày 18/11:** nhảy ra 1 được đá đối thủ đứng ngay cửa
+đích khi đường không bị chắn. Xem [nhảy đá cửa chuồng](CANGUA_JUMP_CAPTURE.md).
+Phần dưới ghi lại quy tắc và kết quả của bản phát hành 17/11.
+
 Đã public lúc **19:47 ngày 17/11/2026 (giờ Việt Nam)** tại
 [ROOMTUNE](https://roomtune.dzoanh.me). Bản thử `http://127.0.0.1:5180` đã cập nhật
 cùng build. Đợt này gồm luật cố định, [sửa vùng bấm](CANGUA_INTERACTION_FIX.md) và

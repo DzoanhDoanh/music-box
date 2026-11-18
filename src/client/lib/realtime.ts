@@ -10,6 +10,7 @@ export interface RoomSubscription {
   onChat?(): void;
   onGames?(): void;
   onBauNotice?(): void;
+  onWallet?(user: string): void;
 }
 type Observer = { callbacks: Partial<RoomSubscription>; presence: boolean };
 type SharedChannel = {
@@ -172,6 +173,12 @@ export class RealtimeService {
             for (const { callbacks } of entry.observers) callbacks.onVersion?.(payload.version);
           if (!entry.stopped && payload?.kind === 'penalty.updated')
             for (const { callbacks } of entry.observers) callbacks.onBauNotice?.();
+          if (
+            !entry.stopped &&
+            payload?.kind === 'wallet.updated' &&
+            typeof payload.user === 'string'
+          )
+            for (const { callbacks } of entry.observers) callbacks.onWallet?.(payload.user);
         })
         .on('broadcast', { event: 'chat.updated' }, () => {
           if (!entry.stopped) for (const { callbacks } of entry.observers) callbacks.onChat?.();

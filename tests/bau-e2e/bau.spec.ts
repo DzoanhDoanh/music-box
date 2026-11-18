@@ -15,6 +15,7 @@ let db: Awaited<ReturnType<typeof bauDatabase>>, fixture: ReturnType<typeof game
 let channels: { socket: WebSocketRoute; topics: Set<string>; array: boolean }[];
 const seed = 'ab'.repeat(32);
 let dropNext = false,
+  dropGrant = false,
   mute = false;
 const requests: { key: string; body: BauCommand }[] = [];
 async function read(actor = ids[0], table: string | null = null): Promise<BauSnapshot> {
@@ -109,6 +110,25 @@ async function attach(context: BrowserContext, index: number) {
         ? await command(ids[index], body, table, key)
         : await read(ids[index], table);
       if (result.table) await broadcast(result.table.id);
+      if (post && body.action === 'adjust') {
+        const notice = (
+          await db.sql`select payload from realtime.messages where topic=${'room:' + room} and payload->>'kind'='wallet.updated' order by id desc limit 1`
+        )[0];
+        if (notice && !mute)
+          for (const c of channels)
+            for (const topic of c.topics)
+              if (topic === 'realtime:room:' + room)
+                send(
+                  c,
+                  'broadcast',
+                  { type: 'broadcast', event: 'room.updated', payload: notice.payload },
+                  topic,
+                );
+        if (dropGrant) {
+          dropGrant = false;
+          return route.abort('connectionreset');
+        }
+      }
       if (post && body.action === 'bet' && dropNext) {
         dropNext = false;
         return route.abort('connectionreset');
@@ -148,6 +168,7 @@ test.beforeEach(async () => {
   requests.length = 0;
   mute = false;
   dropNext = false;
+  dropGrant = false;
 });
 async function readyTable() {
   const table = (await command(ids[0], { action: 'create', name: 'Bầu cua tối nay' })).table!.id;
@@ -196,6 +217,93 @@ test('game hub, create, two real PostgreSQL wallets, bet, shared result and fair
     await second.close();
   }
 });
+test('other players bets stay visible live, including undo, full names and a fresh round', async ({
+  page,
+  browser,
+}) => {
+  const second = await browser.newContext();
+  const longName = 'Chi Nguyễn Thị Minh Phương';
+  try {
+    await command(ids[0], {
+      action: 'settings',
+      settings: { ...defaultSettings, bettingSeconds: 120 },
+      confirmed: true,
+    });
+    const table = await readyTable();
+    await command(ids[2], { action: 'join', spectator: false }, table);
+    await command(ids[3], { action: 'join', spectator: false }, table);
+    await db.sql`update public.profiles set name=${longName} where id=${ids[2]}`;
+    await attach(page.context(), 0);
+    await attach(second, 1);
+    const guest = await second.newPage();
+    const url = `/room/${room}/games/bau-cua/${table}`;
+    await page.goto(url);
+    await guest.goto(url);
+    await page.getByRole('button', { name: 'Sẵn sàng · Mở vòng' }).click();
+    const crab = page.getByRole('group', { name: 'Ô Cua', exact: true });
+    await guest.getByRole('button', { name: 'Đặt 100 coin vào Cua', exact: true }).click();
+    // The other client must update before the 15-second fallback poll.
+    await expect(crab.locator('.bau-bettors-preview')).toContainText('Bình', { timeout: 5000 });
+    await expect(crab.locator('.bau-bettors-preview')).toContainText('100');
+    await expect(crab.locator('.bau-symbol-total')).toHaveText('Cả bàn 100');
+    await guest.getByRole('button', { name: '500', exact: true }).click();
+    await guest.getByRole('button', { name: 'Đặt 500 coin vào Cua', exact: true }).click();
+    await expect(crab.locator('.bau-bettors-preview')).toContainText('600', { timeout: 5000 });
+    const round = (await read(ids[0], table)).round!.id;
+    await command(ids[2], { action: 'bet', round, symbol: 'CUA', amount: 1000 }, table);
+    await command(ids[3], { action: 'bet', round, symbol: 'CUA', amount: 100 }, table);
+    await command(ids[3], { action: 'bet', round, symbol: 'TOM', amount: 500 }, table);
+    await broadcast(table);
+    await expect(crab.locator('.bau-symbol-total')).toHaveText('Cả bàn 1.700');
+    await expect(crab.locator('.bau-bettors-preview li')).toHaveCount(2);
+    await expect(page.getByRole('group', { name: 'Ô Tôm', exact: true })).toContainText('Dũng');
+    // A dealer cannot bet, but can still inspect every other player's bets.
+    await expect(
+      crab.getByRole('button', { name: 'Đặt 100 coin vào Cua', exact: true }),
+    ).toBeDisabled();
+    await crab.getByRole('button', { name: 'Xem tất cả 3 người đặt ô Cua' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Người đặt ô Cua', exact: true });
+    await expect(dialog.getByRole('listitem')).toHaveCount(3);
+    await expect(dialog).toContainText(longName);
+    await expect(dialog).toContainText('Tổng 1.700 coin');
+    await guest.getByRole('button', { name: 'Hoàn cược Cua', exact: true }).click();
+    await expect(dialog.getByRole('listitem')).toHaveCount(2, { timeout: 5000 });
+    await expect(dialog).not.toContainText('Bình');
+    await expect(dialog).toContainText('Tổng 1.100 coin');
+    await page.keyboard.press('Escape');
+    await expect(crab.getByRole('button', { name: 'Xem người đặt ô Cua' })).toBeFocused();
+    await expect(crab.locator('.bau-bettors-preview')).not.toContainText('Bình');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => (document.documentElement.dataset.theme = 'light'));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      390,
+    );
+    await page.screenshot({ path: 'test-results/bau/mobile-shared-bets.png', fullPage: true });
+    await crab.getByRole('button', { name: 'Xem người đặt ô Cua' }).click();
+    await expect(dialog).toContainText(longName);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      390,
+    );
+    await page.screenshot({ path: 'test-results/bau/mobile-bet-details.png' });
+    const report = await new AxeBuilder({ page })
+      .include('[role="dialog"]')
+      .withTags(['wcag2a', 'wcag2aa'])
+      .analyze();
+    expect(report.violations).toEqual([]);
+    await db.sql`update public.bau_cua_rounds set deadline=now()-interval '120 seconds' where id=${round}`;
+    await read(ids[0], table);
+    await command(ids[0], { action: 'start' }, table);
+    await broadcast(table);
+    await expect(dialog).toContainText('Ô này chưa có cược trong vòng hiện tại.');
+    await expect(dialog).not.toContainText(longName);
+    await page.keyboard.press('Escape');
+    await expect(crab.locator('.bau-symbol-total')).toHaveText('Cả bàn 0');
+    await expect(crab.locator('.bau-bettors-empty')).toHaveText('Chưa có cược');
+  } finally {
+    await second.close();
+  }
+});
+
 test('uncertain response, refresh, same-key recovery and stale events never duplicate a bet', async ({
   page,
 }) => {
@@ -276,6 +384,98 @@ test('owner changes penalty settings with confirmation; guests cannot see settin
     await ctx.close();
   }
 });
+test('admin grants coins from the lobby, validates the form and updates the recipient wallet live', async ({
+  page,
+  browser,
+}) => {
+  const second = await browser.newContext();
+  try {
+    await attach(page.context(), 0);
+    await attach(second, 1);
+    const guest = await second.newPage();
+    await page.goto(`/room/${room}/games/bau-cua`);
+    await guest.goto(`/room/${room}/games/bau-cua`);
+    await expect(guest.locator('.bau-wallet-strip')).toContainText('10.000');
+    await expect(guest.getByRole('button', { name: 'Cấp coin', exact: true })).toHaveCount(0);
+    await guest.locator('.bau-wallet-strip button').click();
+    await page.getByRole('button', { name: 'Cấp coin', exact: true }).click();
+    const modal = page.getByRole('dialog', { name: 'Cấp coin cho thành viên', exact: true });
+    await expect(modal.getByLabel('Người nhận').locator('option')).toHaveCount(6);
+    await modal.getByLabel('Người nhận').selectOption(ids[1]);
+    await modal.getByLabel('Lý do cấp coin').fill('Thưởng tham gia phòng');
+    for (const amount of ['0', '-1', '1.5', '1000001']) {
+      await modal.getByLabel('Số coin cấp', { exact: true }).fill(amount);
+      await expect(modal.getByRole('button', { name: 'Tiếp tục' })).toBeDisabled();
+    }
+    await modal.getByRole('button', { name: '5.000', exact: true }).click();
+    await modal.getByRole('button', { name: 'Tiếp tục' }).click();
+    await expect(modal.getByRole('heading', { name: 'Kiểm tra lần cuối' })).toBeFocused();
+    await expect(modal).toContainText('Bình');
+    await expect(modal).toContainText('+5.000');
+    await expect(modal).toContainText('Thưởng tham gia phòng');
+    await page.screenshot({ path: 'test-results/bau/coin-grant-desktop.png' });
+    await modal.getByRole('button', { name: 'Xác nhận cấp coin' }).click();
+    await expect(modal.getByRole('heading', { name: 'Đã cấp 5.000 coin' })).toBeVisible();
+    // Realtime updates an already-open lobby wallet before the 15-second fallback poll.
+    await expect(guest.getByRole('dialog', { name: 'Ví coin của bạn' })).toContainText(
+      '15.000 coin tổng cộng',
+      { timeout: 5000 },
+    );
+    await expect(guest.locator('.bau-ledger')).toContainText('Điều chỉnh quản trị');
+    await expect(guest.locator('.bau-ledger')).toContainText('+5.000');
+    expect(requests.filter((r) => r.body.action === 'adjust')).toHaveLength(1);
+    await modal.getByRole('button', { name: 'Cấp thêm coin' }).click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => (document.documentElement.dataset.theme = 'light'));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      390,
+    );
+    await page.screenshot({ path: 'test-results/bau/coin-grant-mobile.png' });
+    const report = await new AxeBuilder({ page })
+      .include('[role="dialog"]')
+      .withTags(['wcag2a', 'wcag2aa'])
+      .analyze();
+    expect(report.violations).toEqual([]);
+  } finally {
+    await second.close();
+  }
+});
+
+test('an uncertain coin grant survives reload and is never credited twice', async ({ page }) => {
+  await attach(page.context(), 0);
+  await page.goto(`/room/${room}/games/bau-cua`);
+  await page.getByRole('button', { name: 'Cấp coin', exact: true }).click();
+  const modal = page.getByRole('dialog', { name: 'Cấp coin cho thành viên', exact: true });
+  await modal.getByLabel('Người nhận').selectOption(ids[2]);
+  await modal.getByLabel('Lý do cấp coin').fill('Thưởng người chưa vào bàn');
+  await modal.getByRole('button', { name: 'Tiếp tục' }).click();
+  dropGrant = true;
+  await modal.getByRole('button', { name: 'Xác nhận cấp coin' }).click();
+  await expect(modal.getByRole('button', { name: 'Xác minh thao tác trước' })).toBeVisible();
+  await expect(modal.getByRole('button', { name: 'Xác nhận cấp coin' })).toBeDisabled();
+  await page.reload();
+  await page.getByRole('button', { name: 'Cấp coin', exact: true }).click();
+  await modal.getByRole('button', { name: 'Xác minh thao tác trước' }).click();
+  await expect(modal.getByRole('button', { name: 'Xác minh thao tác trước' })).toHaveCount(0);
+  const grants = requests.filter((r) => r.body.action === 'adjust');
+  expect(grants.length).toBeGreaterThanOrEqual(2);
+  expect(new Set(grants.map((r) => r.key)).size).toBe(1);
+  const wallet = await read(ids[2]);
+  expect(wallet.wallet.available).toBe(11000);
+  expect(wallet.ledger.filter((entry) => entry.reason === 'ADMIN_ADJUSTMENT')).toHaveLength(1);
+});
+
+test('a room owner without system admin status has no coin grant control', async ({ page }) => {
+  await db.sql`delete from public.system_admins where user_id=${ids[0]}`;
+  await attach(page.context(), 0);
+  await page.goto(`/room/${room}/games/bau-cua`);
+  await expect(page.locator('.bau-wallet-strip')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Cấp coin', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cài đặt Bầu Cua' }).click();
+  await expect(page.getByRole('dialog')).not.toContainText('Chính sách coin toàn ROOMTUNE');
+  await expect(page.getByRole('dialog')).toContainText('Lưu cấu hình phòng');
+});
+
 test('music iframe remains the same visible DOM node while opening game and returning', async ({
   page,
 }) => {

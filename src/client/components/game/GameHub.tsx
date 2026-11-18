@@ -51,7 +51,7 @@ import {
   type GameRequest,
 } from '../../lib/game-outbox';
 import { AsyncButton, Button, Confirm, ErrorState, Loading, Modal } from '../ui';
-import LudoBoard from './LudoBoard';
+import GameBoard from './GameBoard';
 import Dice from './Dice';
 import PieceSkinPicker from './PieceSkinPicker';
 import { PiecePreview } from './PieceFigure';
@@ -119,8 +119,8 @@ function RulesFields({
         <div className="game-fixed-rules">
           <strong>Di chuyển tự động theo từng quân</strong>
           <p>
-            Ra 1: đường trống thì bắt buộc nhảy tới cửa kế tiếp. Có vật cản thì đi 1 bước nếu hợp
-            lệ. Bạn chỉ chọn quân.
+            Ra 1: đường trống thì bắt buộc nhảy tới cửa kế tiếp, đá đối thủ nếu đứng tại cửa. Có
+            quân chắn giữa đường hoặc quân mình ở cửa thì đi 1 bước nếu hợp lệ. Bạn chỉ chọn quân.
           </p>
           <p>
             Ô xuất quân chỉ dành cho quân vừa ra từ chuồng của màu đó. Quân đang đi bỏ qua ô này,
@@ -207,7 +207,7 @@ function RulesHelp({ rules }: { rules: GameRules }) {
           </li>
           <li>
             {rules.jumpOnOne
-              ? `${usesAutomaticMovement(rules) ? 'Ra 1: chọn ngựa là tự nhảy tới cửa chuồng kế tiếp nếu đường không bị chặn và ô cửa trống. Nếu bị cản, ngựa đi 1 bước khi hợp lệ; không được chọn đi thường khi có thể nhảy.' : 'Luật cũ: ra 1 chọn đi một ô hoặc nhảy tới cửa chuồng kế tiếp nếu đoạn đường không bị chặn và ô cửa trống.'}${rules.safe === 'STARTS' ? ' Được vượt ngựa đang ở ô xuất quân an toàn.' : ''} Nhảy không đá quân và không đi quá cửa của mình.`
+              ? `${usesAutomaticMovement(rules) ? 'Ra 1: chọn ngựa là tự nhảy tới cửa chuồng kế tiếp nếu đường không bị chặn và cửa không có quân mình. Nếu bị cản, ngựa đi 1 bước khi hợp lệ; không được chọn đi thường khi có thể nhảy.' : 'Luật cũ: ra 1 chọn đi một ô hoặc nhảy tới cửa chuồng kế tiếp nếu đoạn đường không bị chặn và cửa không có quân mình.'} Đối thủ đứng ngay cửa đích sẽ bị đá về nhà; quân ở ô thường giữa đường vẫn chặn nhảy.${rules.safe === 'STARTS' ? ' Được vượt ngựa đang ở ô xuất quân an toàn.' : ''} Không nhảy quá cửa của mình hoặc vào dãy chuồng riêng bằng cùng nước nhảy.`
               : 'Đã tắt nhảy cửa chuồng; ra 1 chỉ đi một bước hợp lệ.'}
           </li>
           <li>
@@ -325,6 +325,10 @@ export default function GameHub({
   const [sound, setSound] = useState(false),
     [clock, setClock] = useState(Date.now());
   const [depth, setDepth] = useState(() => localStorage.getItem('roomtune:ludo:depth') === 'depth');
+  const changeDepth = (value: boolean) => {
+    setDepth(value);
+    localStorage.setItem('roomtune:ludo:depth', value ? 'depth' : 'flat');
+  };
   const context = useRef<AudioContext | null>(null),
     lastSound = useRef<number | null>(null),
     lastTurn = useRef<string | null>(null);
@@ -780,6 +784,14 @@ export default function GameHub({
               )}
               <div className="game-arena">
                 <div className="game-board-frame">
+                  <div className="game-view-switch" role="group" aria-label="Giao diện bàn cờ">
+                    <button aria-pressed={!depth} onClick={() => changeDepth(false)}>
+                      Phẳng
+                    </button>
+                    <button aria-pressed={depth} onClick={() => changeDepth(true)}>
+                      <Layers3 size={14} /> Bàn 3D
+                    </button>
+                  </div>
                   {state.status === 'FINISHED' && (
                     <section className="game-results" aria-label="Kết quả ván">
                       <div className="game-confetti" aria-hidden="true">
@@ -810,7 +822,8 @@ export default function GameHub({
                   )}
 
                   <div className="ludo-board-surface">
-                    <LudoBoard
+                    <GameBoard
+                      depth={depth}
                       state={state}
                       actor={actor}
                       disabled={busy}
@@ -998,13 +1011,7 @@ export default function GameHub({
           onOpenChange={setOptions}
         >
           <div className="game-toolbar">
-            <Button
-              aria-pressed={depth}
-              onClick={() => {
-                setDepth((v) => !v);
-                localStorage.setItem('roomtune:ludo:depth', depth ? 'flat' : 'depth');
-              }}
-            >
+            <Button aria-pressed={depth} onClick={() => changeDepth(!depth)}>
               <Layers3 size={16} /> {depth ? 'Góc nhìn thẳng' : 'Góc nhìn nổi'}
             </Button>
             <Button variant="ghost" onClick={() => setMatch(null)}>

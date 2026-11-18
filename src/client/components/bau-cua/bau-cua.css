@@ -448,6 +448,99 @@
   padding: 3px 7px;
   min-height: 30px;
 }
+.bau-bettors {
+  border-top: 1px solid var(--line);
+  padding: 4px 8px 8px;
+  min-height: 38px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.bau-bettors-trigger,
+.bau-bettors-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 36px;
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.bau-bettors-trigger:hover,
+.bau-bettors-more:hover {
+  background: var(--soft);
+}
+.bau-bettors-trigger:focus-visible,
+.bau-bettors-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.bau-bettors-trigger svg {
+  flex-shrink: 0;
+}
+.bau-bettors-trigger span {
+  min-width: 0;
+}
+.bau-bettors-preview,
+.bau-bettors-detail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.bau-bettors-preview li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 0;
+}
+.bau-bettors-preview li > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bau-bettors-preview b {
+  color: var(--text);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.bau-bettors-more {
+  color: var(--accent);
+}
+.bau-bettors-empty {
+  display: block;
+  padding: 7px 0 3px;
+  text-align: center;
+  font-size: 11px;
+}
+.bau-bettors-summary,
+.bau-bettors-detail li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.bau-bettors-detail li {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.bau-bettors-detail li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.bau-bettors-detail b {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.bau-bettors-detail small {
+  color: var(--muted);
+}
 .bau-bet-hint {
   font-size: 11px;
   margin: 12px 0;
@@ -637,6 +730,54 @@
 }
 .bau-settings details {
   margin-top: 24px;
+}
+.bau-coin-grant {
+  margin-top: 20px;
+}
+.bau-coin-grant small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.bau-coin-grant select {
+  max-width: 100%;
+}
+.bau-grant-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 18px;
+}
+.bau-grant-presets [aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.bau-grant-review {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+  margin: 16px 0;
+}
+.bau-grant-review dt {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.bau-grant-review dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.bau-grant-success {
+  display: grid;
+  gap: 12px;
+  overflow-wrap: anywhere;
+}
+.bau-grant-success > svg {
+  color: var(--accent);
 }
 .bau-history article {
   border-bottom: 1px solid var(--line);
@@ -1047,6 +1188,18 @@
     flex-wrap: wrap;
     justify-content: center;
     font-size: 9px;
+  }
+  .bau-bettors {
+    padding-inline: 5px;
+    font-size: 11px;
+  }
+  .bau-bettors-trigger,
+  .bau-bettors-more {
+    min-height: 44px;
+    gap: 2px;
+  }
+  .bau-bettors-trigger > svg:first-child {
+    display: none;
   }
   .bau-fields {
     grid-template-columns: 1fr;

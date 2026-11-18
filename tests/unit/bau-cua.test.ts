@@ -18,12 +18,27 @@ import {
 } from '../../src/shared/bau-cua/fairness';
 import {
   commandSchema,
+  coinGrantSchema,
   defaultSettings,
   settingsSchema,
   symbols,
 } from '../../src/shared/bau-cua/contracts';
 
 describe('Bầu Cua coin and fairness', () => {
+  it('only grants positive whole coins with a recipient and an audit reason', () => {
+    const grant = {
+      user: '10000000-0000-4000-8000-000000000001',
+      amount: 1000,
+      reason: '  Thưởng sự kiện  ',
+    };
+    expect(coinGrantSchema.parse(grant).reason).toBe('Thưởng sự kiện');
+    for (const amount of [0, -1, 1.5, 1000001, NaN, Infinity])
+      expect(coinGrantSchema.safeParse({ ...grant, amount }).success).toBe(false);
+    for (const reason of ['', '     ', 'abcd', 'a'.repeat(201)])
+      expect(coinGrantSchema.safeParse({ ...grant, reason }).success).toBe(false);
+    expect(coinGrantSchema.safeParse({ ...grant, user: '' }).success).toBe(false);
+    expect(coinGrantSchema.safeParse({ ...grant, amount: 1000000 }).success).toBe(true);
+  });
   it('returns stake plus profit only when symbol occurs', () =>
     expect([0, 1, 2, 3].map((n) => payout(500, n))).toEqual([0, 1000, 1500, 2000]));
   it('rejects fractional, negative and overflowing coins', () => {

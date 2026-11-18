@@ -49,6 +49,26 @@ const flush = async () => {
 afterEach(() => vi.useRealTimers());
 
 describe('shared room transport', () => {
+  it('routes coin invalidations over the existing private room channel without adding presence', async () => {
+    const f = fixture(),
+      onWallet = vi.fn(),
+      room = callbacks();
+    f.service.subscribe('A', 'alice', room);
+    const stop = f.service.subscribeNotices('A', 'alice', { onWallet });
+    expect(f.client.channel).toHaveBeenCalledTimes(1);
+    expect(f.client.channel).toHaveBeenCalledWith('room:A', {
+      config: { private: true, presence: { key: 'alice' } },
+    });
+    const channel = f.created[0];
+    channel.event('room.updated', { kind: 'wallet.updated', user: 'bob', version: 1 });
+    expect(onWallet).toHaveBeenCalledExactlyOnceWith('bob');
+    channel.event('room.updated', { kind: 'wallet.updated', user: 5 });
+    channel.event('room.updated', { kind: 'other', user: 'alice' });
+    expect(onWallet).toHaveBeenCalledTimes(1);
+    stop();
+    channel.event('room.updated', { kind: 'wallet.updated', user: 'alice' });
+    expect(onWallet).toHaveBeenCalledTimes(1);
+  });
   it('refreshes after a brief network interruption without a second channel or chat-only presence', async () => {
     const f = fixture(),
       room = callbacks();

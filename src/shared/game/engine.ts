@@ -97,6 +97,7 @@ function caNguaMoves(state: GameState, player: GamePlayer, dice: number): LegalM
   }
   const occupied = (n: number) => occupants.get(boardCell(player.color, n, 2));
   const safe = (n: number) => isSafe(boardCell(player.color, n, 2), state.rules);
+  const canLand = (n: number) => !safe(n) && occupied(n) !== player.id;
   const clear = (from: number, to: number) => {
     // A horse sheltered on a start does not block passage. Ordinary occupied cells still do.
     for (let n = from + 1; n <= to; n++) if (occupied(n) && !safe(n)) return false;
@@ -122,18 +123,13 @@ function caNguaMoves(state: GameState, player: GamePlayer, dice: number): LegalM
       isCaNgua(state.rules) &&
       state.rules.jumpOnOne &&
       clear(from, gate - 1) &&
-      !occupied(gate);
+      // An enemy at the destination is captured, not jumped over. Friendly horses block.
+      canLand(gate);
     // The player chooses a horse, never a weaker movement when a jump is available.
     if (canJump && usesAutomaticMovement(state.rules))
       return [{ piece, from, to: gate, moveKind: 'JUMP' }];
     // Safe starts belong to their color: other horses may pass, never land there.
-    if (
-      to <= 55 &&
-      !safe(to) &&
-      clear(from, to - 1) &&
-      (!occupied(to) || (!safe(to) && occupied(to) !== player.id))
-    )
-      moves.push(...step(to));
+    if (to <= 55 && canLand(to) && clear(from, to - 1)) moves.push(...step(to));
     if (canJump && gate !== to) moves.push({ piece, from, to: gate, moveKind: 'JUMP' });
     return moves;
   });

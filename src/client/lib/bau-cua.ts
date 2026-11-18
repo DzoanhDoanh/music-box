@@ -66,28 +66,39 @@ export function useBauCua(room: string, actor: string, table: string | null) {
   const latest = useRef(query.data);
   latest.current = query.data;
   useEffect(() => {
-    if (!supabase || !table) return;
+    if (!supabase) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const refresh = () => {
       clearTimeout(timer);
       timer = setTimeout(() => void client.invalidateQueries({ queryKey: key }), 120);
     };
-    const stop = new RealtimeService(supabase).subscribeBau(table, actor, {
-      onVersion: (v) => {
-        if (v > (latest.current?.table?.version ?? -1)) refresh();
+    const realtime = new RealtimeService(supabase);
+    const stopWallet = realtime.subscribeNotices(room, actor, {
+      onWallet: (user) => {
+        if (user === actor) refresh();
       },
       onResync: refresh,
-      onConnection: setConnection,
+      ...(!table ? { onConnection: setConnection } : {}),
     });
+    const stop = table
+      ? realtime.subscribeBau(table, actor, {
+          onVersion: (v) => {
+            if (v > (latest.current?.table?.version ?? -1)) refresh();
+          },
+          onResync: refresh,
+          onConnection: setConnection,
+        })
+      : undefined;
     window.addEventListener('online', refresh);
     document.addEventListener('visibilitychange', refresh);
     return () => {
-      stop();
+      stop?.();
+      stopWallet();
       clearTimeout(timer);
       window.removeEventListener('online', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, [table, actor, client, key]);
+  }, [room, table, actor, client, key]);
   useEffect(() => {
     const deadline = query.data?.round?.deadline;
     if (!deadline || query.error) return;
@@ -123,7 +134,9 @@ export function useBauCua(room: string, actor: string, table: string | null) {
                 ? 'Đã nhận cược.'
                 : request.body.action === 'undo'
                   ? 'Đã hoàn coin cược.'
-                  : 'Đã cập nhật Bầu Cua.',
+                  : request.body.action === 'adjust' && request.body.amount > 0
+                    ? `Đã cấp ${request.body.amount.toLocaleString('vi-VN')} coin.`
+                    : 'Đã cập nhật Bầu Cua.',
             );
         }
         return result;

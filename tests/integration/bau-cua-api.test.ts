@@ -107,4 +107,26 @@ describe('Bầu Cua trusted API boundary', () => {
     denied = true;
     expect((await request()).status).toBe(403);
   });
+  it('validates admin coin grants and always derives the administrator from authentication', async () => {
+    const body = { action: 'adjust', user: table, amount: 5000, reason: 'Thưởng hoạt động' };
+    for (const change of [
+      { amount: 0 },
+      { amount: 1.5 },
+      { amount: 1000001 },
+      { reason: '    ' },
+      { actor: table },
+      { user: 'invalid' },
+    ])
+      expect((await request({ ...body, ...change })).status).toBe(400);
+    expect(calls.filter((c) => c.path.endsWith('/bau_cua_command'))).toHaveLength(0);
+    const key = crypto.randomUUID();
+    expect((await request(body, { 'Idempotency-Key': key })).status).toBe(200);
+    expect(calls.find((c) => c.path.endsWith('/bau_cua_command'))?.body).toMatchObject({
+      p_actor: actor,
+      p_request: key,
+      p_command: body,
+    });
+    denied = true;
+    expect((await request(body)).status).toBe(403);
+  });
 });

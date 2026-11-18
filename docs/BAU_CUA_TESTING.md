@@ -112,6 +112,29 @@ Chạy có chủ đích (tạo và tự dọn dữ liệu thử trên project ch
 
 ## Giới hạn bằng chứng
 
+Bổ sung cấp coin ngày 18/11 (lượt kiểm tra cục bộ): 25 kiểm thử Vitest ở contracts,
+API và Realtime đạt; 29 nhóm PostgreSQL Bầu Cua đạt, gồm bốn nhóm mới kiểm tra
+quyền admin thật/chủ phòng/moderator/anonymous, membership/ban/số coin, cấp cho ví
+chưa khởi tạo, retry đồng thời không cộng trùng, audit/outbox và giữ nguyên cược
+đang khóa. Cả 13 ca Bầu Cua E2E đạt, gồm cấp từ lobby cho người chưa vào bàn,
+validation/xác nhận, ví người nhận cập nhật trong 5 giây trước fallback poll,
+mất phản hồi/reload/gửi lại cùng key, ẩn quyền với chủ phòng thường, mobile 390px
+và axe. Đã xem ảnh `coin-grant-desktop.png`/`coin-grant-mobile.png` trong
+`test-results/bau`. Typecheck/lint/format và build riêng đạt; 32 client artifacts
+qua secret scan heuristic. Public/trial files và deploy pointer không đổi, không
+restart runtime trong lượt kiểm tra cục bộ. Migration đã áp dụng hosted ở lượt
+chuẩn bị trước; không cần áp dụng lại khi chuyển runtime.
+
+Bổ sung ngày 18/11: ca `other players bets stay visible live` kiểm tra hai trình
+duyệt nhận cược trước fallback poll, cộng thêm/hoàn cược, nhiều người trên nhiều
+ô, modal cập nhật, reset sang vòng mới, mobile tên dài, focus và axe. Ca mới đạt;
+9 ca Bầu Cua có sẵn vẫn đạt trong lượt kiểm tra hồi quy. Kiểm tra hosted đã bổ sung
+assert tên và coin trên máy cầm cái. Lượt hosted candidate mới ngày 18/11 đã đạt
+cả hiển thị cược và cấp coin/admin/audit/replay/private wallet refresh; dữ liệu
+thử được dọn. Evidence: `.roomtune/bau-hosted/c523475f-2748-49a8-9f0d-cc39cef6c8b5`.
+64 requests, median 757 ms, p95 1303 ms; không phải SLA. Những kết quả hosted
+ở mục ngày 17/11 vẫn là bằng chứng của bản trước.
+
 Auth, WebSocket delivery và YouTube trong bộ E2E cục bộ vẫn là fixture; kiểm tra
 hosted riêng bên trên bổ sung bằng chứng Auth/Realtime/tunnel thật. Chưa thử Bầu
 Cua trên hai thiết bị vật lý ở hai mạng, nghe audio thật hoặc đo FPS/quota/CPU hosted.

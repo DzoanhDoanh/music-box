@@ -1,6 +1,10 @@
 # Cờ cá ngựa ROOMTUNE — bộ luật v2
 
-**Mới nhất: 19:47 ngày 17/11/2026**, bàn mới dùng luật cố định: hệ thống tự chọn nhảy
+**Bổ sung ngày 18/11/2026:** ra 1 được nhảy và đá đối thủ đứng ở
+cửa đích nếu đường không bị chắn; xem [bản sửa](CANGUA_JUMP_CAPTURE.md). Các đoạn
+bên dưới yêu cầu cửa trống/không đá bằng nước nhảy mô tả quy tắc cũ.
+
+**Bản public: 19:47 ngày 17/11/2026**, bàn mới dùng luật cố định: hệ thống tự chọn nhảy
 hoặc một bước cho từng quân khi ra 1; ô xuất quân chỉ để ra quân, luôn bỏ qua khi đi.
 Xem [luật hiện hành và cách nâng bàn cũ](CANGUA_FIXED_MOVEMENT.md).
 

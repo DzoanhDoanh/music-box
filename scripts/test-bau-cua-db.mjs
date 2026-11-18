@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import { testBauCuaCases } from './test-bau-cua-cases.mjs';
+import { testBauGrants } from './test-bau-grants.mjs';
 
 export async function testBauCua({ sql, owner, check }) {
   const seed = 'ab'.repeat(32),
@@ -291,4 +292,5 @@ export async function testBauCua({ sql, owner, check }) {
     },
   );
   await testBauCuaCases({ sql, check });
+  await testBauGrants({ sql, owner, check });
 }

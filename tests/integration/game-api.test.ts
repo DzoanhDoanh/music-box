@@ -88,6 +88,29 @@ const request = (body?: unknown, suffix = '/' + game, settings = env) =>
     settings,
   );
 describe('trusted game API', () => {
+  it('automatically jumps and captures an enemy at the gate, with no repeat mutation on replay', async () => {
+    state.state.phase = 'MOVE';
+    state.state.dice = 1;
+    state.state.players[0].pieces[0] = 13;
+    state.state.players[1].pieces = [0, 13, -1, -1];
+    const body = { action: 'move', version: state.state.version, piece: 0 };
+    expect((await request({ ...body, moveKind: 'STEP' })).status).toBe(409);
+    const response = await request(body);
+    expect(response.status).toBe(200);
+    const after = (await response.json()) as GameSnapshot;
+    expect(after.state.players[0].pieces[0]).toBe(27);
+    expect(after.state.players[1].pieces).toEqual([0, -1, -1, -1]);
+    expect(after.state.last).toMatchObject({
+      dice: 1,
+      to: 27,
+      moveKind: 'JUMP',
+      captures: [other + ':1'],
+    });
+    receipt = after;
+    calls = [];
+    expect(await (await request(body)).json()).toEqual(after);
+    expect(calls.some((call) => call.path.endsWith('/game_commit'))).toBe(false);
+  });
   it('changes only the authenticated player skin and rejects forged targets and unknown skins before committing', async () => {
     state.state.phase = 'MOVE';
     state.state.dice = 6;

@@ -274,6 +274,73 @@ try {
   }
   const desktop = await pageFor(owner),
     mobile = await pageFor(player, true);
+  const beforeGrant = await api(player.session, path);
+  await expect(mobile.getByRole('button', { name: 'Cấp coin', exact: true })).toHaveCount(0);
+  await desktop.getByRole('button', { name: 'Cấp coin', exact: true }).click();
+  const grantDialog = desktop.getByRole('dialog', { name: 'Cấp coin cho thành viên', exact: true });
+  await grantDialog.getByLabel('Người nhận').selectOption(player.session.user.id);
+  await grantDialog.getByLabel('Số coin cấp', { exact: true }).fill('1000');
+  await grantDialog.getByLabel('Lý do cấp coin').fill('Thưởng kiểm thử trong phòng tạm');
+  await grantDialog.getByRole('button', { name: 'Tiếp tục', exact: true }).click();
+  const grantRequest = desktop.waitForRequest(
+    (request) =>
+      request.method() === 'POST' &&
+      request.url().includes('/bau-cua') &&
+      request.postDataJSON()?.action === 'adjust',
+  );
+  await grantDialog.getByRole('button', { name: 'Xác nhận cấp coin', exact: true }).click();
+  const sentGrant = await grantRequest;
+  await expect(grantDialog.getByRole('heading', { name: 'Đã cấp 1.000 coin' })).toBeVisible({
+    timeout: 15000,
+  });
+  await expect(mobile.locator('.bau-wallet-strip strong')).toContainText(
+    (beforeGrant.wallet.available + 1000).toLocaleString('vi-VN'),
+    { timeout: 7000 },
+  );
+  await api(
+    owner.session,
+    path,
+    sentGrant.postDataJSON(),
+    200,
+    sentGrant.headers()['idempotency-key'],
+  );
+  const afterGrant = await api(player.session, path);
+  assert.equal(afterGrant.wallet.total, beforeGrant.wallet.total + 1000);
+  assert.equal(afterGrant.ledger.filter((entry) => entry.reason === 'ADMIN_ADJUSTMENT').length, 1);
+  const grantNotices = await eventually(
+    async () => notices,
+    (list) =>
+      list.some(
+        (event) => event.kind === 'wallet.updated' && event.user === player.session.user.id,
+      ),
+    'private wallet invalidation',
+  );
+  const walletNotice = grantNotices.find((event) => event.kind === 'wallet.updated');
+  for (const privateField of ['amount', 'reason', 'available', 'reserved', 'balance'])
+    assert.ok(!(privateField in walletNotice));
+  const grantAudit = checked(
+    await service
+      .from('audit_logs')
+      .select('actor,details')
+      .eq('room_id', room.id)
+      .eq('action', 'bau.adjust'),
+    'grant audit',
+  );
+  assert.equal(grantAudit.length, 1);
+  assert.equal(grantAudit[0].actor, owner.session.user.id);
+  assert.deepEqual(grantAudit[0].details, sentGrant.postDataJSON());
+  await api(player.session, path, sentGrant.postDataJSON(), 403);
+  await api(
+    owner.session,
+    path,
+    { ...sentGrant.postDataJSON(), user: outsider.session.user.id },
+    403,
+  );
+  await api(owner.session, path, { ...sentGrant.postDataJSON(), amount: 0 }, 400);
+  await grantDialog.getByRole('button', { name: 'Đóng', exact: true }).click();
+  pass(
+    'Admin-only coin form, real private wallet refresh, audit, same-key replay, invalid input and outsider rejection',
+  );
   let penalty;
   for (let attempt = 0; attempt < 10 && !penalty; attempt++) {
     const playerState = await api(player.session, path);
@@ -303,6 +370,11 @@ try {
       api(player.session, path, bet, 200, key),
     ]);
     assert.ok(results.every((r) => r.wallet.reserved === 100));
+    const visibleBets = desktop
+      .getByRole('group', { name: 'Ô Cua', exact: true })
+      .locator('.bau-bettors-preview');
+    await expect(visibleBets).toContainText('Bạn kiểm thử Bầu Cua', { timeout: 7000 });
+    await expect(visibleBets).toContainText('100');
     await eventually(
       async () => events,
       (list) => list.some((e) => e.kind === 'bet.accepted'),

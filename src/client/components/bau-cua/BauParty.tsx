@@ -29,6 +29,8 @@ import { verifyRound } from '../../../shared/bau-cua/fairness';
 import { useBauCua } from '../../lib/bau-cua';
 import { AsyncButton, Button, Confirm, ErrorState, Loading, Modal } from '../ui';
 import BauSettings from './BauSettings';
+import BauBets from './BauBets';
+import BauCoinGrant from './BauCoinGrant';
 import { symbolArtwork } from './artwork';
 import { api } from '../../lib/api';
 import { BauLeaderboard, BauResult } from './BauSummary';
@@ -239,7 +241,7 @@ export default function BauParty({
   const game = useBauCua(room, actor, table),
     data = game.data;
   const [dialog, setDialog] = useState<
-      'rules' | 'settings' | 'wallet' | 'history' | 'members' | 'fairness' | null
+      'rules' | 'settings' | 'wallet' | 'history' | 'members' | 'fairness' | 'grant' | null
     >(null),
     [fairRound, setFairRound] = useState<BauRound | null>(null);
   const [name, setName] = useState('Bầu cua cùng nhau'),
@@ -389,6 +391,12 @@ export default function BauParty({
           {(snapshot.role === 'owner' || data.systemAdmin) && (
             <Button onClick={() => setDialog('settings')} aria-label="Cài đặt Bầu Cua">
               <Settings size={18} />
+            </Button>
+          )}
+          {data.systemAdmin && (
+            <Button onClick={() => setDialog('grant')}>
+              <Coins size={18} aria-hidden="true" />
+              Cấp coin
             </Button>
           )}
         </div>
@@ -699,15 +707,15 @@ export default function BauParty({
                 )}
                 <div className="bau-betting-grid">
                   {symbols.map((s, index) => {
-                    const mine =
-                        r?.bets.find((b) => b.user_id === actor && b.symbol === s)?.amount ?? 0,
-                      total =
-                        r?.bets.filter((b) => b.symbol === s).reduce((n, b) => n + b.amount, 0) ??
-                        0,
+                    const bets = r?.bets.filter((b) => b.symbol === s) ?? [],
+                      mine = bets.find((b) => b.user_id === actor)?.amount ?? 0,
+                      total = bets.reduce((n, b) => n + b.amount, 0),
                       wins = r?.dice?.filter((n) => n === index).length ?? 0;
                     return (
                       <div
                         key={s}
+                        role="group"
+                        aria-label={`Ô ${symbolNames[s]}`}
                         className={'bau-bet-card' + (mine ? ' has-bet' : '') + (wins ? ' won' : '')}
                       >
                         <AsyncButton
@@ -749,6 +757,7 @@ export default function BauParty({
                             </AsyncButton>
                           )}
                         </div>
+                        <BauBets bets={bets} symbol={s} actor={actor} />
                       </div>
                     );
                   })}
@@ -1047,25 +1056,40 @@ export default function BauParty({
       </Modal>
       <Modal
         title={
-          dialog === 'rules'
-            ? 'Luật Bầu Cua'
-            : dialog === 'settings'
-              ? 'Cài đặt Bầu Cua'
-              : dialog === 'wallet'
-                ? 'Ví coin của bạn'
-                : dialog === 'history'
-                  ? 'Lịch sử & người thắng'
-                  : dialog === 'members'
-                    ? 'Thành viên bàn'
-                    : 'Kiểm tra tính công bằng'
+          dialog === 'grant'
+            ? 'Cấp coin cho thành viên'
+            : dialog === 'rules'
+              ? 'Luật Bầu Cua'
+              : dialog === 'settings'
+                ? 'Cài đặt Bầu Cua'
+                : dialog === 'wallet'
+                  ? 'Ví coin của bạn'
+                  : dialog === 'history'
+                    ? 'Lịch sử & người thắng'
+                    : dialog === 'members'
+                      ? 'Thành viên bàn'
+                      : 'Kiểm tra tính công bằng'
         }
-        description="Thông tin được lưu theo tài khoản và phòng hiện tại."
+        description={
+          dialog === 'grant'
+            ? 'Chỉ quản trị viên hệ thống được cấp coin. Coin cộng vào ví chung của người nhận.'
+            : 'Thông tin được lưu theo tài khoản và phòng hiện tại.'
+        }
         open={dialog !== null}
         onOpenChange={(open) => {
           if (!open) setDialog(null);
         }}
         className="bau-modal"
       >
+        {dialog === 'grant' && data.systemAdmin && (
+          <BauCoinGrant
+            members={snapshot.members}
+            actor={actor}
+            busy={busy}
+            retry={game.retry}
+            send={send}
+          />
+        )}
         {dialog === 'rules' && <Rules data={data} />}
         {dialog === 'settings' && (
           <BauSettings data={data} owner={snapshot.role === 'owner'} send={send} />

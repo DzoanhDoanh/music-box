@@ -65,6 +65,8 @@ test('active local music stays visible at least 200px and Space on a horse never
   const handle = await iframe.elementHandle();
   await nav(page, 'Trò chơi');
   await page.getByRole('button', { name: /Đường đua bạn bè/ }).click();
+  await page.getByRole('button', { name: 'Bàn 3D', exact: true }).click();
+  await expect(page.locator('.ludo-scene canvas')).toBeVisible({ timeout: 20000 });
   await fits(page, '.game-controls');
   await fits(page, '.youtube-container iframe');
   const size = (await iframe.boundingBox())!;
@@ -75,8 +77,8 @@ test('active local music stays visible at least 200px and Space on a horse never
   expect(dock.y + dock.height).toBeLessThanOrEqual(controls.y);
   await page.getByRole('button', { name: 'Tung xúc xắc', exact: true }).click();
   const horse = page
-    .locator('[data-piece]')
-    .filter({ has: page.locator('title', { hasText: 'An · Ngựa 1' }) });
+    .getByRole('group', { name: /Bàn cờ/ })
+    .getByRole('button', { name: /Ngựa 1 · Đỏ/ });
   await expect(horse).toHaveAttribute('aria-disabled', 'false');
   await horse.focus();
   await page.keyboard.press('Space');

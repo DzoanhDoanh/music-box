@@ -45,3 +45,51 @@ audio/FPS điện thoại, tải lớn và quota hosted. Public vẫn chạy qua
 không phải một deployment Workers độc lập. Bằng chứng/giới hạn trong
 [kiểm thử](BAU_CUA_TESTING.md), hướng dẫn thử/phát hành trong
 [vận hành](BAU_CUA_OPERATIONS.md).
+
+## Sửa hiển thị cược ngày 18/11/2026
+
+Giao diện trước chỉ hiện tổng cược mỗi ô và phần của mình dù snapshot đã có tên,
+coin và user ID của từng người. Đã thêm hai tên xem nhanh dưới mỗi ô, số người
+đặt và hộp chi tiết đầy đủ; mọi nội dung dùng snapshot hiện tại nên tăng/hoàn cược
+và vòng mới được cập nhật cùng Realtime. Chủ cái/khán giả vẫn xem được khi nút đặt
+cược bị khóa. Không thay luật, API hoặc schema.
+
+Đã kiểm tra hai browser contexts với PostgreSQL thật: cược từ máy khác xuất hiện
+trước polling dự phòng 15 giây, tăng cược/hoàn cược, nhiều người, tên dài/mobile,
+focus bàn phím, axe và xóa dữ liệu hiển thị cũ khi mở vòng mới. Typecheck, lint,
+format và build riêng đạt; 9 ca hồi quy Bầu Cua có sẵn đạt, ca mới đạt khi chạy riêng.
+
+Nghiệm thu hosted candidate ngày 18/11 đã đạt: máy cầm cái nhìn thấy tên và coin
+của người đặt qua Realtime. Người dùng đã cho phép commit/public cùng bàn cờ 3D.
+Xem [bản phát hành 18/11](RELEASE_2026-11-18.md).
+
+## Cấp coin cho thành viên ngày 18/11/2026
+
+Thêm nút **Cấp coin** ở đầu lobby và bàn Bầu Cua, chỉ hiển thị khi snapshot xác
+nhận admin hệ thống (`system_admins`, tài khoản không anonymous). Người nhận
+chọn từ thành viên phòng nhạc, gồm người offline/chưa vào bàn. Nhập số nguyên
+1–1.000.000, chọn nhanh 1.000/5.000/10.000, lý do 5–200 ký tự và kiểm tra lại
+trước khi xác nhận. Chủ phòng/moderator không mặc nhiên được cấp coin.
+
+Dùng lại lệnh `adjust`, khóa giao dịch, receipt, sổ coin và audit đã có. Mất phản
+hồi giữ nguyên request ID; nút xác minh trong hộp cấp coin cho phép tiếp tục sau
+reload. Điều chỉnh cộng/trừ nâng cao trong chính sách coin vẫn giữ nguyên.
+
+Migration bổ sung `202611180001_coin_adjustment_notifications.sql` đưa thông báo
+vào outbox sau audit, cùng giao dịch. Kênh riêng tư của phòng chỉ gửi user ID để
+ví người nhận đọc lại dữ liệu, không phát số dư/số coin/lý do ra cả phòng. Tab
+ở phòng khác vẫn phục hồi theo polling/focus. Không sửa migrations đã áp dụng.
+
+Đạt 25 kiểm thử Vitest liên quan, 29 nhóm PostgreSQL và cả 13 ca trình duyệt Bầu
+Cua (gồm sửa hiển thị cược). Kiểm tra grant trên desktop/mobile, axe, ví lobby
+cập nhật trực tiếp và mất phản hồi/reload/retry không cộng trùng. Typecheck, lint,
+format và build riêng đạt; 32 client artifacts qua secret scan heuristic. Build
+xác nhận public/trial artifacts và deploy pointer không đổi, không restart runtime.
+
+Migration hosted `202611180001_coin_adjustment_notifications.sql` đã áp dụng
+thành công trong lượt chuẩn bị phát hành ngày 18/11. Backup mới trước đó không
+hoàn tất; không coi file tạm là backup đã kiểm chứng. Nghiệm thu hosted candidate
+đã đạt: form admin, cập nhật ví riêng tư, audit, retry không cộng trùng và từ chối
+người không có quyền/người nhận ngoài phòng. Phòng và tài khoản thử đã dọn.
+Không cần migration mới khi chuyển runtime. Xem [bàn 3D](LUDO_3D.md) và
+[bản phát hành 18/11](RELEASE_2026-11-18.md).

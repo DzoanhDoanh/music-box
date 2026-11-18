@@ -154,7 +154,7 @@ describe('skip foreign starts and automatically jump on one', () => {
       }
     });
 
-    it('falls back to one counted step for any ordinary blocker; captures only an exact enemy destination', () => {
+    it('captures an enemy at the next gate, otherwise falls back for ordinary blockers', () => {
       for (const from of route.filter((n) => n < 55)) {
         const gate = [13, 27, 41, 55].find((n) => n > from)!;
         const target = route[route.indexOf(from) + 1];
@@ -164,6 +164,17 @@ describe('skip foreign starts and automatically jump on one', () => {
             s.players[color].pieces[0] = from;
             const blocker = friendly ? color : (color + 1) % 4;
             s.players[blocker].pieces[1] = (color * 14 + obstacle - blocker * 14 + 56) % 56;
+            if (!friendly && obstacle === gate) {
+              expect(moves(s)).toEqual([{ piece: 0, from, to: gate, moveKind: 'JUMP' }]);
+              const after = move(s);
+              expect(after.last.captures).toEqual([ids[blocker] + ':1']);
+              expect(after.players[blocker].pieces[1]).toBe(-1);
+              expect(stateSchema.safeParse(after).success).toBe(true);
+              expect(() => move(s, 'STEP')).toThrow(
+                expect.objectContaining({ code: 'GAME_ILLEGAL_MOVE' }),
+              );
+              continue;
+            }
             if (friendly && obstacle === target) expect(moves(s)).toEqual([]);
             else {
               expect(moves(s)).toEqual([{ piece: 0, from, to: target, moveKind: 'STEP' }]);
