@@ -8,8 +8,10 @@ import {
   type ReactNode,
 } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Play, RotateCcw, Sparkles, Square } from 'lucide-react';
+import { Check, Play, RotateCcw, Sparkles, Square } from 'lucide-react';
+import { toast } from 'sonner';
 import type { PieceSkin } from '../../../shared/game/piece-skins';
+import type { CaptureEffectId } from '../../lib/capture-effect';
 import { Modal, Button } from '../ui';
 import { boardEffects, EffectCallout } from './board-effects';
 import MovingPiece, { pieceColors } from './MovingPiece';
@@ -45,9 +47,15 @@ function PreviewCamera() {
   return null;
 }
 
-type PreviewProps = { skin?: PieceSkin; color: number; light: boolean };
-function EffectLab({ skin, color, light }: PreviewProps) {
-  const [selected, setSelected] = useState(boardEffects[0].id);
+type PreviewProps = {
+  skin?: PieceSkin;
+  color: number;
+  light: boolean;
+  activeEffect: CaptureEffectId;
+  onApply: (effect: CaptureEffectId) => boolean;
+};
+function EffectLab({ skin, color, light, activeEffect, onApply }: PreviewProps) {
+  const [selected, setSelected] = useState(activeEffect);
   const [run, setRun] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [ready, setReady] = useState(false);
@@ -55,6 +63,7 @@ function EffectLab({ skin, color, light }: PreviewProps) {
   const [allowed, setAllowed] = useState(false);
   const overlay = useRef<HTMLDivElement>(null);
   const effect = boardEffects.find((e) => e.id === selected) ?? boardEffects[0];
+  const Attacker = effect.Attacker ?? MovingPiece;
   const complete = useCallback(() => setPlaying(false), []);
   const fail = useCallback(() => {
     setFailed(true);
@@ -83,7 +92,9 @@ function EffectLab({ skin, color, light }: PreviewProps) {
           value={selected}
           onChange={(e) => {
             setPlaying(false);
-            setSelected(e.target.value);
+            setRun(0);
+            const choice = boardEffects.find((entry) => entry.id === e.target.value);
+            if (choice) setSelected(choice.id);
           }}
         >
           {boardEffects.map((e) => (
@@ -131,13 +142,15 @@ function EffectLab({ skin, color, light }: PreviewProps) {
                   <meshBasicMaterial color="#69818d" />
                 </mesh>
               ))}
-              <MovingPiece
+              <Attacker
                 key={`attacker:${selected}:${run}:${playing}`}
                 color={color}
                 skin={skin}
                 position={playing ? effect.demo.cue.points.at(-1)! : effect.demo.cue.points[0]}
                 plan={playing ? effect.demo.cue : undefined}
                 animate={playing && allowed}
+                effectStatus={overlay}
+                light={light}
               />
               <MovingPiece
                 key={`victim:${selected}:${run}:${playing}`}
@@ -196,6 +209,23 @@ function EffectLab({ skin, color, light }: PreviewProps) {
                   ? 'Đang xem thử…'
                   : 'Sẵn sàng'}
         </span>
+      </div>
+      <div className="effect-apply">
+        <span>Hiệu ứng trên thiết bị này</span>
+        <Button
+          disabled={selected === activeEffect}
+          onClick={() => {
+            const saved = onApply(selected);
+            toast.success(
+              saved
+                ? `Đã dùng hiệu ứng ${effect.name}.`
+                : `Đã dùng ${effect.name} cho phiên này; trình duyệt chưa lưu được lựa chọn.`,
+            );
+          }}
+        >
+          {selected === activeEffect && <Check size={16} />}
+          {selected === activeEffect ? 'Đang dùng' : 'Dùng ' + effect.name}
+        </Button>
       </div>
     </>
   );

@@ -1,8 +1,139 @@
-# Bàn cờ 3D và hiệu ứng K/O — 18/11/2026
+# Bàn cờ 3D, K/O, Long quyền, Rider Kick và Kamehameha — 18/11/2026
 
-Đã commit, push và public bản này cùng các thay đổi Bầu Cua/cấp coin/nhảy đá
+Đã commit, push và public bản K/O cùng các thay đổi Bầu Cua/cấp coin/nhảy đá
 theo yêu cầu người dùng. Phạm vi và bằng chứng phát hành được ghi trong
 [bản phát hành 18/11](RELEASE_2026-11-18.md).
+
+Đợt cập nhật hiệu ứng gồm Long quyền, Rider Kick và Kamehameha, cùng lựa chọn
+hiển thị lưu trên thiết bị. Chi tiết candidate và kiểm chứng trong
+[bản phát hành hiệu ứng](RELEASE_EFFECTS_2026-11-18.md).
+
+## Kamehameha — Goku tụ khí và bắn chưởng
+
+- Thêm **Kamehameha** vào danh mục. Quân tấn công tạm biến thành Goku tóc
+  đen dựng, võ phục cam, áo/thắt lưng/giày xanh. Hai tay chụm bên hông tụ
+  quả cầu năng lượng rồi cùng đẩy về phía đối thủ. Chùm chưởng có lõi trắng,
+  vỏ xanh, vòng năng lượng và hạt sáng; va chạm phát xung kích **KAMEHAMEHA — K/O**.
+- Bắt đầu bắn ở 1400 ms, chưởng chạm đích ở 1800 ms. Đối thủ chỉ bay về nhà
+  sau va chạm, giữ thời lượng 900 ms; người tấn công thu chưởng, tiến về ô đã
+  được máy chủ xác nhận và phục hồi mẫu quân trong 950 ms sau va chạm.
+- Renderer dùng chung giữa ván và xem thử; hiệu ứng chỉ dùng sự kiện bắt quân
+  đã xác nhận. Không sửa luật, kết quả, mẫu quân đã lưu hoặc gửi thêm lệnh game.
+  Lượt tiếp theo vẫn thao tác được. Không tải model ngoài hoặc thêm âm thanh.
+- Mô hình khớp tay và hiệu ứng dựng cục bộ bằng Three.js; hạt sáng dùng
+  instancing 32 hạt ở chế độ Rõ nét, 12 ở chế độ Nhẹ. Reduced motion/tab ẩn
+  dừng biến hình và phục hồi quân; không diễn lại sự kiện đã tiêu thụ.
+- **Bàn 3D → Thử hiệu ứng → Kamehameha → Xem thử / Dùng Kamehameha**.
+  Lựa chọn lưu theo tài khoản/thiết bị và áp dụng cho hiệu ứng được xem trên
+  thiết bị đó, không phải trang bị cá nhân đồng bộ sang máy thành viên khác.
+
+Kiểm chứng: 4 ca browser desktop/mobile đạt cho tụ khí, chưởng, va chạm, phục
+hồi mẫu quân mèo, dừng/phát lại, lưu lựa chọn qua reload, bắt quân trong fixture,
+snapshot trùng và ngắt bằng reduced motion. Xem thử giữ nguyên ván và nhạc.
+12 unit test đạt (3 Kamehameha, 4 Rider, 3 quỹ đạo nền, 2 đồng hồ); TypeScript và lint
+phạm vi thay đổi đạt. Đã xem ảnh desktop/mobile cho tụ khí, bắn chưởng và
+bắt quân trên bàn. Chưa đo FPS trên điện thoại vật lý.
+
+Đồng hồ trình diễn dùng cùng bước thời gian cho quân thường, quân bị bắt,
+K/O, Long quyền, Rider và Goku. Bỏ thời gian chờ trước khung hình đầu trên
+bàn render theo nhu cầu; các khung sau tính đủ thời gian thực, không cắt
+mỗi delta về 50 ms khiến đòn đánh kéo dài trên máy render chậm. Kiểm thử
+đồng hồ bao gồm FPS thấp, một khung dài, bàn đứng yên lâu và sự kiện đã dừng.
+
+Lượt browser cuối sau sửa đồng hồ: **20/20 ca desktop/mobile đạt** cho cả
+K/O, Long quyền, Rider Kick và Kamehameha, gồm reduced motion và WebGL fallback.
+Build riêng `scripts/build-bau-cua.mjs` đạt; 35 client artifacts qua scan heuristic.
+Trước phát hành, Kamehameha được nghiệm thu tại **http://127.0.0.1:5181**, candidate
+`.roomtune/releases/bau-cua-20261118T072846/candidate`. Health `configured`,
+HTML và 34 asset mới khớp từng byte; 4 đường dẫn nội bộ không trả bí mật cấu hình.
+Client `index-D-jcEe8a.js`, scene `LudoScene-D6Rv2RJ0.js`, CSS `game-B76KUyGC.css`.
+Trong đợt nghiệm thu riêng, public/5180 giữ nguyên HTML, hồ sơ tiến trình và
+con trỏ deploy; tunnel vẫn chạy. Bản thử dùng cùng Supabase; browser test chỉ
+dùng fixtures. Trạng thái phát hành được ghi trong biên bản hiệu ứng ở trên.
+
+## Rider Kick — biến hình khi đá quân
+
+- Thêm **Rider Kick** vào danh mục hiện có. Quân tấn công tạm biến thành
+  Kamen Rider dạng mô hình 3D cổ điển: mũ xanh, mắt đỏ, ăng-ten, giáp bạc,
+  khăn đỏ và thắt lưng phát sáng. Mô hình có khớp tay/chân: một chân duỗi
+  tung cú đá, chân kia gập; khăn và năng lượng ở chân chuyển động theo đòn.
+- Chuỗi biểu diễn: biến hình/tích lực → bật lên → lao qua vòng năng lượng
+  → va chạm/xung kích/K/O → trở lại mẫu quân đã chọn. Hỗ trợ cả mẫu động vật
+  và các mẫu quân khác; chỉ quân tấn công đổi hình, đối thủ giữ mẫu riêng.
+- Timeline trình diễn dùng mốc va chạm 1700 ms, đối thủ bắt đầu bay về nhà
+  đúng mốc này và giữ thời lượng bay hiện có. Rider trở về mẫu gốc trong
+  500 ms sau va chạm. Chỉ đổi quỹ đạo/thời gian hình ảnh của sự kiện đá quân
+  đã xác nhận; không ghi `skin`, đổi luật/kết quả hoặc trì hoãn lượt tiếp theo.
+- Dừng xem thử, đóng cửa sổ, thay sự kiện hay bật giảm chuyển động đều trả
+  quân về mẫu đã chọn. Sự kiện bị ngắt được tiêu thụ và không diễn lại khi
+  bật chuyển động. Không tải model ngoài, thêm dependency hoặc âm thanh tự phát.
+- **Bàn 3D → Thử hiệu ứng → Rider Kick → Xem thử / Dùng Rider Kick**.
+  Lựa chọn dùng chung cơ chế lưu theo tài khoản/thiết bị với Long quyền.
+  Bàn phẳng và mẫu quân lưu trên máy chủ vẫn giữ nguyên.
+
+Kiểm chứng Rider Kick: 4 ca browser desktop/mobile đạt cho xem thử, hoàn tất,
+phát lại/dừng, lưu lựa chọn qua reload, biến hình từ quân mèo, phục hồi mẫu quân,
+snapshot trùng và ngắt bằng reduced motion. Dữ liệu game/skin và nhạc không bị
+thay bởi việc xem thử. 7 unit test quỹ đạo (4 mới, 3 hồi quy), TypeScript và lint
+phạm vi thay đổi đạt. Đã kiểm tra ảnh desktop/mobile: Rider bay, va chạm và
+quân trở lại hình dạng ban đầu. Chưa đo FPS trên điện thoại vật lý.
+12 ca browser hồi quy K/O/Long quyền/danh mục/reduced motion/WebGL cũng đạt;
+tổng đợt Rider là 16 ca browser. Các bài kiểm tra dùng phòng fixture.
+
+Lần triển khai Rider Kick và Long quyền trước Kamehameha dùng cổng 5181.
+Ở thời điểm đó, hai hiệu ứng chưa commit, push hoặc public. Build riêng đạt,
+candidate `.roomtune/releases/bau-cua-20261118T070706/candidate` đã được nạp
+vào 5181. Health `configured`, HTML và 34 asset mới khớp từng byte; 4 đường
+dẫn nội bộ được kiểm tra không trả nội dung bí mật cấu hình. Client
+`index-CNVUdUK_.js`, scene `LudoScene-CUOIhdVC.js`, CSS `game-yMgxRKgr.css`.
+Public/5180 giữ nguyên HTML, hồ sơ tiến trình và con trỏ deploy; các tiến
+trình được kiểm tra đúng danh tính, public và tunnel vẫn chạy.
+
+## Long quyền — phát triển riêng sau bản K/O
+
+- Thêm **Long quyền** vào danh mục hiệu ứng: rồng ngọc có sừng vàng, râu,
+  bờm và thân uốn theo đường đi của quân tấn công; chạm đích phát xung kích,
+  hất đối thủ về nhà và hiện **LONG QUYỀN — K/O**. Dùng quỹ đạo nước đi đã
+  được máy chủ xác nhận, không đổi luật hoặc gửi thêm lệnh game.
+- Rồng dựng từ geometry cục bộ; thân/gai dùng instancing với 36 đoạn ở chế độ
+  Rõ nét, 18 đoạn ở chế độ Nhẹ. Rồng thu nhỏ trong 650 ms sau va chạm; xung kích
+  dùng chung renderer K/O và kết thúc sau 1.45 giây theo đồng hồ hoạt ảnh.
+  Không tải model ngoài hoặc thêm dependency. Tôn trọng reduced motion,
+  trạng thái ẩn trang/bàn và lỗi WebGL như hiệu ứng hiện có.
+- **Bàn 3D → Thử hiệu ứng → Long quyền → Xem thử / Dùng Long quyền**.
+  Có thể phát lại, dừng hoặc đổi về K/O. Mở danh mục không tự phát hiệu ứng.
+  Cửa sổ xem thử dùng quân mẫu và không thao tác ván/nhạc thật; nút áp dụng
+  được giữ dễ thấy trên màn hình nhỏ.
+- Lựa chọn là **tùy chọn hiển thị của người xem trên thiết bị này**, lưu theo
+  tài khoản trong localStorage. Áp dụng cho các đòn đá quân hiển thị tại đây,
+  không phải trang bị cá nhân được đồng bộ cho những người khác. Nếu trình
+  duyệt không lưu được, vẫn áp dụng trong phiên hiện tại và báo rõ bằng toast.
+  Mặc định vẫn là K/O; phẳng vẫn là chế độ bàn mặc định.
+- Renderer được chốt theo từng sự kiện đã nhận. Đổi lựa chọn chỉ ảnh hưởng
+  lần đá tiếp theo, không thay thế/phát lại đòn đang diễn hoặc đòn đã kết thúc.
+  Không cần migration database.
+
+Bản thử Long quyền trước khi bổ sung Rider Kick đã chạy trên cổng 5181;
+các định danh build và candidate bên dưới ghi nhận lần cài đặt trước đó.
+
+Kiểm chứng Long quyền:
+
+- 12 ca browser desktop/mobile đạt qua hai lượt kiểm tra cuối: 8 ca hồi quy
+  K/O/danh mục/reduced motion/WebGL, 4 ca Long quyền xem thử/áp dụng và
+  reload/đá quân/hoàn tất/không diễn lại khi đổi lựa chọn. Có kiểm tra nhạc và
+  dữ liệu ván giữ nguyên khi xem thử, focus bàn phím, axe và màn 320×568.
+- Bài chụp ảnh dùng đồng hồ điều khiển; bài gameplay/reload dùng đồng hồ thật
+  để kiểm tra hiệu ứng kết thúc bình thường qua lần tải trang.
+- 3 unit test quỹ đạo đạt; TypeScript, lint phạm vi thay đổi đạt. Đã xem ảnh
+  rồng bay, va chạm và bàn chơi trên desktop/mobile. Browser dùng fixtures;
+  chưa đo FPS trên điện thoại vật lý.
+- Build riêng `scripts/build-bau-cua.mjs` đạt; scan heuristic 35 client artifacts
+  đạt. Candidate `.roomtune/releases/bau-cua-20261118T064052/candidate` chỉ được
+  nạp vào 5181. Health `configured`, HTML và 34 asset mới khớp từng byte;
+  4 đường dẫn nội bộ được kiểm tra không trả nội dung bí mật cấu hình.
+  Client `index-BmGMM8ih.js`, scene `LudoScene-CBw6xfKE.js`, CSS `game-CqUe4OBM.css`.
+  Public/5180 giữ nguyên HTML, hồ sơ tiến trình và con trỏ deploy; build cũng
+  xác nhận toàn bộ `dist` và `.roomtune/game-build` giữ nguyên. Tunnel vẫn chạy.
 
 ## Giao diện
 
@@ -94,7 +225,7 @@ thử gameplay. Chuyển chế độ hiển thị không làm thay đổi dữ l
 Để xem hiệu ứng mà không đi quân thật, chọn **Thử hiệu ứng → Xem thử K/O**.
 Có thể phát lại hoặc dừng; cửa sổ dùng quân mẫu và không gửi lệnh vào ván.
 
-Runtime public và thử đã trả health `configured`, HTML/scene chunk HTTP 200, client
+Tại thời điểm phát hành K/O, runtime public và thử đã trả health `configured`, HTML/scene chunk HTTP 200, client
 `index-DhwSZ4p5.js`, scene `LudoScene-CWd1RZ5W.js`, CSS `game-QAva43k5.css`.
 Cả ba asset đang phục vụ khớp từng byte với build mới. Chỉ runtime public được
 khởi động lại; tunnel và hai bản thử giữ nguyên. Candidate đã chuyển vào `dist`;

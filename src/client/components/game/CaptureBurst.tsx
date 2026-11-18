@@ -13,11 +13,21 @@ import {
   PointLight,
   Sprite,
 } from 'three';
-import { sampleSceneMotion, type ScenePlan } from './scene-motion';
+import { advanceSceneTime, sampleSceneMotion, type ScenePlan } from './scene-motion';
 
 const lifetime = 1450;
 const clamp = (n: number) => Math.max(0, Math.min(1, n));
 const burstColors = ['#fff8d0', '#ffcf68', '#fff2b3'];
+
+export type CaptureEffectProps = {
+  plan: ScenePlan;
+  color: string;
+  enabled: boolean;
+  light: boolean;
+  overlay: RefObject<HTMLDivElement | null>;
+  onComplete?: () => void;
+  showApproach?: boolean;
+};
 
 function glowTexture() {
   const canvas = document.createElement('canvas');
@@ -42,14 +52,8 @@ export default function CaptureBurst({
   light,
   overlay,
   onComplete,
-}: {
-  plan: ScenePlan;
-  color: string;
-  enabled: boolean;
-  light: boolean;
-  overlay: RefObject<HTMLDivElement | null>;
-  onComplete?: () => void;
-}) {
+  showApproach = true,
+}: CaptureEffectProps) {
   const root = useRef<Group>(null),
     waves = useRef<Group>(null),
     shards = useRef<InstancedMesh>(null),
@@ -77,7 +81,7 @@ export default function CaptureBurst({
     const element = overlay.current;
     if (!consumed.current) {
       consumed.current = true;
-      elapsed.current = enabled ? 0 : Infinity;
+      elapsed.current = enabled ? -1 : Infinity;
     } else if (!enabled) elapsed.current = Infinity;
     if (root.current) root.current.visible = Number.isFinite(elapsed.current);
     if (element) {
@@ -91,7 +95,7 @@ export default function CaptureBurst({
   }, [enabled, invalidate, overlay]);
   useFrame((_, delta) => {
     if (!enabled || !root.current || !Number.isFinite(elapsed.current)) return;
-    elapsed.current += Math.min(delta, 0.05) * 1000;
+    elapsed.current = advanceSceneTime(elapsed.current, delta);
     const age = elapsed.current - plan.duration;
     const t = clamp(age / lifetime);
     const element = overlay.current;
@@ -114,7 +118,7 @@ export default function CaptureBurst({
     if (element && age >= 0) element.style.setProperty('--impact-age', age + 'ms');
     if (charge.current) {
       const charging = age < 0;
-      charge.current.visible = charging;
+      charge.current.visible = showApproach && charging;
       charge.current.scale.setScalar(1.8 - clamp(elapsed.current / plan.duration));
       charge.current.rotation.z = elapsed.current * 0.006;
       (charge.current.material as MeshBasicMaterial).opacity = charging
@@ -122,7 +126,7 @@ export default function CaptureBurst({
         : 0;
     }
     if (trail.current) {
-      trail.current.visible = age < 0;
+      trail.current.visible = showApproach && age < 0;
       for (let i = 0; i < 10; i++) {
         const progress = clamp(elapsed.current / plan.duration - i * 0.025);
         const p = sampleSceneMotion(plan, progress);

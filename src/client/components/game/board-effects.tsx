@@ -1,10 +1,29 @@
-import type { RefObject } from 'react';
-import CaptureBurst from './CaptureBurst';
+import type { ComponentType, RefObject } from 'react';
+import CaptureBurst, { type CaptureEffectProps } from './CaptureBurst';
+import DragonStrike from './DragonStrike';
+import RiderKick, { RiderAttacker } from './RiderKick';
+import { riderCapturePlans, riderImpactMs } from './rider-motion';
+import Kamehameha, { GokuAttacker } from './Kamehameha';
+import { kameCapturePlans, kameImpactMs } from './kamehameha-motion';
+import type { MovingPieceProps } from './MovingPiece';
 import type { ScenePlan } from './scene-motion';
+import type { CaptureEffectId } from '../../lib/capture-effect';
+
+export type BoardEffect = {
+  id: CaptureEffectId;
+  name: string;
+  description: string;
+  eyebrow: string;
+  headline: string;
+  Renderer: ComponentType<CaptureEffectProps>;
+  Attacker?: ComponentType<MovingPieceProps>;
+  preparePlans?: (plans: Map<string, ScenePlan>, attacker: string) => Map<string, ScenePlan>;
+  demo: { cue: ScenePlan; victim: ScenePlan };
+};
 
 // Every catalogue entry supplies its renderer, copy and local demo choreography.
 // Adding an effect does not need to add a new button or modify game state/API logic.
-export const captureEffect = {
+export const captureEffect: BoardEffect = {
   id: 'capture-burst',
   name: 'K/O',
   description: 'Lao tới, bùng nổ năng lượng và hất đối thủ xoay về nhà.',
@@ -33,8 +52,62 @@ export const captureEffect = {
     } satisfies ScenePlan,
   },
 };
-export const boardEffects = [captureEffect];
-export type BoardEffect = (typeof boardEffects)[number];
+export const dragonEffect: BoardEffect = {
+  id: 'dragon-strike',
+  name: 'Long quyền',
+  description: 'Rồng ngọc bám theo đòn đánh, bùng nổ xung kích và hất đối thủ về nhà.',
+  eyebrow: 'LONG QUYỀN',
+  headline: 'K/O',
+  Renderer: DragonStrike,
+  demo: {
+    cue: { ...captureEffect.demo.cue, duration: 900 },
+    victim: { ...captureEffect.demo.victim, duration: 1800, delay: 900 },
+  },
+};
+export const riderEffect: BoardEffect = {
+  id: 'rider-kick',
+  name: 'Rider Kick',
+  description: 'Biến thành Kamen Rider, bật lên tung cú đá kết liễu rồi trở lại quân đã chọn.',
+  eyebrow: 'RIDER KICK',
+  headline: 'K/O',
+  Renderer: RiderKick,
+  Attacker: RiderAttacker,
+  preparePlans: riderCapturePlans,
+  demo: {
+    cue: { ...captureEffect.demo.cue, kind: 'rider-kick', duration: riderImpactMs },
+    victim: { ...captureEffect.demo.victim, duration: riderImpactMs + 900, delay: riderImpactMs },
+  },
+};
+export const kameEffect: BoardEffect = {
+  id: 'kamehameha',
+  name: 'Kamehameha',
+  description: 'Biến thành Goku, tụ khí và bắn chưởng Kamehameha rồi trở lại quân đã chọn.',
+  eyebrow: 'KAMEHAMEHA',
+  headline: 'K/O',
+  Renderer: Kamehameha,
+  Attacker: GokuAttacker,
+  preparePlans: kameCapturePlans,
+  demo: {
+    cue: {
+      ...captureEffect.demo.cue,
+      points: [
+        { x: -3.5, z: 0, scale: 1 },
+        { x: 0, z: 0, scale: 1 },
+      ],
+      kind: 'kamehameha',
+      duration: kameImpactMs,
+    },
+    victim: { ...captureEffect.demo.victim, duration: kameImpactMs + 900, delay: kameImpactMs },
+  },
+};
+export const boardEffects: readonly BoardEffect[] = [
+  captureEffect,
+  dragonEffect,
+  riderEffect,
+  kameEffect,
+];
+export const getBoardEffect = (id: CaptureEffectId) =>
+  boardEffects.find((effect) => effect.id === id) ?? captureEffect;
 
 export function EffectCallout({
   overlay,
@@ -48,7 +121,13 @@ export function EffectCallout({
   detail: string;
 }) {
   return (
-    <div ref={overlay} className={'ludo-finisher ludo-color-' + color} hidden aria-hidden="true">
+    <div
+      ref={overlay}
+      className={'ludo-finisher ludo-color-' + color}
+      data-effect={effect.id}
+      hidden
+      aria-hidden="true"
+    >
       <div className="ludo-finisher-wash" />
       <div className="ludo-finisher-callout">
         <span>{effect.eyebrow}</span>

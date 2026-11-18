@@ -13,8 +13,13 @@ import { pieceLayout } from './board-motion';
 import { sceneMotion, scenePoint, type ScenePlan } from './scene-motion';
 import MovingPiece, { pieceColors as colors } from './MovingPiece';
 import { useBoardCamera } from './useBoardCamera';
-import { captureEffect, EffectCallout } from './board-effects';
+import { getBoardEffect, EffectCallout } from './board-effects';
 import EffectPreview from './EffectPreview';
+import {
+  readCaptureEffect,
+  rememberCaptureEffect,
+  type CaptureEffectId,
+} from '../../lib/capture-effect';
 
 const panels = ['#532c3c', '#174b42', '#54442a', '#223d61'];
 const base = '#152632';
@@ -314,16 +319,36 @@ export default function LudoScene({
   const [failed, setFailed] = useState(false);
   const [animate, setAnimate] = useState(false);
   const [lightGraphics, setLightGraphics] = useState(false);
+  const [choice, setChoice] = useState(() => ({ actor, id: readCaptureEffect(actor) }));
+  const selectedEffect = choice.actor === actor ? choice.id : readCaptureEffect(actor);
+  const applyEffect = (id: CaptureEffectId) => {
+    const saved = rememberCaptureEffect(actor, id);
+    setChoice({ actor, id });
+    return saved;
+  };
   const { camera, invalidate, sync, rotate, zoom, reset, gestures } = useBoardCamera(host, size);
   const previous = useRef(state);
   const eventKey = `${state.id}:${state.schema}:${state.round}:${state.version}`;
-  const [motion, setMotion] = useState(() => ({ key: eventKey, plans: emptyPlans }));
+  const [motion, setMotion] = useState(() => ({
+    key: eventKey,
+    plans: emptyPlans,
+    effect: selectedEffect,
+  }));
   const plans = motion.key === eventKey ? motion.plans : emptyPlans;
   useLayoutEffect(() => {
-    if (motion.key !== eventKey)
-      setMotion({ key: eventKey, plans: sceneMotion(previous.current, state) });
+    if (motion.key !== eventKey) {
+      const rawPlans = sceneMotion(previous.current, state);
+      const preparePlans = getBoardEffect(selectedEffect).preparePlans;
+      setMotion({
+        key: eventKey,
+        plans: preparePlans
+          ? preparePlans(rawPlans, state.last.actor + ':' + state.last.piece)
+          : rawPlans,
+        effect: selectedEffect,
+      });
+    }
     previous.current = state;
-  }, [state, eventKey, motion.key]);
+  }, [state, eventKey, motion.key, selectedEffect]);
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) =>
       setSize({ width: entry.contentRect.width, height: entry.contentRect.height }),
@@ -376,6 +401,9 @@ export default function LudoScene({
       : undefined;
   const moverPlan = plans.get(state.last.actor + ':' + state.last.piece);
   const captureCount = [...plans.values()].filter((p) => p.kind === 'capture').length;
+  // Freeze the renderer choice with the committed event: selecting another effect
+  // must never replay or replace an impact already in progress.
+  const captureEffect = getBoardEffect(motion.effect);
   if (failed) return fallback;
   return (
     <div
@@ -427,14 +455,20 @@ export default function LudoScene({
                 .flatMap((p) =>
                   p.pieces.map((_, n) => {
                     const key = p.id + ':' + n;
+                    const Piece =
+                      captureCount > 0 && key === state.last.actor + ':' + state.last.piece
+                        ? (captureEffect.Attacker ?? MovingPiece)
+                        : MovingPiece;
                     return (
-                      <MovingPiece
+                      <Piece
                         key={key}
                         position={scenePoint(layout.get(key)!)}
                         plan={plans.get(key)}
                         color={p.color}
                         skin={p.skin}
                         animate={animate}
+                        effectStatus={finisher}
+                        light={lightGraphics}
                       />
                     );
                   }),
@@ -546,6 +580,8 @@ export default function LudoScene({
         skin={state.players.find((p) => p.id === actor)?.skin}
         color={state.players.find((p) => p.id === actor)?.color ?? 0}
         light={lightGraphics}
+        activeEffect={selectedEffect}
+        onApply={applyEffect}
       />
       <div className="ludo-camera-tools" role="group" aria-label="Điều khiển góc nhìn 3D">
         <button onClick={() => rotate(0.3, 0)} aria-label="Xoay bàn sang trái" title="Xoay trái">

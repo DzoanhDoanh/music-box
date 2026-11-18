@@ -1,32 +1,35 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, type RefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Group } from 'three';
 import type { PieceSkin } from '../../../shared/game/piece-skins';
-import { sampleSceneMotion, type ScenePlan, type ScenePoint } from './scene-motion';
+import {
+  advanceSceneTime,
+  sampleSceneMotion,
+  type ScenePlan,
+  type ScenePoint,
+} from './scene-motion';
 import Figurine from './Figurine';
 
 export const pieceColors = ['#f47784', '#56d6b0', '#f5ca6a', '#74b4fc'];
 
-export default function MovingPiece({
-  position,
-  plan,
-  color,
-  skin,
-  animate,
-}: {
+export type MovingPieceProps = {
   position: ScenePoint;
   plan?: ScenePlan;
   color: number;
   skin?: PieceSkin;
   animate: boolean;
-}) {
+  light?: boolean;
+  effectStatus?: RefObject<HTMLDivElement | null>;
+};
+
+export default function MovingPiece({ position, plan, color, skin, animate }: MovingPieceProps) {
   const group = useRef<Group>(null);
   const motion = useRef<{ plan: ScenePlan; elapsed: number } | null>(null);
   const seenPlan = useRef<ScenePlan | undefined>(undefined);
   const { x, z, scale } = position;
   const invalidate = useThree((s) => s.invalidate);
   useLayoutEffect(() => {
-    motion.current = plan && animate && seenPlan.current !== plan ? { plan, elapsed: 0 } : null;
+    motion.current = plan && animate && seenPlan.current !== plan ? { plan, elapsed: -1 } : null;
     seenPlan.current = plan;
     const start = motion.current
       ? sampleSceneMotion(motion.current.plan, 0)
@@ -39,7 +42,7 @@ export default function MovingPiece({
   useFrame((_, delta) => {
     const active = motion.current;
     if (!active || !group.current) return;
-    active.elapsed += Math.min(delta, 0.05) * 1000;
+    active.elapsed = advanceSceneTime(active.elapsed, delta);
     const p = sampleSceneMotion(active.plan, active.elapsed / active.plan.duration);
     group.current.position.set(p.x, p.y, p.z);
     group.current.scale.setScalar(p.scale);

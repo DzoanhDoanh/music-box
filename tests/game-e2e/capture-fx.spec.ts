@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { gameFixture, ids, match, openGame } from './fixture';
 import { defaultRules } from '../../src/shared/game/contracts';
+import { pauseAnimationClock } from './animation-clock';
 
 function captureFixture() {
   const fixture = gameFixture();
@@ -37,7 +38,7 @@ test('capture bursts at impact, accepts the next action, and never replays on re
   await expect(effect).toHaveAttribute('data-phase', 'impact');
   // Freeze a real rendered impact frame for visual inspection; timing/expiry are
   // exercised separately below with the normal clock.
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
+  await pauseAnimationClock(page);
   await page.clock.runFor(200);
   await expect(effect).toBeVisible();
   await expect(effect).toContainText('K/O');

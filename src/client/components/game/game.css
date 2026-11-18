@@ -1720,6 +1720,7 @@ body:has(.game-screen) .chat-dock .theme-switch {
 }
 .effect-picker {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 12px;
   font-size: 13px;
@@ -1775,6 +1776,46 @@ body:has(.game-screen) .chat-dock .theme-switch {
   color: var(--muted);
   font-size: 11px;
 }
+.effect-apply {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.effect-apply > span {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.effect-apply > button {
+  flex-shrink: 0;
+  padding-inline: 12px;
+}
+.ludo-finisher[data-effect='dragon-strike'] .ludo-finisher-callout > span {
+  color: #8cffe1;
+  letter-spacing: 0.23em;
+}
+.ludo-finisher[data-effect='dragon-strike'] .ludo-finisher-wash {
+  background: radial-gradient(ellipse at center, #51efbc30, transparent 65%);
+}
+.ludo-finisher[data-effect='rider-kick'] .ludo-finisher-callout > span {
+  color: #9bffdb;
+  letter-spacing: 0.2em;
+}
+.ludo-finisher[data-effect='rider-kick'] .ludo-finisher-wash {
+  background: radial-gradient(ellipse at center, #ffd46730, transparent 70%);
+}
+.ludo-finisher[data-effect='kamehameha'] .ludo-finisher-callout > span {
+  color: #92e8ff;
+  letter-spacing: 0.16em;
+}
+.ludo-finisher[data-effect='kamehameha'] .ludo-finisher-wash {
+  background: radial-gradient(ellipse at center, #42caff35, transparent 70%);
+}
 .effect-preview-error {
   padding: 30px;
   color: #e4ecf4;
@@ -1787,6 +1828,19 @@ body:has(.game-screen) .chat-dock .theme-switch {
   .effect-preview-actions > span {
     flex-basis: 100%;
     margin: 0;
+  }
+  .effect-preview-stage {
+    height: clamp(120px, calc(100dvh - 390px), 240px);
+  }
+  .effect-apply {
+    position: sticky;
+    bottom: -16px;
+    z-index: 5;
+    margin-top: 8px;
+    padding: 10px 0;
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
   }
 }
 .ludo-finisher {

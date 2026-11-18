@@ -2,19 +2,27 @@ import type { GameState } from '../../../shared/game/contracts';
 import { skipsStart } from '../../../shared/game/board';
 import { committedMotion, pieceLayout } from './board-motion';
 import { piecePoint } from './board-geometry';
+import { sampleRiderMotion } from './rider-motion';
 
 export type ScenePoint = { x: number; z: number; scale: number };
 export type ScenePlan = {
   points: ScenePoint[];
   duration: number;
   delay: number;
-  kind: 'step' | 'jump' | 'capture' | 'shift';
+  kind: 'step' | 'jump' | 'capture' | 'shift' | 'rider-kick' | 'kamehameha';
 };
 export const scenePoint = (p: { x: number; y: number; scale: number }): ScenePoint => ({
   x: p.x - 7.5,
   z: p.y - 7.5,
   scale: p.scale,
 });
+
+/** -1 starts on the first rendered frame, excluding demand-render idle time.
+ * Later frames use real elapsed time, so low FPS cannot stretch capture timing. */
+export function advanceSceneTime(elapsedMs: number, deltaSeconds: number) {
+  if (!Number.isFinite(elapsedMs)) return Infinity;
+  return elapsedMs < 0 ? 0 : elapsedMs + Math.max(0, deltaSeconds) * 1000;
+}
 
 /** The same consecutive authoritative-event guard as the flat board. No simulated moves. */
 export function sceneMotion(before: GameState, after: GameState) {
@@ -46,6 +54,7 @@ export function sceneMotion(before: GameState, after: GameState) {
 }
 
 export function sampleSceneMotion(plan: ScenePlan, progress: number) {
+  if (plan.kind === 'rider-kick') return sampleRiderMotion(plan, progress);
   const time = Math.max(0, Math.min(1, progress));
   if (time === 1)
     return { ...plan.points[plan.points.length - 1], y: 0.21, tilt: 0, spin: 0, roll: 0 };

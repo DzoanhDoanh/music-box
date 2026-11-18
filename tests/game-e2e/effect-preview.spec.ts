@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { gameFixture, ids, match, openGame } from './fixture';
 import { defaultRules } from '../../src/shared/game/contracts';
+import { pauseAnimationClock } from './animation-clock';
 
 test('effect catalogue replays and stops locally, restores focus and preserves the real board', async ({
   page,
@@ -40,7 +41,7 @@ test('effect catalogue replays and stops locally, restores focus and preserves t
   ).toEqual([]);
   await dialog.getByRole('button', { name: 'Xem thử K/O', exact: true }).click();
   await expect(dialog.locator('.ludo-finisher')).toHaveAttribute('data-phase', 'impact');
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
+  await pauseAnimationClock(page);
   await page.clock.runFor(200);
   await page.screenshot({ path: info.outputPath('effect-preview.png') });
   await page.clock.resume();
@@ -86,11 +87,20 @@ test('preview fits a small viewport, respects reduced motion and isolates WebGL 
   await opener.click();
   const dialog = page.getByRole('dialog', { name: 'Thử hiệu ứng', exact: true });
   await expect(dialog).toBeInViewport({ ratio: 1 });
-  await expect(dialog.getByRole('button', { name: 'Xem thử K/O', exact: true })).toBeDisabled();
+  await dialog
+    .getByRole('combobox', { name: 'Hiệu ứng', exact: true })
+    .selectOption('dragon-strike');
+  if (info.project.name === 'mobile')
+    await expect(
+      dialog.getByRole('button', { name: 'Dùng Long quyền', exact: true }),
+    ).toBeInViewport({ ratio: 1 });
+  await expect(
+    dialog.getByRole('button', { name: 'Xem thử Long quyền', exact: true }),
+  ).toBeDisabled();
   await expect(dialog.getByRole('status')).toContainText('giảm chuyển động');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await dialog.getByRole('button', { name: 'Xem thử K/O', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Xem thử Long quyền', exact: true }).click();
   await expect(dialog.locator('.effect-preview-stage')).toHaveAttribute('data-playing', 'true');
   await dialog.locator('canvas').evaluate((c) => c.dispatchEvent(new Event('webglcontextlost')));
   await expect(dialog.locator('.effect-preview-error')).toBeVisible();
@@ -99,4 +109,113 @@ test('preview fits a small viewport, respects reduced motion and isolates WebGL 
   await expect(page.locator('.ludo-scene canvas')).toBeVisible();
   await expect(opener).toBeFocused();
   expect(f.musicCommands).toEqual([]);
+});
+
+test('Long quyen previews locally, replays, stops and applies without changing the game', async ({
+  page,
+  context,
+}, info) => {
+  const f = gameFixture();
+  const state = f.seed(2, { ...defaultRules, turnSeconds: 90 });
+  state.players[0].pieces = [8, -1, -1, -1];
+  state.players[0].skin = 'HERO';
+  state.players[1].pieces = [1, -1, -1, -1];
+  state.dice = 6;
+  state.phase = 'MOVE';
+  state.version++;
+  f.commit(state);
+  await f.attach(context, 0);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.clock.install();
+  await openGame(page);
+  await page.getByRole('button', { name: 'Bàn 3D', exact: true }).click();
+  if (info.project.name === 'mobile')
+    await page.getByRole('button', { name: 'Đồ họa: Rõ nét', exact: true }).click();
+  const before = structuredClone(f.games.get(match));
+  const requests = f.requests.length;
+  const opener = page.getByRole('button', { name: 'Thử hiệu ứng', exact: true });
+  await opener.click();
+  const dialog = page.getByRole('dialog', { name: 'Thử hiệu ứng', exact: true });
+  const picker = dialog.getByRole('combobox', { name: 'Hiệu ứng', exact: true });
+  await expect(picker.locator('option')).toHaveCount(4);
+  await picker.selectOption('dragon-strike');
+  await dialog.getByRole('button', { name: 'Xem thử Long quyền', exact: true }).click();
+  await pauseAnimationClock(page);
+  await page.clock.runFor(320);
+  await page.screenshot({ path: info.outputPath('dragon-flight.png') });
+  await page.clock.resume();
+  await expect(dialog.locator('.ludo-finisher')).toHaveAttribute('data-phase', 'impact');
+  await expect(dialog.locator('.ludo-finisher')).toContainText('LONG QUYỀN');
+  await pauseAnimationClock(page);
+  await page.clock.runFor(100);
+  await page.screenshot({ path: info.outputPath('dragon-impact.png') });
+  await page.clock.resume();
+  await expect(dialog.locator('.effect-preview-stage')).toHaveAttribute('data-playing', 'false', {
+    timeout: 10000,
+  });
+  await dialog.getByRole('button', { name: 'Phát lại', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Dừng', exact: true }).click();
+  await expect(dialog.locator('.effect-preview-stage')).toHaveAttribute('data-playing', 'false');
+  await dialog.getByRole('button', { name: 'Dùng Long quyền', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Đang dùng', exact: true })).toBeDisabled();
+  expect(f.games.get(match)).toEqual(before);
+  expect(f.requests).toHaveLength(requests);
+  await page.keyboard.press('Escape');
+  expect(f.musicCommands).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('Long quyen persists through reload and completes a capture without replaying on selection', async ({
+  page,
+  context,
+}, info) => {
+  const f = gameFixture();
+  const state = f.seed(2, { ...defaultRules, turnSeconds: 90 });
+  state.players[0].pieces = [8, -1, -1, -1];
+  state.players[0].skin = 'HERO';
+  state.players[1].pieces = [1, -1, -1, -1];
+  state.dice = 6;
+  state.phase = 'MOVE';
+  state.version++;
+  f.commit(state);
+  await f.attach(context, 0);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  // Exercise gameplay with the real clock, independently of screenshot time control.
+  await openGame(page);
+  await page.getByRole('button', { name: 'Bàn 3D', exact: true }).click();
+  if (info.project.name === 'mobile')
+    await page.getByRole('button', { name: 'Đồ họa: Rõ nét', exact: true }).click();
+  const opener = page.getByRole('button', { name: 'Thử hiệu ứng', exact: true });
+  await opener.click();
+  const dialog = page.getByRole('dialog', { name: 'Thử hiệu ứng', exact: true });
+  const picker = dialog.getByRole('combobox', { name: 'Hiệu ứng', exact: true });
+  await picker.selectOption('dragon-strike');
+  await dialog.getByRole('button', { name: 'Dùng Long quyền', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await page.reload();
+  await opener.click();
+  await expect(picker).toHaveValue('dragon-strike');
+  await expect(dialog.locator('.effect-preview-stage')).toHaveAttribute('data-playing', 'false');
+  await page.keyboard.press('Escape');
+  await page.locator(`[data-piece="${ids[0]}:0"]`).click();
+  const impact = page.locator('.ludo-viewport .ludo-finisher');
+  await expect(impact).toHaveAttribute('data-effect', 'dragon-strike');
+  await expect(impact).toHaveAttribute('data-phase', 'impact');
+  await page.screenshot({ path: info.outputPath('dragon-capture.png') });
+  await expect.poll(() => f.games.get(match)!.players[1].pieces[0]).toBe(-1);
+  await expect(impact).toHaveAttribute('data-phase', 'done', { timeout: 10000 });
+  await opener.click();
+  await picker.selectOption('capture-burst');
+  await dialog.getByRole('button', { name: 'Dùng K/O', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(impact).toHaveAttribute('data-effect', 'dragon-strike');
+  await expect(impact).toHaveAttribute('data-phase', 'done');
+  await page.getByRole('button', { name: 'Tung xúc xắc', exact: true }).click();
+  expect(f.requests.filter((r) => (r.body as { action: string }).action === 'move')).toHaveLength(
+    1,
+  );
+  expect(f.musicCommands).toEqual([]);
+  expect(errors).toEqual([]);
 });
