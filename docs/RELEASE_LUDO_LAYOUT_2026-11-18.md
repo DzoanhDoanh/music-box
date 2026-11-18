@@ -33,7 +33,18 @@ Client `index-BGBfoKwr.js`, scene `LudoScene-NHrmQA25.js`, hub
 
 ## Phát hành
 
-Người dùng đã yêu cầu commit, push và public. Candidate đã sẵn sàng;
-kết quả chuyển public sẽ được ghi sau khi kiểm tra runtime và HTTPS.
-Giữ tunnel, hai bản thử và chunk cũ cho tab còn mở; lưu bản public trước
-để rollback. Không chạy migration hoặc sửa ván.
+Đã chuyển public lúc **08:53:35 UTC (15:53:35 giờ Việt Nam), 18/11/2026**.
+Commit ứng dụng `0c5344629e4532a517190c182c876238cda2cb02` đã push atomic
+lên `origin/master` và `origin/codex/voice-lucky-wheel`, không force push.
+
+Health public `configured`; HTML và 34 asset mới tại runtime 4173 khớp
+candidate. Tunnel, danh tính/HTML của cả hai bản thử 5180/5181 và con trỏ
+deploy giữ nguyên. Bản public trước được lưu tại
+`.roomtune/releases/bau-cua-20261118T084848/previous` để rollback.
+16 kiểm tra HTTPS/routes/quyền/đường dẫn nội bộ đạt; toàn bộ 309 asset
+(gồm chunk cũ) tải qua tên miền khớp từng byte, Origin bên ngoài bị từ chối.
+Trước chuyển không có ván cờ PLAYING/PAUSED hoặc lượt Bầu Cua chưa kết thúc.
+Không chạy migration, không reset hoặc cập nhật ván.
+
+Tải lại [ROOMTUNE](https://roomtune.dzoanh.me) để nhận bố cục mới, rồi chọn
+**Cờ cá ngựa → Bàn 3D**. Góc mặc định và nút đặt lại cùng dùng zoom 120%.

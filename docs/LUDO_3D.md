@@ -8,6 +8,12 @@ theo yêu cầu người dùng. Phạm vi và bằng chứng phát hành đượ
 hiển thị lưu trên thiết bị. Chi tiết candidate và kiểm chứng trong
 [bản phát hành hiệu ứng](RELEASE_EFFECTS_2026-11-18.md).
 
+Đã commit, push và public các chỉnh sửa bố cục, kết liễu trực tiếp và góc
+nhìn 3D mặc định 45°/zoom 120% lúc **15:53:35 giờ Việt Nam, 18/11/2026**.
+Chi tiết trong [bản phát hành bố cục](RELEASE_LUDO_LAYOUT_2026-11-18.md).
+Các ghi chú “bản sửa riêng” và “chưa commit/public” bên dưới là lịch sử
+kiểm chứng trước lần phát hành này.
+
 ## Góc mặc định khi vào 3D theo ảnh tham chiếu — bản sửa riêng
 
 - Chuyển sang Bàn 3D hoặc đặt lại góc nhìn sẽ hướng thẳng vào bàn (yaw 0°),
