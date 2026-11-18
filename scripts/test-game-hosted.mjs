@@ -203,6 +203,13 @@ try {
   await expect.poll(async () => (await read()).state.players.length, { timeout: 15000 }).toBe(2);
   await expect(hostPage.locator('.game-connection')).toHaveText('Đã kết nối', { timeout: 15000 });
   await expect(memberPage.locator('.game-connection')).toHaveText('Đã kết nối', { timeout: 15000 });
+  // A connected channel/server read does not mean the other browser has rendered
+  // the join yet. Wait for its committed snapshot before another versioned command.
+  for (const page of [hostPage, memberPage])
+    await expect(page.locator('.game-player').nth(1).locator('strong')).toContainText(
+      'Bạn chơi thử',
+      { timeout: 15000 },
+    );
   pass('Desktop creates table; mobile joins; both real private game channels connect');
 
   for (const [page, label, skin, player] of [
@@ -214,7 +221,21 @@ try {
     const picker = page.getByRole('dialog', { name: 'Quân của tôi', exact: true });
     await expect(picker.getByRole('radio')).toHaveCount(16);
     await picker.getByRole('radio', { name: label, exact: true }).check();
+    const skinReply = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(path) &&
+        response.request().method() === 'POST' &&
+        response.request().postDataJSON()?.action === 'skin',
+      { timeout: 20000 },
+    );
     await picker.getByRole('button', { name: 'Lưu hình quân', exact: true }).click();
+    const skinResponse = await skinReply;
+    const skinPayload = await skinResponse.json();
+    assert.equal(
+      skinResponse.status(),
+      200,
+      `Hosted ${skin} command: ${skinPayload.error?.code ?? 'unexpected response'}`,
+    );
     await expect(picker).toHaveCount(0);
     await page
       .getByRole('dialog', { name: 'Tùy chọn bàn', exact: true })
@@ -367,7 +388,10 @@ try {
   });
   pass('Offline mobile reconnect/reload restores saved board with hosted Auth and private channel');
   const musicAfter = await api(ownerSession, `/rooms/${room.id}/snapshot`);
-  assert.equal(musicAfter.version, musicBefore.version);
+  // Room revisions also include online membership changes (room_presence), so
+  // the offline/reconnect exercise may advance it without touching music.
+  assert.ok(musicAfter.version >= musicBefore.version, 'Room revision must not regress');
+  assert.deepEqual(musicAfter.settings, musicBefore.settings);
   assert.deepEqual(musicAfter.playback, musicBefore.playback);
   assert.deepEqual(musicAfter.queue, musicBefore.queue);
   const musicPage = await hostContext.newPage();
@@ -382,7 +406,7 @@ try {
     timeout: 15000,
   });
   pass(
-    'Music queue/playback/version unchanged; game navigation and direct lobby/match reload work on the target origin',
+    'Music queue/playback/settings unchanged; game navigation and direct lobby/match reload work on the target origin',
   );
   await browser.close();
   browser = null;

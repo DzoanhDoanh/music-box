@@ -36,8 +36,9 @@ Frontend và máy chủ dùng chung engine. Mô tả luật trong trò chơi đ�
 nhảy khi ra 1, gửi lại request, chuyển lượt, snapshot tải lại và hiệu ứng đá quân.
 32 kiểm thử trình duyệt desktop/mobile đạt, gồm hai người quan sát cùng ván,
 một lần bấm nhảy đá đúng quân, tải lại không đi thêm lần nữa và mô tả luật mới.
-Auth/Realtime trong browser suite là fixture cục bộ; chưa kiểm thử bản sửa trên
-hosted hoặc thiết bị vật lý.
+Auth/Realtime trong browser suite là fixture cục bộ. Luồng game cơ bản đã qua
+[kiểm tra hosted/public](GAME_PUBLIC_CHECK.md); các thế nhảy đá cửa cụ thể được
+kiểm tra bằng engine/API/fixtures, chưa tái hiện trên thiết bị vật lý.
 
 Typecheck, lint và format đạt. Build cô lập qua `scripts/build-bau-cua.mjs` đạt,
 32 client artifacts qua secret scan heuristic. Public/trial artifacts và deploy

@@ -2,6 +2,13 @@
 
 ## Hiện trạng
 
+Bản cập nhật ngày 18/11 đã public tại commit `37c6d33`; 254 assets gồm chunk cũ
+được giữ lại. Rollback runtime nằm tại
+`.roomtune/releases/bau-cua-20261118T045308/previous`. Tunnel và hai bản thử
+5180/5181 vẫn chạy. Migration thông báo ví `202611180001` đã áp dụng trong lượt
+chuẩn bị trước; không áp dụng thêm schema khi chuyển runtime. Bằng chứng và
+giới hạn trong [bản phát hành 18/11](RELEASE_2026-11-18.md).
+
 Đã public ngày 17/11/2026 sau khi người dùng cho phép commit/phát hành.
 Migrations 202611170007–009 đã áp dụng; Auth/Realtime/gameplay/hình phạt qua HTTPS
 đã đạt [kiểm thử](BAU_CUA_TESTING.md). Vào phòng → Trò chơi → Bầu Cua Party.

@@ -1,7 +1,7 @@
 # Bàn cờ 3D và hiệu ứng K/O — 18/11/2026
 
-Người dùng đã cho phép commit, push và public bản này cùng các thay đổi
-Bầu Cua/cấp coin/nhảy đá. Phạm vi và bằng chứng phát hành được ghi trong
+Đã commit, push và public bản này cùng các thay đổi Bầu Cua/cấp coin/nhảy đá
+theo yêu cầu người dùng. Phạm vi và bằng chứng phát hành được ghi trong
 [bản phát hành 18/11](RELEASE_2026-11-18.md).
 
 ## Giao diện
@@ -85,21 +85,22 @@ Camera chỉ thay đổi hiển thị cục bộ, không cập nhật dữ liệ
 
 Ảnh fixture: [desktop](ludo-3d-desktop.png), [mobile](ludo-3d-mobile.png).
 
-## Chạy thử
+## Sử dụng
 
-Bản thử riêng: `http://127.0.0.1:5181`. Vào phòng → Trò chơi → Cờ cá ngựa →
-mở bàn → **Bàn 3D**. Cổng này chỉ mở trên máy chạy dự án. Bản thử dùng chung
-Supabase với public, vì vậy nên tạo bàn mới để thử thay vì thao tác vào ván
-người khác đang chơi. Chuyển chế độ hiển thị không làm thay đổi dữ liệu ván.
+Public: https://roomtune.dzoanh.me. Vào phòng → Trò chơi → Cờ cá ngựa → mở bàn →
+**Bàn 3D**. Bản thử riêng `http://127.0.0.1:5181` vẫn chạy trên máy dự án và dùng
+chung Supabase với public; đổi port không cô lập dữ liệu. Nên dùng bàn riêng khi
+thử gameplay. Chuyển chế độ hiển thị không làm thay đổi dữ liệu ván.
 Để xem hiệu ứng mà không đi quân thật, chọn **Thử hiệu ứng → Xem thử K/O**.
 Có thể phát lại hoặc dừng; cửa sổ dùng quân mẫu và không gửi lệnh vào ván.
 
-Runtime thử đã trả health `configured`, HTML/scene chunk HTTP 200, client
+Runtime public và thử đã trả health `configured`, HTML/scene chunk HTTP 200, client
 `index-DhwSZ4p5.js`, scene `LudoScene-CWd1RZ5W.js`, CSS `game-QAva43k5.css`.
-Cả ba asset đang phục vụ khớp từng byte với build mới. Preview public PID 77592,
-tunnel PID 105572 và trial 5180 PID 51528 giữ nguyên danh tính/thời điểm chạy.
-Candidate riêng tại `.roomtune/releases/bau-cua-20261118T045308/`; chưa chuyển
-candidate vào `dist`. Cả 35 client artifacts của build qua secret scan heuristic.
+Cả ba asset đang phục vụ khớp từng byte với build mới. Chỉ runtime public được
+khởi động lại; tunnel và hai bản thử giữ nguyên. Candidate đã chuyển vào `dist`;
+bản trước giữ tại `.roomtune/releases/bau-cua-20261118T045308/previous`.
+35 client artifacts mới qua secret scan heuristic. Kiểm tra HTTPS xác nhận cả
+254 assets công khai, gồm các chunk cũ được giữ lại, khớp bản phát hành.
 
 Nghiệm thu hosted Bầu Cua/cấp coin trên candidate đã đạt, gồm cập nhật ví và
 hiển thị cược giữa hai trình duyệt; danh tính/phòng tạm đã được dọn.

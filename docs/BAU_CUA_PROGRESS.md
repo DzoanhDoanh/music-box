@@ -4,6 +4,9 @@ Ngày 17/11/2026. **Đã phát hành tại https://roomtune.dzoanh.me** theo yê
 "commit và public lên cho tôi luôn đi"; đã qua kiểm tra Supabase và HTTPS thật.
 MusicBox được miễn PMP theo chỉ dẫn riêng của người dùng.
 
+Bản cập nhật ngày 18/11 đã chuyển lên public cùng bàn cờ 3D/K/O, hiển thị cược,
+cấp coin và nhảy đá tại cửa chuồng. Xem [bản phát hành](RELEASE_2026-11-18.md).
+
 | Pha            | Trạng thái                                                                  |
 | -------------- | --------------------------------------------------------------------------- |
 | 0 — Phân tích  | Mapping Auth/Room/queue/Realtime/player/deployment hiện tại                 |

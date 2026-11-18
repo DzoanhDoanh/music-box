@@ -1,6 +1,6 @@
 # Kiểm thử game public qua HTTPS
 
-UTC: 2026-11-17T12:50:13.317Z
+UTC: 2026-11-18T05:08:46.483Z
 URL: https://roomtune.dzoanh.me
 
 Kết quả: PASS
@@ -12,7 +12,7 @@ Kết quả: PASS
 - Hosted game API/RLS deny outsider, direct writes, service RPC and forged client Broadcast
 - Real server dice and legal UI move; duplicate receipt preserves the exact outcome; committed Broadcast received
 - Offline mobile reconnect/reload restores saved board with hosted Auth and private channel
-- Music queue/playback/version unchanged; game navigation and direct lobby/match reload work on the target origin
+- Music queue/playback/settings unchanged; game navigation and direct lobby/match reload work on the target origin
 - Revoked membership blocks game API and private channel reconnect
 - Exact run-owned records cleaned; public dist and deployment pointer unchanged
 

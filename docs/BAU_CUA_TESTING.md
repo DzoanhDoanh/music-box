@@ -135,6 +135,12 @@ thử được dọn. Evidence: `.roomtune/bau-hosted/c523475f-2748-49a8-9f0d-cc
 64 requests, median 757 ms, p95 1303 ms; không phải SLA. Những kết quả hosted
 ở mục ngày 17/11 vẫn là bằng chứng của bản trước.
 
+Nghiệm thu bản ngày 18/11 qua HTTPS public đã đạt, evidence
+`.roomtune/bau-hosted/27c3d1ae-a643-431d-a703-b3bfd566eb46`: 60 requests,
+median 868 ms/p95 1873 ms; dữ liệu thử đã dọn. Nên chạy các bộ hosted tuần tự:
+lượt chạy song song ban đầu có cược tới sau cửa sổ 10 giây; không tăng deadline
+hoặc bỏ điều kiện để chạy lại. Chi tiết trong [bản phát hành](RELEASE_2026-11-18.md).
+
 Auth, WebSocket delivery và YouTube trong bộ E2E cục bộ vẫn là fixture; kiểm tra
 hosted riêng bên trên bổ sung bằng chứng Auth/Realtime/tunnel thật. Chưa thử Bầu
 Cua trên hai thiết bị vật lý ở hai mạng, nghe audio thật hoặc đo FPS/quota/CPU hosted.
