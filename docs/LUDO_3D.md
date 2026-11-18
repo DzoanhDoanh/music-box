@@ -4,7 +4,7 @@
 theo yêu cầu người dùng. Phạm vi và bằng chứng phát hành được ghi trong
 [bản phát hành 18/11](RELEASE_2026-11-18.md).
 
-Đợt cập nhật hiệu ứng gồm Long quyền, Rider Kick và Kamehameha, cùng lựa chọn
+Đã commit, push và public Long quyền, Rider Kick và Kamehameha, cùng lựa chọn
 hiển thị lưu trên thiết bị. Chi tiết candidate và kiểm chứng trong
 [bản phát hành hiệu ứng](RELEASE_EFFECTS_2026-11-18.md).
 

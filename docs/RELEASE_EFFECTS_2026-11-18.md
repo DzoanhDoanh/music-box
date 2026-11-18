@@ -34,6 +34,20 @@ và các bản thử, giữ chunk cũ cho tab còn mở và lưu bản trước 
 Không chạy migration hoặc sửa ván. Trước chuyển, một ván cờ ở trạng thái
 PAUSED, không có lượt Bầu Cua đang chạy.
 
+## Kết quả phát hành
+
+Đã chuyển public lúc **07:40:11 UTC (14:40:11 giờ Việt Nam), 18/11/2026**.
+Commit ứng dụng `3294646e16896b5fb1fbdecc2997e3ed8ce830c9` đã push lên
+`origin/master` và `origin/codex/voice-lucky-wheel` bằng cập nhật atomic,
+không force push.
+
+Health public `configured`; HTML và toàn bộ asset mới tại runtime 4173
+khớp candidate. Tunnel, danh tính và HTML của cả hai bản thử 5180/5181,
+cùng con trỏ deploy được giữ nguyên. Bản public trước nằm tại
+`.roomtune/releases/bau-cua-20261118T072846/previous` để khôi phục.
+16 kiểm tra HTTPS/routes/quyền/đường dẫn nội bộ đã đạt.
+Không chạy migration, không reset hoặc cập nhật ván.
+
 ## Sử dụng
 
 Tại [ROOMTUNE](https://roomtune.dzoanh.me), tải lại trang rồi mở
