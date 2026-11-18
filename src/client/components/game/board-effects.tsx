@@ -5,6 +5,7 @@ import RiderKick, { RiderAttacker } from './RiderKick';
 import { riderCapturePlans, riderImpactMs } from './rider-motion';
 import Kamehameha, { GokuAttacker } from './Kamehameha';
 import { kameCapturePlans, kameImpactMs } from './kamehameha-motion';
+import { directCapturePlans } from './direct-capture-motion';
 import type { MovingPieceProps } from './MovingPiece';
 import type { ScenePlan } from './scene-motion';
 import type { CaptureEffectId } from '../../lib/capture-effect';
@@ -26,20 +27,20 @@ export type BoardEffect = {
 export const captureEffect: BoardEffect = {
   id: 'capture-burst',
   name: 'K/O',
-  description: 'Lao tới, bùng nổ năng lượng và hất đối thủ xoay về nhà.',
+  description: 'Lao thẳng từ ô đang đứng tới đối thủ, bùng nổ năng lượng và K/O.',
   eyebrow: 'ĐÒN KẾT LIỄU',
   headline: 'K/O',
   Renderer: CaptureBurst,
+  preparePlans: (plans, attacker) => directCapturePlans(plans, attacker, 650),
   demo: {
     cue: {
       points: [
         { x: -3, z: 0, scale: 1 },
-        { x: -1.5, z: 0, scale: 1 },
         { x: 0, z: 0, scale: 1 },
       ],
       duration: 650,
       delay: 0,
-      kind: 'jump',
+      kind: 'strike',
     } satisfies ScenePlan,
     victim: {
       points: [
@@ -55,10 +56,11 @@ export const captureEffect: BoardEffect = {
 export const dragonEffect: BoardEffect = {
   id: 'dragon-strike',
   name: 'Long quyền',
-  description: 'Rồng ngọc bám theo đòn đánh, bùng nổ xung kích và hất đối thủ về nhà.',
+  description: 'Rồng ngọc lao thẳng từ ô đang đứng tới mục tiêu, bùng nổ xung kích và K/O.',
   eyebrow: 'LONG QUYỀN',
   headline: 'K/O',
   Renderer: DragonStrike,
+  preparePlans: (plans, attacker) => directCapturePlans(plans, attacker, 900),
   demo: {
     cue: { ...captureEffect.demo.cue, duration: 900 },
     victim: { ...captureEffect.demo.victim, duration: 1800, delay: 900 },

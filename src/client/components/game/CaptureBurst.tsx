@@ -119,6 +119,8 @@ export default function CaptureBurst({
     if (charge.current) {
       const charging = age < 0;
       charge.current.visible = showApproach && charging;
+      const origin = sampleSceneMotion(plan, clamp(elapsed.current / plan.duration));
+      charge.current.position.set(origin.x - end.x, origin.y - 0.2, origin.z - end.z);
       charge.current.scale.setScalar(1.8 - clamp(elapsed.current / plan.duration));
       charge.current.rotation.z = elapsed.current * 0.006;
       (charge.current.material as MeshBasicMaterial).opacity = charging

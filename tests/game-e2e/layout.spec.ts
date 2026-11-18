@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { gameFixture, openGame, room, match, nav, fakeMusic } from './fixture';
+import { ids } from './fixture';
+import { createInitialGameState } from '../../src/shared/game/engine';
 
 async function fits(page: Page, selector: string) {
   const rect = await page.locator(selector).boundingBox();
@@ -36,6 +38,36 @@ test('dedicated routes keep essential controls in view at laptop, phone and land
     await fits(page, '.game-board-frame');
     await fits(page, '.game-controls');
     await fits(page, '.game-move-choices');
+    const rosterButton = page.getByRole('button', { name: 'Người chơi trong bàn', exact: true });
+    if (width > 760 && height > 540) {
+      const board = (await page.locator('.game-board-frame').boundingBox())!;
+      const roster = (await page.locator('.game-roster').boundingBox())!;
+      const controls = (await page.locator('.game-controls').boundingBox())!;
+      expect(board.height).toBeGreaterThan(height * 0.75);
+      expect(roster.x).toBeGreaterThanOrEqual(board.x + board.width);
+      expect(roster.y).toBeGreaterThanOrEqual(controls.y + controls.height);
+      await expect(rosterButton).toBeHidden();
+      await expect(page.locator('.game-roster .game-player')).toHaveCount(4);
+    } else {
+      await expect(page.locator('.game-roster')).toBeHidden();
+      await expect(rosterButton).toBeInViewport({ ratio: 1 });
+      const boardBefore = await page.locator('.game-board-frame').boundingBox();
+      await rosterButton.click();
+      const dialog = page.getByRole('dialog', { name: 'Người chơi trong bàn', exact: true });
+      await expect(dialog.locator('.game-player')).toHaveCount(4);
+      const colors = await dialog
+        .locator('.game-player-symbol')
+        .evaluateAll((symbols) =>
+          symbols.map((symbol) => getComputedStyle(symbol).backgroundColor),
+        );
+      expect(new Set(colors).size).toBe(4);
+      expect(colors).not.toContain('rgba(0, 0, 0, 0)');
+      await expect(dialog).toBeInViewport({ ratio: 1 });
+      await page.screenshot({ path: info.outputPath(`players-${width}.png`) });
+      await dialog.getByRole('button', { name: 'Đóng', exact: true }).click();
+      await expect(rosterButton).toBeFocused();
+      expect(await page.locator('.game-board-frame').boundingBox()).toEqual(boardBefore);
+    }
     expect(await page.evaluate(() => scrollY)).toBe(0);
     await page.screenshot({ path: info.outputPath(`dedicated-${width}.png`) });
   }
@@ -47,6 +79,35 @@ test('dedicated routes keep essential controls in view at laptop, phone and land
   await page.getByRole('button', { name: 'Về phòng nhạc', exact: true }).click();
   await expect(page).toHaveURL(new RegExp('/room/' + room + '$'));
   expect(f.games.get(match)!.players).toHaveLength(4);
+});
+
+test('relocated player list keeps joining, changing color and ready status reachable', async ({
+  page,
+  context,
+}, info) => {
+  const f = gameFixture();
+  f.commit(createInitialGameState(match, room, ids[0], 'Đường đua bạn bè', 'An'));
+  await f.attach(context, 1);
+  await openGame(page);
+  const opener = page.getByRole('button', { name: 'Người chơi trong bàn', exact: true });
+  const compact = info.project.name === 'mobile';
+  if (compact) await opener.click();
+  const roster = compact
+    ? page.getByRole('dialog', { name: 'Người chơi trong bàn', exact: true })
+    : page.getByRole('region', { name: 'Người chơi trong bàn', exact: true });
+  await roster.locator('.ludo-color-2').getByRole('button', { name: 'Ngồi đây' }).click();
+  await expect.poll(() => f.games.get(match)!.players.find((p) => p.id === ids[1])?.color).toBe(2);
+  await roster.locator('.ludo-color-3').getByRole('button', { name: 'Đổi màu' }).click();
+  await expect.poll(() => f.games.get(match)!.players.find((p) => p.id === ids[1])?.color).toBe(3);
+  if (compact) await roster.getByRole('button', { name: 'Đóng', exact: true }).click();
+  await page.getByRole('button', { name: 'Tôi đã sẵn sàng', exact: true }).click();
+  await expect
+    .poll(() => f.games.get(match)!.players.find((p) => p.id === ids[1])?.ready)
+    .toBe(true);
+  if (compact) await opener.click();
+  await expect(roster.locator('.ludo-color-3')).toContainText('Đã sẵn sàng');
+  await page.screenshot({ path: info.outputPath('players-waiting.png') });
+  expect(f.musicCommands).toEqual([]);
 });
 
 test('active local music stays visible at least 200px and Space on a horse never pauses host music', async ({

@@ -19,6 +19,8 @@ test('owner kicks a seat while the member keeps music and sees spectator feedbac
     await openGame(guest);
     await expect(guest.getByRole('button', { name: /Mời .*khỏi bàn/ })).toHaveCount(0);
     const before = structuredClone(f.music.playback);
+    const roster = page.getByRole('button', { name: 'Người chơi trong bàn', exact: true });
+    if (await roster.isVisible()) await roster.click();
     await page.getByRole('button', { name: `Mời ${names[1]} khỏi bàn`, exact: true }).click();
     await page
       .getByRole('dialog', { name: `Mời ${names[1]} khỏi bàn?` })

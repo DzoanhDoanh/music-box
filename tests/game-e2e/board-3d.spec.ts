@@ -62,7 +62,7 @@ test('camera rotates and zooms without making a move; projected targets remain c
   await expect(viewport).not.toHaveAttribute('data-camera-yaw', originalYaw!);
   await expect
     .poll(async () => Number(await viewport.getAttribute('data-camera-zoom')))
-    .toBeGreaterThan(1);
+    .toBeGreaterThan(1.2);
   expect(f.games.get(match)!.version).toBe(state.version);
   expect(f.requests.filter((r) => (r.body as { action: string }).action === 'move')).toHaveLength(
     0,
@@ -89,7 +89,7 @@ test('camera rotates and zooms without making a move; projected targets remain c
   expect(f.games.get(match)!.players[1].pieces[0]).toBe(-1);
   await page.getByRole('button', { name: 'Đặt lại góc nhìn', exact: true }).click();
   await expect(viewport).toHaveAttribute('data-camera-yaw', originalYaw!);
-  await expect(viewport).toHaveAttribute('data-camera-zoom', '1.0000');
+  await expect(viewport).toHaveAttribute('data-camera-zoom', '1.2000');
   const ratio = () =>
     canvas.evaluate((c) => (c as HTMLCanvasElement).width / c.getBoundingClientRect().width);
   await expect.poll(ratio).toBeGreaterThan(1.9);

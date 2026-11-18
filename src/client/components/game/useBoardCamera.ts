@@ -12,10 +12,14 @@ import { OrthographicCamera, Vector3 } from 'three';
 
 type Size = { width: number; height: number };
 type View = { yaw: number; pitch: number; zoom: number };
+// Pitch is measured from overhead. Keep at least 70% of the board's depth
+// visible instead of letting a low viewing angle flatten the squares and circles.
+const maxPitch = (45 * Math.PI) / 180;
+// Enter 3D facing the board squarely at the full allowed tilt, one zoom step closer.
 const initialView = () => ({
-  yaw: Math.atan2(3.5, 17),
-  pitch: Math.atan2(Math.hypot(3.5, 17), 24),
-  zoom: 1,
+  yaw: 0,
+  pitch: maxPitch,
+  zoom: 1.2,
 });
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
@@ -80,7 +84,7 @@ export function useBoardCamera(host: RefObject<HTMLDivElement | null>, size: Siz
   const rotate = useCallback(
     (dx: number, dy: number) => {
       view.current.yaw -= dx;
-      view.current.pitch = clamp(view.current.pitch - dy, 0.12, 1.13);
+      view.current.pitch = clamp(view.current.pitch - dy, 0.12, maxPitch);
       update();
     },
     [update],

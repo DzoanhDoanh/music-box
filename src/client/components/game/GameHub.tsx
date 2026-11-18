@@ -511,6 +511,77 @@ export default function GameHub({
     setSkinDraft(match ? (mySkin ?? 'HORSE') : readPieceSkin(actor));
     setSkinDialog({ actor, match });
   };
+  const seats = state ? (
+    <div className="game-players">
+      {[0, 1, 2, 3].map((color) => {
+        const p = state.players.find((p) => p.color === color);
+        return (
+          <div
+            key={color}
+            className={'game-player ludo-color-' + color + (state.turn === p?.id ? ' current' : '')}
+          >
+            <span className="game-player-symbol">{['◆', '♣', '★', '●'][color]}</span>
+            <div>
+              <strong>
+                {p?.name ?? 'Ghế trống'}
+                {p?.id === actor ? ' · Bạn' : ''}
+                {p?.id === state.host ? ' · Quản trò' : ''}
+              </strong>
+              <small>
+                {colorNames[color]} ·{' '}
+                {p
+                  ? waiting
+                    ? p.ready
+                      ? 'Đã sẵn sàng'
+                      : 'Chưa sẵn sàng'
+                    : p.rank
+                      ? 'Hạng ' + p.rank + (p.status === 'FORFEITED' ? ' · Đầu hàng' : '')
+                      : state.schema === 2
+                        ? p.pieces.filter((n) => n >= 56).length + '/4 vào chuồng'
+                        : p.pieces.filter((n) => n === 57).length + '/4 về đích'
+                  : 'Mời bạn vào chơi'}
+              </small>
+            </div>
+            {p &&
+              canManage &&
+              p.id !== actor &&
+              p.status === 'ACTIVE' &&
+              !ended &&
+              !snapshot.members.some((m) => m.user_id === p.id && m.role === 'owner') && (
+                <Confirm
+                  title={`Mời ${p.name} khỏi bàn?`}
+                  description="Người này mất ghế; nếu đang chơi sẽ tính là đầu hàng. Họ vẫn được nghe nhạc và xem bàn, có thể tự chọn ghế lại khi bàn chờ."
+                  onConfirm={() => game.send({ action: 'kick', user_id: p.id })}
+                >
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    disabled={busy}
+                    aria-label={`Mời ${p.name} khỏi bàn`}
+                  >
+                    <UserMinus size={16} />
+                  </Button>
+                </Confirm>
+              )}
+            {!p && waiting && (
+              <AsyncButton
+                disabled={busy}
+                onClick={() =>
+                  game.send(
+                    player
+                      ? { action: 'color', color }
+                      : { action: 'join', color, skin: readPieceSkin(actor) },
+                  )
+                }
+              >
+                {player ? 'Đổi màu' : 'Ngồi đây'}
+              </AsyncButton>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  ) : null;
   return (
     <section
       className={
@@ -532,6 +603,26 @@ export default function GameHub({
           {!match && <p>Chơi cùng những người trong phòng. Giai điệu vẫn tiếp tục.</p>}
         </div>
         <div className="game-header-actions">
+          {state && match && (
+            <Modal
+              key={state.id}
+              title="Người chơi trong bàn"
+              description="Xem màu quân, tiến độ và ghế của các thành viên."
+              className="game-roster-dialog"
+              trigger={
+                <Button
+                  className="game-roster-trigger"
+                  variant="ghost"
+                  aria-label="Người chơi trong bàn"
+                  title="Người chơi trong bàn"
+                >
+                  <Users size={18} /> <span>Người chơi</span>
+                </Button>
+              }
+            >
+              {seats}
+            </Modal>
+          )}
           {match && (
             <Button variant="ghost" aria-label="Danh sách bàn" onClick={() => setMatch(null)}>
               <ArrowLeft size={17} />
@@ -705,77 +796,6 @@ export default function GameHub({
                 </h3>
                 <span className="game-connection">{game.connection}</span>
               </div>
-              <div className="game-players">
-                {[0, 1, 2, 3].map((color) => {
-                  const p = state.players.find((p) => p.color === color);
-                  return (
-                    <div
-                      key={color}
-                      className={
-                        'game-player ludo-color-' + color + (state.turn === p?.id ? ' current' : '')
-                      }
-                    >
-                      <span className="game-player-symbol">{['◆', '♣', '★', '●'][color]}</span>
-                      <div>
-                        <strong>
-                          {p?.name ?? 'Ghế trống'}
-                          {p?.id === actor ? ' · Bạn' : ''}
-                          {p?.id === state.host ? ' · Quản trò' : ''}
-                        </strong>
-                        <small>
-                          {colorNames[color]} ·{' '}
-                          {p
-                            ? waiting
-                              ? p.ready
-                                ? 'Đã sẵn sàng'
-                                : 'Chưa sẵn sàng'
-                              : p.rank
-                                ? 'Hạng ' + p.rank + (p.status === 'FORFEITED' ? ' · Đầu hàng' : '')
-                                : state.schema === 2
-                                  ? p.pieces.filter((n) => n >= 56).length + '/4 vào chuồng'
-                                  : p.pieces.filter((n) => n === 57).length + '/4 về đích'
-                            : 'Mời bạn vào chơi'}
-                        </small>
-                      </div>
-                      {p &&
-                        canManage &&
-                        p.id !== actor &&
-                        p.status === 'ACTIVE' &&
-                        !ended &&
-                        !snapshot.members.some((m) => m.user_id === p.id && m.role === 'owner') && (
-                          <Confirm
-                            title={`Mời ${p.name} khỏi bàn?`}
-                            description="Người này mất ghế; nếu đang chơi sẽ tính là đầu hàng. Họ vẫn được nghe nhạc và xem bàn, có thể tự chọn ghế lại khi bàn chờ."
-                            onConfirm={() => game.send({ action: 'kick', user_id: p.id })}
-                          >
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              disabled={busy}
-                              aria-label={`Mời ${p.name} khỏi bàn`}
-                            >
-                              <UserMinus size={16} />
-                            </Button>
-                          </Confirm>
-                        )}
-                      {!p && waiting && (
-                        <AsyncButton
-                          disabled={busy}
-                          onClick={() =>
-                            game.send(
-                              player
-                                ? { action: 'color', color }
-                                : { action: 'join', color, skin: readPieceSkin(actor) },
-                            )
-                          }
-                        >
-                          {player ? 'Đổi màu' : 'Ngồi đây'}
-                        </AsyncButton>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
               {game.data?.removedPlayers?.includes(actor) && (
                 <p className="notice" role="status">
                   Bạn đã được mời rời ghế. Bạn vẫn nghe nhạc và xem bàn được; khi bàn chờ, bạn có
@@ -837,167 +857,176 @@ export default function GameHub({
                     />
                   </div>
                 </div>
-                <aside className="game-controls">
-                  <div className="game-turn-card">
-                    <span className="game-eyebrow">
-                      {statusNames[state.status]}
-                      {waiting || ended ? '' : ' · Ván ' + state.round}
-                      {state.schema === 1 ? ' · Luật v1' : ' · Cờ cá ngựa'}
-                    </span>
-                    <h3 aria-live="polite" aria-atomic="true">
-                      {waiting
-                        ? 'Chờ đủ người, cùng sẵn sàng'
-                        : ended
-                          ? 'Ván chơi đã khép lại'
-                          : state.status === 'PAUSED'
-                            ? 'Một chút nghỉ giữa ván'
-                            : state.turn === actor
-                              ? 'Đến lượt của bạn'
-                              : turn?.name + ' đang đi'}
-                    </h3>
-                    {state.status === 'PLAYING' && (
-                      <>
-                        <div className="game-dice-row">
-                          <Dice
-                            value={state.dice ?? state.last.dice ?? null}
-                            eventKey={state.id + ':' + state.round + ':' + state.version}
-                            rolled={['dice_rolled', 'no_moves', 'three_sixes'].includes(
-                              state.last.type,
-                            )}
-                            busy={game.pending && game.pendingAction === 'roll'}
-                          />
-                          <div>
-                            <strong
-                              className={
-                                seconds !== null && seconds <= 10
-                                  ? 'game-clock urgent'
-                                  : 'game-clock'
-                              }
-                            >
-                              {seconds}s
-                            </strong>
-                            <small>
-                              {state.phase === 'ROLL' ? 'Tung xúc xắc' : 'Chọn một quân để đi'}
-                            </small>
-                          </div>
-                        </div>
-                        {state.turn === actor && state.phase === 'ROLL' && (
-                          <AsyncButton
-                            variant="primary"
-                            disabled={busy}
-                            onClick={() => game.send({ action: 'roll' })}
-                          >
-                            <Dice5 size={19} /> Tung xúc xắc
-                          </AsyncButton>
-                        )}
-                        {moves.length > 0 && (
-                          <div
-                            className={
-                              'game-move-choices' + (selectedPiece !== null ? ' choosing-move' : '')
-                            }
-                            ref={choicePanel}
-                          >
-                            {selectedPiece !== null && (
-                              <p className="game-choice-hint">
-                                {pieceSkinName(player?.skin)} {selectedPiece + 1}: chọn cách đi
-                              </p>
-                            )}
-                            {selectedPiece === null && (
-                              <p className="game-choice-hint">Bấm quân sáng hoặc nút số.</p>
-                            )}
-                            {(selectedPiece !== null
-                              ? moves.filter((m) => m.piece === selectedPiece)
-                              : moves.filter(
-                                  (m, i) =>
-                                    moves.findIndex((other) => other.piece === m.piece) === i,
-                                )
-                            ).map((m) => (
-                              <AsyncButton
-                                key={m.piece + ':' + m.moveKind}
-                                disabled={busy}
-                                onClick={() =>
-                                  selectedPiece !== null ? sendMove(m) : choosePiece(m.piece)
+                <div className="game-side-panel">
+                  <aside className="game-controls">
+                    <div className="game-turn-card">
+                      <span className="game-eyebrow">
+                        {statusNames[state.status]}
+                        {waiting || ended ? '' : ' · Ván ' + state.round}
+                        {state.schema === 1 ? ' · Luật v1' : ' · Cờ cá ngựa'}
+                      </span>
+                      <h3 aria-live="polite" aria-atomic="true">
+                        {waiting
+                          ? 'Chờ đủ người, cùng sẵn sàng'
+                          : ended
+                            ? 'Ván chơi đã khép lại'
+                            : state.status === 'PAUSED'
+                              ? 'Một chút nghỉ giữa ván'
+                              : state.turn === actor
+                                ? 'Đến lượt của bạn'
+                                : turn?.name + ' đang đi'}
+                      </h3>
+                      {state.status === 'PLAYING' && (
+                        <>
+                          <div className="game-dice-row">
+                            <Dice
+                              value={state.dice ?? state.last.dice ?? null}
+                              eventKey={state.id + ':' + state.round + ':' + state.version}
+                              rolled={['dice_rolled', 'no_moves', 'three_sixes'].includes(
+                                state.last.type,
+                              )}
+                              busy={game.pending && game.pendingAction === 'roll'}
+                            />
+                            <div>
+                              <strong
+                                className={
+                                  seconds !== null && seconds <= 10
+                                    ? 'game-clock urgent'
+                                    : 'game-clock'
                                 }
                               >
-                                {pieceSkinName(player?.skin)} {m.piece + 1}
-                                <small>
-                                  {selectedPiece === null &&
-                                  moves.filter((other) => other.piece === m.piece).length > 1
-                                    ? 'Chọn đi 1 ô hoặc nhảy'
-                                    : moveLabel(m)}
-                                </small>
-                              </AsyncButton>
-                            ))}
-                            {selectedPiece !== null && (
-                              <Button disabled={busy} onClick={() => setMoveChoice(null)}>
-                                Chọn ngựa khác
-                              </Button>
-                            )}
+                                {seconds}s
+                              </strong>
+                              <small>
+                                {state.phase === 'ROLL' ? 'Tung xúc xắc' : 'Chọn một quân để đi'}
+                              </small>
+                            </div>
                           </div>
-                        )}
-                      </>
-                    )}
-                    {ended && host && (
-                      <AsyncButton
-                        variant="primary"
-                        disabled={busy}
-                        onClick={() => game.send({ action: 'rematch' })}
-                      >
-                        <RefreshCw size={16} /> Chơi lại
-                      </AsyncButton>
-                    )}
-                    {state.status === 'PAUSED' && host && (
-                      <AsyncButton
-                        variant="primary"
-                        disabled={busy}
-                        onClick={() => game.send({ action: 'resume' })}
-                      >
-                        <Play size={16} /> Tiếp tục ván
-                      </AsyncButton>
-                    )}
-                    {waiting && (
-                      <>
-                        {player && (
-                          <AsyncButton
-                            variant={player.ready ? 'secondary' : 'primary'}
-                            disabled={busy}
-                            onClick={() => game.send({ action: 'ready', ready: !player.ready })}
-                          >
-                            {player.ready ? 'Hủy sẵn sàng' : 'Tôi đã sẵn sàng'}
-                          </AsyncButton>
-                        )}
-                        {host && (
-                          <AsyncButton
-                            variant="primary"
-                            disabled={busy || state.status !== 'READY'}
-                            onClick={() => game.send({ action: 'start' })}
-                          >
-                            <Play size={16} /> Bắt đầu ván
-                          </AsyncButton>
-                        )}
-                        <p className="muted">
-                          Cần ít nhất 2 người. Mỗi người tự chọn ghế và bấm sẵn sàng.
+                          {state.turn === actor && state.phase === 'ROLL' && (
+                            <AsyncButton
+                              variant="primary"
+                              disabled={busy}
+                              onClick={() => game.send({ action: 'roll' })}
+                            >
+                              <Dice5 size={19} /> Tung xúc xắc
+                            </AsyncButton>
+                          )}
+                          {moves.length > 0 && (
+                            <div
+                              className={
+                                'game-move-choices' +
+                                (selectedPiece !== null ? ' choosing-move' : '')
+                              }
+                              ref={choicePanel}
+                            >
+                              {selectedPiece !== null && (
+                                <p className="game-choice-hint">
+                                  {pieceSkinName(player?.skin)} {selectedPiece + 1}: chọn cách đi
+                                </p>
+                              )}
+                              {selectedPiece === null && (
+                                <p className="game-choice-hint">Bấm quân sáng hoặc nút số.</p>
+                              )}
+                              {(selectedPiece !== null
+                                ? moves.filter((m) => m.piece === selectedPiece)
+                                : moves.filter(
+                                    (m, i) =>
+                                      moves.findIndex((other) => other.piece === m.piece) === i,
+                                  )
+                              ).map((m) => (
+                                <AsyncButton
+                                  key={m.piece + ':' + m.moveKind}
+                                  disabled={busy}
+                                  onClick={() =>
+                                    selectedPiece !== null ? sendMove(m) : choosePiece(m.piece)
+                                  }
+                                >
+                                  {pieceSkinName(player?.skin)} {m.piece + 1}
+                                  <small>
+                                    {selectedPiece === null &&
+                                    moves.filter((other) => other.piece === m.piece).length > 1
+                                      ? 'Chọn đi 1 ô hoặc nhảy'
+                                      : moveLabel(m)}
+                                  </small>
+                                </AsyncButton>
+                              ))}
+                              {selectedPiece !== null && (
+                                <Button disabled={busy} onClick={() => setMoveChoice(null)}>
+                                  Chọn ngựa khác
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {ended && host && (
+                        <AsyncButton
+                          variant="primary"
+                          disabled={busy}
+                          onClick={() => game.send({ action: 'rematch' })}
+                        >
+                          <RefreshCw size={16} /> Chơi lại
+                        </AsyncButton>
+                      )}
+                      {state.status === 'PAUSED' && host && (
+                        <AsyncButton
+                          variant="primary"
+                          disabled={busy}
+                          onClick={() => game.send({ action: 'resume' })}
+                        >
+                          <Play size={16} /> Tiếp tục ván
+                        </AsyncButton>
+                      )}
+                      {waiting && (
+                        <>
+                          {player && (
+                            <AsyncButton
+                              variant={player.ready ? 'secondary' : 'primary'}
+                              disabled={busy}
+                              onClick={() => game.send({ action: 'ready', ready: !player.ready })}
+                            >
+                              {player.ready ? 'Hủy sẵn sàng' : 'Tôi đã sẵn sàng'}
+                            </AsyncButton>
+                          )}
+                          {host && (
+                            <AsyncButton
+                              variant="primary"
+                              disabled={busy || state.status !== 'READY'}
+                              onClick={() => game.send({ action: 'start' })}
+                            >
+                              <Play size={16} /> Bắt đầu ván
+                            </AsyncButton>
+                          )}
+                          <p className="muted">
+                            Cần ít nhất 2 người. Mỗi người tự chọn ghế và bấm sẵn sàng.
+                          </p>
+                        </>
+                      )}
+                      {state.last.type === 'no_moves' && (
+                        <p className="notice">
+                          Không có nước đi với số vừa tung. Lượt đã được xử lý.
                         </p>
-                      </>
-                    )}
-                    {state.last.type === 'no_moves' && (
-                      <p className="notice">
-                        Không có nước đi với số vừa tung. Lượt đã được xử lý.
-                      </p>
-                    )}
-                    {state.last.type === 'three_sixes' && (
-                      <p className="notice">Ba lần 6 liên tiếp: mất lượt này.</p>
-                    )}
-                    {state.last.type === 'timeout' && (
-                      <p className="notice">Một lượt đã hết thời gian. Bàn tiếp tục tự động.</p>
-                    )}
-                    {(state.last.captures?.length ?? 0) > 0 && (
-                      <p className="game-capture" key={state.version}>
-                        ♞ Đã đá {state.last.captures!.length} ngựa về nhà!
-                      </p>
-                    )}
-                  </div>
-                </aside>
+                      )}
+                      {state.last.type === 'three_sixes' && (
+                        <p className="notice">Ba lần 6 liên tiếp: mất lượt này.</p>
+                      )}
+                      {state.last.type === 'timeout' && (
+                        <p className="notice">Một lượt đã hết thời gian. Bàn tiếp tục tự động.</p>
+                      )}
+                      {(state.last.captures?.length ?? 0) > 0 && (
+                        <p className="game-capture" key={state.version}>
+                          ♞ Đã đá {state.last.captures!.length} ngựa về nhà!
+                        </p>
+                      )}
+                    </div>
+                  </aside>
+                  <section className="game-roster" aria-label="Người chơi trong bàn">
+                    <h3>
+                      <Users size={16} /> Người chơi <span>{state.players.length}/4</span>
+                    </h3>
+                    {seats}
+                  </section>
+                </div>
               </div>
             </>
           )}

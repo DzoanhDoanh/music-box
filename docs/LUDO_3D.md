@@ -8,6 +8,126 @@ theo yêu cầu người dùng. Phạm vi và bằng chứng phát hành đượ
 hiển thị lưu trên thiết bị. Chi tiết candidate và kiểm chứng trong
 [bản phát hành hiệu ứng](RELEASE_EFFECTS_2026-11-18.md).
 
+## Góc mặc định khi vào 3D theo ảnh tham chiếu — bản sửa riêng
+
+- Chuyển sang Bàn 3D hoặc đặt lại góc nhìn sẽ hướng thẳng vào bàn (yaw 0°),
+  nghiêng hết giới hạn hiện tại 45°, zoom 1.2 theo tinh chỉnh tiếp theo
+  (thêm một nấc, tương đương bấm + một lần). Vẫn kéo xoay, zoom và đổi lại
+  bàn phẳng được; không thay mặc định Phẳng khi chưa lưu lựa chọn.
+- Bốn ca browser desktop/mobile đạt: góc ban đầu, chuyển Phẳng/3D, reset,
+  giới hạn nghiêng, resize, kéo/zoom và bấm đích bắt quân. Đã xem ảnh hai
+  kích thước; TypeScript, lint, định dạng và build riêng đạt.
+- Đã nạp riêng tại **http://127.0.0.1:5181**, candidate
+  `.roomtune/releases/bau-cua-20261118T083538/candidate`. Health `configured`,
+  HTML và 34 asset khớp từng byte, 4 kiểm tra đường dẫn nội bộ đạt.
+  Client `index-C2o08GWi.js`, scene `LudoScene-Xz87SxVo.js`.
+  Public/5180, hồ sơ tiến trình và con trỏ deploy giữ nguyên. **Chưa commit/public.**
+
+Tinh chỉnh zoom 120% đã qua hai ca desktop/mobile về kéo/zoom, reset và bấm
+đích bắt quân, cùng TypeScript/lint/định dạng và build riêng. Đã xem ảnh hai
+kích thước. Bản thử 5181 đã chuyển sang candidate
+`.roomtune/releases/bau-cua-20261118T084848/candidate`; health `configured`,
+HTML và 34 asset khớp từng byte, 4 kiểm tra đường dẫn nội bộ đạt.
+Client `index-BGBfoKwr.js`, scene `LudoScene-NHrmQA25.js`.
+Public/5180, hồ sơ tiến trình và con trỏ deploy giữ nguyên. **Chưa commit/public.**
+
+## Khung bàn cao hơn và danh sách người chơi ở cạnh bàn — bản sửa riêng
+
+- Bỏ hàng người chơi phía trên bàn, đưa danh sách xuống dưới thẻ lượt chơi
+  ở cột phải. Khung bàn tận dụng toàn bộ chiều cao còn lại cho cả Phẳng và
+  Bàn 3D. Nếu cột bên không đủ cao, chỉ danh sách người chơi cuộn riêng.
+- Điện thoại và màn hình thấp mở danh sách qua nút biểu tượng người chơi
+  ở đầu trang. Hộp thoại vẫn có đầy đủ màu, tiến độ, chọn ghế/đổi màu và
+  quyền mời rời bàn; đóng lại trả focus và không làm đổi kích thước bàn.
+- Góc nghiêng tối đa 45°, điều khiển camera và kết liễu trực tiếp giữ nguyên.
+  Không đổi luật, API hoặc dữ liệu ván.
+- 20 ca browser desktop/mobile đạt qua các lượt kiểm tra bố cục/camera,
+  thao tác bàn, duy trì nhạc, chọn ghế/đổi màu/sẵn sàng và kick. Hai ca ma trận/
+  GPU lặp bỏ qua có chủ đích. Kiểm tra màn 320×568 đến 1920×1080, hướng ngang,
+  màu người chơi trong portal và focus. Đã xem ảnh desktop/mobile, phát hiện
+  và bổ sung bảng màu cho hộp thoại ngoài cây DOM của bàn. TypeScript/lint đạt.
+
+Build riêng `scripts/build-bau-cua.mjs` đạt; 35 client artifacts qua scan
+heuristic. Bản bố cục đã chạy tại **http://127.0.0.1:5181**, candidate
+`.roomtune/releases/bau-cua-20261118T082732/candidate`. Health `configured`,
+HTML và 34 asset mới khớp từng byte; 4 kiểm tra đường dẫn nội bộ đạt.
+Client `index-DfDD36dD.js`, hub `GameHub-DrRmTD95.js`, scene
+`LudoScene-Cyj2rXIO.js`, CSS `game-CSbOyeeG.css`.
+Public/5180 giữ nguyên HTML, hồ sơ tiến trình và con trỏ deploy; public,
+tunnel và hai bản thử vẫn chạy đúng danh tính. **Chưa commit/public.**
+
+## Giữ hình dạng bàn khi xoay — bản sửa riêng
+
+- Tái hiện bàn trông dẹt khi kéo camera xuống thấp: giới hạn cũ cho phép
+  nghiêng khoảng 65° từ hướng nhìn thẳng xuống, làm một chiều mặt bàn chỉ
+  còn khoảng 43% trên hình chiếu. Đây là góc camera, không phải tọa độ ô
+  hay mô hình bị thay đổi.
+- Theo tinh chỉnh tiếp theo, nới giới hạn từ 40° lên 45° từ phía trên,
+  cho nghiêng thêm một chút và vẫn giữ ít nhất khoảng 70% chiều
+  sâu mặt bàn. Vẫn xoay quanh bàn, zoom và nhìn gần thẳng từ trên xuống.
+  Góc mặc định, nút đặt lại và mặc định bàn phẳng được giữ nguyên.
+- Bài browser mới đo tỷ lệ hình chiếu từ các vị trí quân cố định, độc lập
+  với hướng xoay/zoom. Bài này thất bại ở bản cũ với tỷ lệ 0.4267. Có kiểm
+  tra kéo chuột/hai ngón, màn rộng/hẹp/ngang, tỷ lệ canvas và đặt lại góc.
+
+Kiểm chứng ở giới hạn 40°: 16 ca browser desktop/mobile đạt, 2 ca ma trận/GPU lặp được bỏ
+qua có chủ đích. Bao gồm kéo/zoom, chạm quân và đích bắt quân, nhiều mẫu
+quân, WebGL fallback, giảm chuyển động, bố cục và duy trì nhạc. Đã xem ảnh
+góc nghiêng tối đa trên desktop/mobile và màn ngang. TypeScript, lint và
+build riêng đạt; chưa đo trên điện thoại vật lý.
+
+Bản giới hạn 40° trước đó được nạp riêng vào **http://127.0.0.1:5181**, candidate
+`.roomtune/releases/bau-cua-20261118T081049/candidate`. Health `configured`,
+HTML và 34 asset mới khớp từng byte; 4 đường dẫn nội bộ không trả bí mật
+cấu hình. Client `index-U5Cqcz1J.js`, scene `LudoScene-CHwtXuD0.js`.
+Public/5180, hồ sơ tiến trình và con trỏ deploy giữ nguyên; tunnel vẫn chạy.
+Bản thử cũng chứa bản sửa kết liễu trực tiếp bên dưới. **Chưa commit/public.**
+
+Tinh chỉnh 45° đã qua hai ca browser desktop/mobile về tỷ lệ bàn, thao tác
+kéo và thay đổi kích thước. TypeScript, lint và build riêng đạt. Candidate
+`.roomtune/releases/bau-cua-20261118T081522/candidate` đã được kiểm tra ở 5181;
+HTML và 34 asset mới khớp từng byte, 4 kiểm tra đường dẫn nội bộ đạt.
+Client `index-CF61YBza.js`, scene `LudoScene-e6BPSGcj.js`. Public/5180 và
+con trỏ deploy giữ nguyên. Tinh chỉnh này chưa commit/public.
+
+## Kết liễu trực tiếp từ ô hiện tại — bản sửa riêng sau phát hành
+
+- K/O và Long quyền bắt đầu tại ô quân đang đứng rồi lao thẳng đến ô đối thủ,
+  không đi/nảy qua những ô trung gian. Vòng tích năng lượng và vệt sáng đi
+  theo quân tấn công. K/O chạm đích sau 650 ms, Long quyền sau 900 ms;
+  đối thủ chỉ bắt đầu bay về nhà tại mốc va chạm.
+- Rider Kick và Kamehameha tiếp tục biến hình tại ô xuất phát của đòn đánh.
+  Rider bay thẳng tới mục tiêu; Goku bắn từ vị trí đang đứng, rồi mới về ô
+  đích đã xác nhận. Cả bốn hiệu ứng đều bỏ phần đi bộ tiếp cận trước đòn đánh.
+- Chỉ thay quỹ đạo hiển thị của sự kiện bắt quân đã xác nhận. Nước đi thường,
+  luật chọn quân/nhảy/ô xuất quân, kết quả máy chủ, bàn phẳng và lựa chọn
+  hiển thị đã lưu giữ nguyên. Không thêm API hoặc migration.
+- 20 unit test qua năm tệp đạt: quỹ đạo trực tiếp, đồng hồ, Rider, Kamehameha
+  và quỹ đạo nền. Có kiểm tra bắt quân qua khúc cua khi tung 1/6, thời điểm
+  đối thủ rời ô, dữ liệu gốc không đổi và snapshot trùng không diễn lại.
+  TypeScript và lint phạm vi thay đổi đạt.
+
+Kiểm chứng trình duyệt đạt 24 ca desktop/mobile: 20 ca hồi quy K/O/danh mục/
+Rider/Kamehameha và 4 ca mới bắt quân qua quãng đường có khúc cua. Ca mới
+đợi bàn 3D dựng xong rồi giữ đồng hồ trước thao tác, tránh bỏ lỡ đoạn lao tới
+650/900 ms khi chụp trên renderer chậm. Đã xem ảnh lao tới và va chạm trên
+cả hai kích thước; không có lệnh nhạc hoặc lệnh đi quân thừa. Các ca hồi quy
+dùng đồng hồ thật vẫn xác nhận kết thúc, reduced motion và không diễn lại.
+Browser dùng phòng fixture; chưa đo FPS trên điện thoại vật lý.
+
+Build riêng `scripts/build-bau-cua.mjs` đạt; 35 client artifacts qua scan
+heuristic. Candidate `.roomtune/releases/bau-cua-20261118T080141/candidate`
+đã nạp riêng vào **http://127.0.0.1:5181**. Health `configured`, HTML và 34
+asset mới khớp từng byte; 4 đường dẫn nội bộ không trả bí mật cấu hình.
+Client `index-BtpALY6l.js`, scene `LudoScene-rQF7vRYc.js`, CSS `game-B76KUyGC.css`.
+Public/5180 giữ nguyên HTML, hồ sơ tiến trình và con trỏ deploy; build xác
+nhận `dist` và `.roomtune/game-build` không đổi. Public, tunnel và hai bản thử
+đều chạy đúng danh tính. Bản thử dùng chung Supabase; xem **Thử hiệu ứng**
+để quan sát với quân mẫu mà không đi quân trong ván thật.
+
+**Bản sửa trực tiếp này chưa commit/public.** Biên bản phát hành ở trên ghi
+nhận phiên bản trước đó.
+
 ## Kamehameha — Goku tụ khí và bắn chưởng
 
 - Thêm **Kamehameha** vào danh mục. Quân tấn công tạm biến thành Goku tóc

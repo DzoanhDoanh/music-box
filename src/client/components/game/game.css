@@ -1,6 +1,7 @@
 .game-hub,
 .game-piece-preview,
-.piece-picker {
+.piece-picker,
+.game-roster-dialog {
   --horse-0: #ef727b;
   --horse-1: #68cda5;
   --horse-2: #f1c55d;
@@ -1016,6 +1017,16 @@
   margin-bottom: 12px;
   flex-wrap: nowrap;
 }
+.game-match .game-header > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.game-match .game-header-actions {
+  flex-shrink: 0;
+}
+.game-roster-trigger {
+  display: none;
+}
 .game-match .game-header h2 {
   font-size: clamp(17px, 2vw, 24px);
   letter-spacing: -0.5px;
@@ -1041,10 +1052,9 @@
   display: none;
 }
 .game-match .game-players {
-  flex-shrink: 0;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-bottom: 12px;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  gap: 6px;
 }
 .game-match .game-player {
   padding: 10px;
@@ -1114,6 +1124,63 @@
 .game-match .game-controls {
   align-self: start;
   min-width: 0;
+  width: 100%;
+  flex-shrink: 0;
+}
+.game-side-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  gap: 14px;
+}
+.game-roster {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 10px;
+}
+.game-roster h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.game-roster h3 span {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.game-roster .game-players {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1px;
+}
+.game-roster .game-player {
+  flex-wrap: nowrap;
+}
+.game-roster .game-player .button {
+  flex-shrink: 0;
+  padding: 6px;
+  min-width: 36px;
+}
+.game-roster-dialog .game-players {
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+}
+.game-roster-dialog .game-player {
+  flex-wrap: nowrap;
+}
+.game-roster-dialog .game-player .button {
+  flex-shrink: 0;
+  width: auto;
+  min-width: 44px;
+}
+.game-roster-dialog .game-player strong {
+  display: block;
+  overflow-wrap: anywhere;
 }
 .game-match .game-turn-card {
   padding: 22px 18px;
@@ -1393,7 +1460,7 @@ body:has(.game-screen) .chat-dock .theme-switch {
   }
   .game-match .game-header h2 {
     font-size: 15px;
-    max-width: 42vw;
+    max-width: 100%;
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
@@ -1561,6 +1628,17 @@ body:has(.game-screen) .chat-dock .theme-switch {
   .game-dice-lift,
   .game-match .game-results {
     animation: none !important;
+  }
+}
+@media (max-width: 760px), (max-height: 540px) {
+  .game-roster {
+    display: none;
+  }
+  .game-match .game-header-actions .game-roster-trigger {
+    display: inline-flex;
+  }
+  .game-side-panel {
+    min-height: auto;
   }
 }
 .ludo-board-surface {

@@ -9,7 +9,7 @@ export type ScenePlan = {
   points: ScenePoint[];
   duration: number;
   delay: number;
-  kind: 'step' | 'jump' | 'capture' | 'shift' | 'rider-kick' | 'kamehameha';
+  kind: 'step' | 'jump' | 'strike' | 'capture' | 'shift' | 'rider-kick' | 'kamehameha';
 };
 export const scenePoint = (p: { x: number; y: number; scale: number }): ScenePoint => ({
   x: p.x - 7.5,
@@ -59,7 +59,12 @@ export function sampleSceneMotion(plan: ScenePlan, progress: number) {
   if (time === 1)
     return { ...plan.points[plan.points.length - 1], y: 0.21, tilt: 0, spin: 0, roll: 0 };
   const t = Math.max(0, (time * plan.duration - plan.delay) / (plan.duration - plan.delay));
-  const travel = plan.kind === 'capture' ? 1 - (1 - t) ** 2 : t;
+  const travel =
+    plan.kind === 'capture'
+      ? 1 - (1 - t) ** 2
+      : plan.kind === 'strike'
+        ? Math.max(0, (t - 0.12) / 0.88) ** 2
+        : t;
   const segment = Math.min(plan.points.length - 2, Math.floor(travel * (plan.points.length - 1)));
   const local = travel * (plan.points.length - 1) - segment;
   const a = plan.points[segment],
@@ -67,11 +72,13 @@ export function sampleSceneMotion(plan: ScenePlan, progress: number) {
   const hop =
     plan.kind === 'step'
       ? Math.sin(local * Math.PI) * 0.36
-      : plan.kind === 'jump'
-        ? Math.sin(t * Math.PI) * 1.4
-        : plan.kind === 'capture'
-          ? Math.sin(t * Math.PI) * 3.8
-          : 0;
+      : plan.kind === 'strike'
+        ? Math.sin(travel * Math.PI) * 1.2
+        : plan.kind === 'jump'
+          ? Math.sin(t * Math.PI) * 1.4
+          : plan.kind === 'capture'
+            ? Math.sin(t * Math.PI) * 3.8
+            : 0;
   return {
     x: a.x + (b.x - a.x) * local,
     z: a.z + (b.z - a.z) * local,
