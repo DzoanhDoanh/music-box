@@ -9,3 +9,5 @@ ENABLE_LUDO=true
 ENABLE_WHEEL=false
 # Apply all 202611170007–009 Bầu Cua migrations before enabling the API.
 ENABLE_BAU_CUA=false
+# Requires 202611180002_duck_race.sql and VITE_ENABLE_DUCK_RACE=true at build time.
+ENABLE_DUCK_RACE=false

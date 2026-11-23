@@ -66,6 +66,16 @@ export function orderQueue(entries: QueueEntry[], mode: Settings['queue_mode']):
   );
 }
 export const errorMessages: Record<string, string> = {
+  DUCK_STALE: 'Cuộc đua vừa thay đổi. Dữ liệu đang được đồng bộ lại.',
+  DUCK_SONG_DISABLED: 'Chủ phòng đã tắt đua bài hát. Cuộc đua đã xuất phát vẫn tiếp tục.',
+  DUCK_SONG_LIMIT: 'Số bài vượt giới hạn đua bài hát của phòng. Hãy giảm số bài tham gia.',
+  DUCK_SETTINGS_STALE: 'Cài đặt vừa được thay đổi ở thiết bị khác. Hãy mở lại cài đặt để cập nhật.',
+  DUCK_LOCKED: 'Danh sách đã khóa; không thể thay đổi cuộc đua này.',
+  DUCK_NOT_READY: 'Cần ít nhất hai vịt và tất cả người chơi đã sẵn sàng.',
+  DUCK_ALREADY_JOINED: 'Bạn đã có một chú vịt trong cuộc đua.',
+  DUCK_LOBBY_CLOSED: 'Sảnh đã khóa, hết chỗ hoặc bạn đã được mời rời cuộc đua.',
+  DUCK_SONG_UNAVAILABLE: 'Một bài hát không còn trong hàng chờ. Hãy chọn lại.',
+  DUCK_TOURNAMENT_COMPLETE: 'Giải đã kết thúc hoặc vòng kế tiếp đã được tạo.',
   BAU_INSUFFICIENT_COINS: 'Không đủ coin khả dụng. Coin đang khóa vẫn thuộc ví của bạn.',
   BAU_COLLATERAL: 'Quỹ cái chưa đủ bảo đảm khoản cược này. Hãy giảm số coin.',
   BAU_PHASE: 'Thao tác chưa phù hợp với pha hiện tại. Bàn đã được đồng bộ lại.',

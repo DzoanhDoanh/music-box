@@ -49,6 +49,27 @@ const flush = async () => {
 afterEach(() => vi.useRealTimers());
 
 describe('shared room transport', () => {
+  it('keeps duck channels private, validates reactions and resyncs without room presence', async () => {
+    const f = fixture(),
+      duck = callbacks(),
+      onDuckReaction = vi.fn();
+    f.service.subscribeDuck('race', 'alice', { ...duck, onDuckReaction });
+    expect(f.client.channel).toHaveBeenCalledWith('duck:race', {
+      config: { private: true, presence: { key: 'alice' } },
+    });
+    const channel = f.created[0];
+    channel.status('SUBSCRIBED');
+    await flush();
+    channel.event('duck.updated', { version: 3 });
+    channel.event('duck.reaction', { id: '1', emoji: '🦆' });
+    channel.event('duck.reaction', { id: '2', emoji: '<script>' });
+    expect(duck.onVersion).toHaveBeenCalledExactlyOnceWith(3);
+    expect(onDuckReaction).toHaveBeenCalledExactlyOnceWith({ id: '1', emoji: '🦆' });
+    expect(channel.track).not.toHaveBeenCalled();
+    channel.status('CHANNEL_ERROR');
+    channel.status('SUBSCRIBED');
+    expect(duck.onResync).toHaveBeenCalledTimes(2);
+  });
   it('routes coin invalidations over the existing private room channel without adding presence', async () => {
     const f = fixture(),
       onWallet = vi.fn(),

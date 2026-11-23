@@ -11,6 +11,7 @@ export interface RoomSubscription {
   onGames?(): void;
   onBauNotice?(): void;
   onWallet?(user: string): void;
+  onDuckReaction?(reaction: { id: string; emoji: string }): void;
 }
 type Observer = { callbacks: Partial<RoomSubscription>; presence: boolean };
 type SharedChannel = {
@@ -50,6 +51,9 @@ export class RealtimeService {
   }
   subscribeBau(table: string, actor: string, callbacks: Partial<RoomSubscription>): () => void {
     return this.watch('bau:' + table, actor, callbacks, false);
+  }
+  subscribeDuck(race: string, actor: string, callbacks: Partial<RoomSubscription>): () => void {
+    return this.watch('duck:' + race, actor, callbacks, false);
   }
   subscribeNotices(room: string, actor: string, callbacks: Partial<RoomSubscription>): () => void {
     return this.watch(room, actor, callbacks, false);
@@ -163,7 +167,7 @@ export class RealtimeService {
     };
     const start = () => {
       if (entry.stopped) return;
-      const channel = this.client.channel(/^(game|bau):/.test(room) ? room : `room:${room}`, {
+      const channel = this.client.channel(/^(game|bau|duck):/.test(room) ? room : `room:${room}`, {
         config: { private: true, presence: { key: actor } },
       });
       entry.channel = channel;
@@ -193,6 +197,23 @@ export class RealtimeService {
         .on('broadcast', { event: 'table.updated' }, ({ payload }) => {
           if (!entry.stopped && typeof payload?.version === 'number')
             for (const { callbacks } of entry.observers) callbacks.onVersion?.(payload.version);
+        })
+        .on('broadcast', { event: 'duck.updated' }, ({ payload }) => {
+          if (!entry.stopped && typeof payload?.version === 'number')
+            for (const { callbacks } of entry.observers) callbacks.onVersion?.(payload.version);
+        })
+        .on('broadcast', { event: 'duck.reaction' }, ({ payload }) => {
+          if (
+            !entry.stopped &&
+            typeof payload?.id === 'string' &&
+            ['🦆', '🔥', '👏', '💜', '🏁'].includes(payload.emoji)
+          )
+            for (const { callbacks } of entry.observers)
+              callbacks.onDuckReaction?.({ id: payload.id, emoji: payload.emoji });
+        })
+        .on('broadcast', { event: 'wallet.updated' }, ({ payload }) => {
+          if (!entry.stopped && typeof payload?.user === 'string')
+            for (const { callbacks } of entry.observers) callbacks.onWallet?.(payload.user);
         })
         .on('presence', { event: 'sync' }, () => {
           if (!entry.stopped && entry.subscribed)

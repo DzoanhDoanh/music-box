@@ -588,6 +588,7 @@ export default function GameHub({
         'game-hub' + (match ? ' game-match' : ' game-lobby') + (depth ? ' game-depth' : '')
       }
       aria-label="Trò chơi trong phòng"
+      id={match ? undefined : 'ludo-lobby'}
     >
       <div className="game-header">
         <div>
@@ -597,10 +598,12 @@ export default function GameHub({
               ? 'BÀN LUẬT CŨ · 52 Ô'
               : state?.schema === 2 && !hasFixedMovement(state.rules) && match
                 ? 'BÀN DÙNG LUẬT ĐÃ LƯU'
-                : 'ROOMTUNE PLAY'}
+                : match
+                  ? 'ROOMTUNE PLAY'
+                  : 'CỜ CÁ NGỰA'}
           </span>
-          <h2>{match ? (state?.name ?? 'Bàn cờ cá ngựa') : 'Nhạc hay. Bạn vui. Vào ván thôi.'}</h2>
-          {!match && <p>Chơi cùng những người trong phòng. Giai điệu vẫn tiếp tục.</p>}
+          <h2>{match ? (state?.name ?? 'Bàn cờ cá ngựa') : 'Bàn cờ trong phòng'}</h2>
+          {!match && <p>Tạo bàn mới hoặc vào một bàn còn ghế trống.</p>}
         </div>
         <div className="game-header-actions">
           {state && match && (

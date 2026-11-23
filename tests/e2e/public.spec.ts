@@ -1,5 +1,28 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+test('an application render failure still offers recovery inside router context', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.addInitScript(() => {
+    const original = Storage.prototype.getItem;
+    Storage.prototype.getItem = function (key: string) {
+      if (key === 'roomtune:theme') throw new Error('Fixture render failure');
+      return original.call(this, key);
+    };
+  });
+  await page.goto('/');
+  await expect(
+    page.getByText('Màn hình gặp lỗi. Hãy tải lại trang để khôi phục phiên.', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: /Thử lại/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Về trang chủ', exact: true })).toHaveAttribute(
+    'href',
+    '/',
+  );
+  expect(errors.some((error) => error.includes('basename'))).toBe(false);
+});
 test('landing and access forms have no WCAG A/AA violations', async ({ page }) => {
   test.setTimeout(60000);
   for (const path of ['/', '/join', '/login', '/privacy']) {

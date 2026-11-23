@@ -24,19 +24,23 @@ import {
   Gamepad2,
   ArrowLeft,
   CircleDot,
+  Copy,
+  UserRound,
 } from 'lucide-react';
+import { copyText } from '../lib/clipboard';
 import { useRoom } from '../lib/room';
 import { withFeedback } from '../lib/feedback';
 import PlaybackRecovery from '../components/PlaybackRecovery';
 import QueueDragHandle from '../components/QueueDragHandle';
 import RoomMembers from '../components/RoomMembers';
+import GamePicker from '../components/GamePicker';
 import RoomNavigation, { type RoomTab as Tab } from '../components/RoomNavigation';
 import { ReorderProposalDialog, ReorderVotePanel } from '../components/ReorderVoting';
 import { api } from '../lib/api';
 import { hostIsAvailable } from '../lib/playback-sync';
 import { AppError, orderQueue, formatTime } from '../../shared/domain';
 import { isConnectionError } from '../../shared/auth-errors';
-import type { Song } from '../../shared/contracts';
+import type { Library as LibraryData, Song } from '../../shared/contracts';
 import {
   AsyncButton,
   Brand,
@@ -50,6 +54,7 @@ import {
 const HostPlayer = lazy(() => import('../components/HostPlayer')),
   GameHub = lazy(() => import('../components/game/GameHub')),
   BauParty = lazy(() => import('../components/bau-cua/BauParty')),
+  DuckParty = lazy(() => import('../components/duck-race/DuckParty')),
   BauNotifications = lazy(() => import('../components/bau-cua/BauNotifications')),
   LuckyWheel = lazy(() => import('../components/LuckyWheel')),
   ListenerPlayer = lazy(() => import('../components/ListenerPlayer')),
@@ -59,6 +64,7 @@ const HostPlayer = lazy(() => import('../components/HostPlayer')),
   AdminPanel = lazy(() => import('../components/AdminPanel'));
 const ludoEnabled = import.meta.env.VITE_ENABLE_LUDO === 'true';
 const bauEnabled = import.meta.env.VITE_ENABLE_BAU_CUA === 'true';
+const duckEnabled = import.meta.env.VITE_ENABLE_DUCK_RACE === 'true';
 const wheelEnabled = import.meta.env.VITE_ENABLE_WHEEL === 'true';
 export default function RoomPage() {
   const [hostVisible, setHostVisible] = useState(false);
@@ -75,8 +81,16 @@ export default function RoomPage() {
     [musicTab, setMusicTab] = useState<Tab>('queue'),
     [mine, setMine] = useState(false),
     [drag, setDrag] = useState<{ source: string; target: string } | null>(null);
+  const library = useQuery({
+    queryKey: ['library'],
+    queryFn: () => api<LibraryData>('/library'),
+    enabled: !!room.data,
+  });
   const [roomCode, setRoomCode] = useState('');
-  const gamePage = (ludoEnabled || bauEnabled) && route.pathname.startsWith(`/room/${id}/games`);
+  const gamePage =
+    (ludoEnabled || bauEnabled || duckEnabled) && route.pathname.startsWith(`/room/${id}/games`);
+  const duckRoute = matchPath('/room/:id/games/duck-race/:race?', route.pathname);
+  const duckPage = duckEnabled && !!duckRoute;
   const bauRoute = matchPath('/room/:id/games/bau-cua/:table?', route.pathname);
   const bauPage = bauEnabled && !!bauRoute;
   const gameLobby = gamePage && route.pathname.replace(/\/$/, '') === `/room/${id}/games`;
@@ -143,7 +157,12 @@ export default function RoomPage() {
     me = snapshot.members.find((m) => m.user_id === snapshot.me),
     active = snapshot.queue.find((e) => e.id === snapshot.playback.entry_id),
     ordered = orderQueue(snapshot.queue, snapshot.settings.queue_mode),
-    queue = mine ? ordered.filter((e) => e.requested_by === snapshot.me) : ordered;
+    queue = mine ? ordered.filter((e) => e.requested_by === snapshot.me) : ordered,
+    favorites = new Set(
+      Array.isArray(library.data?.favorites)
+        ? library.data.favorites.map((song) => song.youtube_video_id)
+        : [],
+    );
   const send = (c: Parameters<typeof room.execute>[0]) => room.execute(c);
   const nav: {
     id: Tab;
@@ -154,7 +173,7 @@ export default function RoomPage() {
     { id: 'search', label: 'Tìm & thêm bài', icon: Search },
     { id: 'library', label: 'Thư viện của tôi', icon: Heart },
     { id: 'history', label: 'Lịch sử phát', icon: History },
-    ...(ludoEnabled || bauEnabled
+    ...(ludoEnabled || bauEnabled || duckEnabled
       ? [{ id: 'games' as const, label: 'Trò chơi', icon: Gamepad2 }]
       : []),
     ...(wheelEnabled
@@ -176,6 +195,21 @@ export default function RoomPage() {
   const showHost = !leaving && hostVisible && manager;
   const showListener = !leaving && snapshot.settings.playback_mode === 'ALL_DEVICES' && !hostLease;
   const invite = `${location.origin}/join?code=${snapshot.room.code}`;
+  async function copyInvite(text = invite, label = 'liên kết mời') {
+    if (await copyText(text)) toast.success(`Đã sao chép ${label}.`);
+    else toast.error(`Không sao chép được. Mã phòng: ${snapshot.room.code}`);
+  }
+  async function shareInvite() {
+    try {
+      await navigator.share({
+        title: snapshot.room.name,
+        text: `Vào nghe nhạc cùng mình trên ROOMTUNE · mã phòng ${snapshot.room.code}`,
+        url: invite,
+      });
+    } catch (error) {
+      if ((error as Error).name !== 'AbortError') await copyInvite();
+    }
+  }
   async function leaveRoom() {
     setLeaving(true);
     try {
@@ -192,6 +226,15 @@ export default function RoomPage() {
       void client.invalidateQueries({ queryKey: ['rooms'] });
       navigate('/rooms', { replace: true });
     }
+  }
+  async function removeOwn(entry: string, video: string) {
+    await send({ action: 'remove', entry_id: entry });
+    toast('Đã xóa bài khỏi hàng chờ.', {
+      action: {
+        label: 'Thêm lại',
+        onClick: () => void send({ action: 'enqueue', video_id: video }).catch(() => {}),
+      },
+    });
   }
   function reorder(entry: string, target: string) {
     if (snapshot.settings.reorder_approval) return Promise.resolve();
@@ -236,14 +279,7 @@ export default function RoomPage() {
             <Radio size={20} />
             <strong>Nhạc hay hơn khi có nhau.</strong>
             <p>Mời bạn bè vào phòng và cùng chọn bài.</p>
-            <Button
-              onClick={() => {
-                void navigator.clipboard
-                  .writeText(invite)
-                  .then(() => toast.success('Đã sao chép liên kết mời.'))
-                  .catch(() => toast.error('Không sao chép được. Hãy dùng mã phòng.'));
-              }}
-            >
+            <Button onClick={() => void copyInvite()}>
               <Share2 size={15} /> Sao chép lời mời
             </Button>
           </div>
@@ -251,7 +287,7 @@ export default function RoomPage() {
             ← Các phòng của tôi
           </Link>
           <button className="nav-item" onClick={() => setTab('library')}>
-            <LogOut size={17} /> Hồ sơ & phiên
+            <UserRound size={17} /> Hồ sơ & phiên
           </button>
         </div>
       </aside>
@@ -352,6 +388,19 @@ export default function RoomPage() {
                 />
                 <strong>{snapshot.room.code}</strong>
                 <a href={invite}>{invite}</a>
+                <div className="qr-actions">
+                  <Button variant="primary" onClick={() => void copyInvite()}>
+                    <Copy size={15} /> Sao chép liên kết
+                  </Button>
+                  <Button onClick={() => void copyInvite(snapshot.room.code, 'mã phòng')}>
+                    <Copy size={15} /> Sao chép mã
+                  </Button>
+                  {typeof navigator.share === 'function' && (
+                    <Button onClick={() => void shareInvite()}>
+                      <Share2 size={15} /> Chia sẻ
+                    </Button>
+                  )}
+                </div>
               </div>
             </Modal>
           </div>
@@ -528,16 +577,17 @@ export default function RoomPage() {
             </div>
             <div className="room-content">
               <ReorderVotePanel snapshot={snapshot} execute={send} />
-              {bauEnabled && gameLobby && (
-                <Link className="party-game-card panel" to={`/room/${id}/games/bau-cua`}>
-                  <span aria-hidden="true">🦀</span>
-                  <div>
-                    <small>MỚI · COIN GIẢI TRÍ</small>
-                    <h2>Bầu Cua Party</h2>
-                    <p>Cùng mở bát, thử vận may và cầm cái với bạn bè.</p>
-                  </div>
-                  <ArrowUp size={22} aria-hidden="true" />
-                </Link>
+              {gameLobby && (
+                <GamePicker room={id} ludo={ludoEnabled} bau={bauEnabled} duck={duckEnabled} />
+              )}
+              {duckPage && (
+                <Suspense fallback={<Loading />}>
+                  <DuckParty
+                    key={playerKey + ':' + (duckRoute.params.race ?? 'lobby')}
+                    snapshot={snapshot}
+                    raceId={duckRoute.params.race ?? null}
+                  />
+                </Suspense>
               )}
               {bauPage && (
                 <Suspense fallback={<Loading />}>
@@ -553,7 +603,7 @@ export default function RoomPage() {
                   <GameHub
                     key={playerKey}
                     snapshot={snapshot}
-                    visible={tab === 'games' && !bauPage}
+                    visible={tab === 'games' && !bauPage && !duckPage}
                     onShow={() => setTab('games')}
                   />
                 </Suspense>
@@ -588,12 +638,14 @@ export default function RoomPage() {
                           <div>
                             <button
                               className={!mine ? 'selected' : ''}
+                              aria-pressed={!mine}
                               onClick={() => setMine(false)}
                             >
                               Tất cả
                             </button>
                             <button
                               className={mine ? 'selected' : ''}
+                              aria-pressed={mine}
                               onClick={() => setMine(true)}
                             >
                               Bài của tôi
@@ -695,41 +747,70 @@ export default function RoomPage() {
                                   <ArrowUp size={16} /> Đề xuất vị trí
                                 </Button>
                               )}
-                              <AsyncButton
-                                variant="ghost"
-                                size="icon"
-                                aria-label="Lưu yêu thích"
-                                onClick={() => {
-                                  return withFeedback(
-                                    () =>
-                                      api('/library', {
-                                        action: 'favorite',
-                                        video_id: entry.youtube_video_id,
-                                        enabled: true,
-                                      }),
-                                    'Đang lưu bài yêu thích…',
-                                    'Đã lưu vào yêu thích.',
-                                  )
-                                    .then(() => {
-                                      void client.invalidateQueries({ queryKey: ['library'] });
-                                    })
-                                    .catch(() => {});
-                                }}
-                              >
-                                <Heart size={16} />
-                              </AsyncButton>
+                              {(() => {
+                                const favorite = favorites.has(entry.youtube_video_id);
+                                return (
+                                  <AsyncButton
+                                    variant="ghost"
+                                    size="icon"
+                                    className={favorite ? 'favorite-active' : undefined}
+                                    aria-pressed={favorite}
+                                    aria-label={`${favorite ? 'Bỏ yêu thích' : 'Lưu yêu thích'} ${entry.song.title}`}
+                                    title={favorite ? 'Bỏ khỏi yêu thích' : 'Lưu vào yêu thích'}
+                                    onClick={() =>
+                                      withFeedback(
+                                        () =>
+                                          api('/library', {
+                                            action: 'favorite',
+                                            video_id: entry.youtube_video_id,
+                                            enabled: !favorite,
+                                          }),
+                                        favorite
+                                          ? 'Đang bỏ khỏi yêu thích…'
+                                          : 'Đang lưu bài yêu thích…',
+                                        favorite
+                                          ? 'Đã bỏ khỏi yêu thích.'
+                                          : 'Đã lưu vào yêu thích.',
+                                      )
+                                        .then(() => {
+                                          void client.invalidateQueries({ queryKey: ['library'] });
+                                        })
+                                        .catch(() => {})
+                                    }
+                                  >
+                                    <Heart size={16} fill={favorite ? 'currentColor' : 'none'} />
+                                  </AsyncButton>
+                                );
+                              })()}
                               {(manager ||
                                 (entry.requested_by === snapshot.me &&
-                                  snapshot.settings.allow_remove_own)) && (
-                                <AsyncButton
-                                  size="icon"
-                                  variant="ghost"
-                                  aria-label="Xóa bài"
-                                  onClick={() => send({ action: 'remove', entry_id: entry.id })}
-                                >
-                                  <X size={16} />
-                                </AsyncButton>
-                              )}
+                                  snapshot.settings.allow_remove_own)) &&
+                                (entry.requested_by === snapshot.me ? (
+                                  <AsyncButton
+                                    size="icon"
+                                    variant="ghost"
+                                    aria-label={`Xóa ${entry.song.title} khỏi hàng chờ`}
+                                    title="Xóa khỏi hàng chờ"
+                                    onClick={() => removeOwn(entry.id, entry.youtube_video_id)}
+                                  >
+                                    <X size={16} />
+                                  </AsyncButton>
+                                ) : (
+                                  <Confirm
+                                    title="Xóa bài của người khác?"
+                                    description={`“${entry.song.title}” do ${entry.requester} yêu cầu sẽ bị xóa khỏi hàng chờ của cả phòng.`}
+                                    onConfirm={() => send({ action: 'remove', entry_id: entry.id })}
+                                  >
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      aria-label={`Xóa ${entry.song.title} khỏi hàng chờ`}
+                                      title="Xóa khỏi hàng chờ"
+                                    >
+                                      <X size={16} />
+                                    </Button>
+                                  </Confirm>
+                                ))}
                               {manager &&
                                 snapshot.settings.queue_mode === 'MANUAL' &&
                                 !snapshot.settings.reorder_approval && (
@@ -831,6 +912,7 @@ export default function RoomPage() {
 function HistoryPanel({ roomId, add }: { roomId: string; add: (id: string) => Promise<unknown> }) {
   const [page, setPage] = useState(0),
     [filter, setFilter] = useState('');
+  const needle = filter.trim().toLocaleLowerCase();
   const query = useQuery({
     queryKey: ['history', roomId, page],
     queryFn: () =>
@@ -864,11 +946,23 @@ function HistoryPanel({ roomId, add }: { roomId: string; add: (id: string) => Pr
       ) : query.error ? (
         <ErrorState error={query.error} />
       ) : query.data.items.length ? (
-        query.data.items
-          .filter((e) =>
-            e.entry.song.title.toLocaleLowerCase().includes(filter.toLocaleLowerCase()),
-          )
-          .map((e) => (
+        (() => {
+          const matches = query.data.items.filter(
+            (e) =>
+              !needle ||
+              e.entry.song.title.toLocaleLowerCase().includes(needle) ||
+              e.entry.song.channel.toLocaleLowerCase().includes(needle),
+          );
+          if (!matches.length)
+            return (
+              <Empty
+                title="Không có bài nào khớp"
+                action={<Button onClick={() => setFilter('')}>Xóa bộ lọc</Button>}
+              >
+                Bộ lọc chỉ tìm trong trang lịch sử hiện tại.
+              </Empty>
+            );
+          return matches.map((e) => (
             <article className="song-row" key={e.id}>
               <img src={e.entry.song.thumbnail} alt="" />
               <div className="song-info">
@@ -886,20 +980,22 @@ function HistoryPanel({ roomId, add }: { roomId: string; add: (id: string) => Pr
                     : 'Đã bỏ qua'}
               </span>
               <AsyncButton
-                aria-label="Thêm lại bài"
+                aria-label={`Thêm lại ${e.entry.song.title}`}
+                title="Thêm lại vào hàng chờ"
                 size="icon"
                 onClick={() => add(e.entry.song.youtube_video_id)}
               >
                 <Plus size={17} />
               </AsyncButton>
             </article>
-          ))
+          ));
+        })()
       ) : (
         <Empty title="Chưa có bài hát đã phát">
           Những giai điệu cả phòng đã nghe sẽ được lưu tại đây.
         </Empty>
       )}
-      <div className="pagination">
+      <div className="pagination" hidden={page === 0 && (query.data?.items.length ?? 0) < 25}>
         <Button disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
           Trang trước
         </Button>

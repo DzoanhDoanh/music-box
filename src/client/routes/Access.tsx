@@ -12,6 +12,7 @@ import { api, supabase, ensureSession } from '../lib/api';
 import { Brand, Button, Eyebrow, ErrorState, Loading, Empty, Modal } from '../components/ui';
 import ReturnToRoom from '../components/ReturnToRoom';
 import { useJoinedRooms } from '../lib/joined-rooms';
+import { extractRoomCode } from '../lib/clipboard';
 export function Join() {
   const client = useQueryClient();
   const [captcha, setCaptcha] = useState('');
@@ -21,7 +22,7 @@ export function Join() {
   const form = useForm<z.input<typeof joinSchema>, unknown, z.output<typeof joinSchema>>({
     resolver: zodResolver(joinSchema),
     defaultValues: {
-      code: params.get('code') ?? '',
+      code: extractRoomCode(params.get('code') ?? ''),
       name: localStorage.getItem('roomtune:name') ?? '',
       pin: '',
     },
@@ -43,7 +44,10 @@ export function Join() {
             }>('/rooms/join', data);
             localStorage.setItem('roomtune:name', data.name);
             void client.invalidateQueries({ queryKey: ['rooms'] });
-            navigate(`/room/${room.id}`);
+            const duck = z.uuid().safeParse(params.get('duck'));
+            navigate(
+              `/room/${room.id}${import.meta.env.VITE_ENABLE_DUCK_RACE === 'true' && duck.success ? '/games/duck-race/' + duck.data : ''}`,
+            );
           } catch (e) {
             setError((e as Error).message);
           } finally {
@@ -58,9 +62,26 @@ export function Join() {
           Mã phòng
           <input
             autoComplete="off"
-            placeholder="VD: A1B2C3D4"
+            autoCapitalize="characters"
+            spellCheck={false}
+            placeholder="VD: A1B2C3D4 hoặc dán liên kết mời"
             className="room-code-input"
-            {...form.register('code')}
+            autoFocus={!params.get('code')}
+            {...form.register('code', {
+              setValueAs: (value: string) => extractRoomCode(value ?? ''),
+              onBlur: (event: React.FocusEvent<HTMLInputElement>) => {
+                const code = extractRoomCode(event.target.value);
+                if (code !== event.target.value) form.setValue('code', code);
+              },
+            })}
+            onPaste={(event) => {
+              const pasted = event.clipboardData.getData('text');
+              const code = extractRoomCode(pasted);
+              if (code && code !== pasted) {
+                event.preventDefault();
+                form.setValue('code', code, { shouldValidate: true });
+              }
+            }}
           />
         </label>
         <FieldError
@@ -71,6 +92,7 @@ export function Join() {
           <input
             autoComplete="nickname"
             placeholder="Mọi người gọi bạn là…"
+            autoFocus={!!params.get('code') && !localStorage.getItem('roomtune:name')}
             {...form.register('name')}
           />
         </label>
@@ -346,12 +368,25 @@ export function Rooms() {
             />
           </label>
           <label>
-            Mô tả
-            <input name="description" maxLength={240} />
+            Mô tả <span className="muted">(không bắt buộc)</span>
+            <input
+              name="description"
+              maxLength={240}
+              placeholder="Nhạc chill cho giờ làm việc, tiệc cuối tuần…"
+            />
           </label>
           <label>
-            PIN tùy chọn
-            <input name="pin" type="password" maxLength={32} />
+            PIN <span className="muted">(không bắt buộc)</span>
+            <input
+              name="pin"
+              type="password"
+              autoComplete="new-password"
+              maxLength={32}
+              placeholder="Để trống nếu ai có mã phòng cũng vào được"
+            />
+            <small className="field-hint">
+              Đặt PIN nếu chỉ muốn người được bạn báo PIN mới vào được phòng.
+            </small>
           </label>
           <Button variant="primary" loading={pending} type="submit">
             {pending ? 'Đang tạo…' : 'Tạo phòng'}

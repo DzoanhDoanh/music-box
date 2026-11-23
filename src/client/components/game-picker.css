@@ -1,0 +1,241 @@
+.game-picker {
+  margin-bottom: 36px;
+}
+.game-picker-head {
+  margin-bottom: 18px;
+}
+.game-picker-head h2 {
+  font-size: clamp(24px, 3vw, 34px);
+  margin: 8px 0 6px;
+}
+.game-picker-head p {
+  color: var(--muted);
+  font-size: 13px;
+}
+.game-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+.game-picker-card {
+  --tint: #b49af7;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px;
+  min-height: 260px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    radial-gradient(
+      120% 70% at 100% 0%,
+      color-mix(in srgb, var(--tint) 22%, transparent),
+      transparent 60%
+    ),
+    var(--panel);
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.game-picker-card.is-duck {
+  --tint: #5fc6e8;
+}
+.game-picker-card.is-bau {
+  --tint: #f2617a;
+}
+.game-picker-card.is-ludo {
+  --tint: #b49af7;
+}
+.game-picker-card:hover,
+.game-picker-card:focus-visible {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--tint) 70%, var(--line));
+  box-shadow: 0 14px 34px -18px color-mix(in srgb, var(--tint) 70%, transparent);
+}
+.game-picker-art {
+  font-size: 46px;
+  line-height: 1;
+  margin-bottom: 6px;
+  color: var(--tint);
+}
+.game-picker-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tint);
+}
+.game-picker-name {
+  font-size: 21px;
+  line-height: 1.2;
+}
+.game-picker-pitch {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  flex: 1;
+}
+.game-picker-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.game-picker-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+}
+.game-picker-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  min-height: 44px;
+  border-radius: 12px;
+  background: var(--tint);
+  color: #15121c;
+  font-weight: 700;
+  font-size: 14px;
+}
+#ludo-lobby {
+  scroll-margin-top: 16px;
+}
+@media (max-width: 640px) {
+  .game-picker-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .game-picker-card {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    column-gap: 14px;
+    row-gap: 6px;
+    padding: 16px;
+  }
+  .game-picker-art {
+    grid-row: span 2;
+    font-size: 38px;
+    align-self: center;
+  }
+  .game-picker-pitch,
+  .game-picker-meta,
+  .game-picker-cta {
+    grid-column: 1 / -1;
+  }
+  .game-picker-name {
+    font-size: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .game-picker-card {
+    transition: none;
+  }
+}
+/* The game screen is a fixed-height layout built for the board. In the lobby, scroll the
+   whole column once instead of nesting a second scrollbar inside the Ludo table list. */
+.game-screen .room-content:has(.game-picker) {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.game-screen .room-content:has(.game-picker) .game-lobby {
+  overflow: visible;
+  flex: none;
+}
+
+/* Polish: tinted art tile, decorative watermark, compact Ludo actions under the picker. */
+.game-picker-card {
+  isolation: isolate;
+}
+.game-picker-card::after {
+  content: attr(data-art);
+  position: absolute;
+  right: -18px;
+  bottom: -34px;
+  font-size: 150px;
+  line-height: 1;
+  opacity: 0.07;
+  transform: rotate(-12deg);
+  pointer-events: none;
+  z-index: -1;
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}
+.game-picker-card:hover::after,
+.game-picker-card:focus-visible::after {
+  opacity: 0.12;
+  transform: rotate(-6deg) scale(1.05);
+}
+.game-picker-art {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  font-size: 36px;
+  background: color-mix(in srgb, var(--tint) 18%, var(--panel-2));
+  border: 1px solid color-mix(in srgb, var(--tint) 35%, transparent);
+  box-shadow: 0 10px 24px -14px var(--tint);
+}
+.game-picker-cta {
+  transition: filter 0.15s ease;
+}
+.game-picker-card:hover .game-picker-cta {
+  filter: brightness(1.08);
+}
+.game-picker-head {
+  display: flex;
+  flex-direction: column;
+}
+/* The third card already introduces Ludo; keep only its actions in the lobby below. */
+.game-screen .room-content:has(.game-picker) .game-lobby-hero {
+  display: flex;
+  align-items: center;
+  min-height: 0;
+  padding: 16px 18px;
+  border-radius: 14px;
+}
+.game-screen
+  .room-content:has(.game-picker)
+  .game-lobby-hero
+  > div:not(.game-hero-horse):not(.game-hero-dice) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.game-screen
+  .room-content:has(.game-picker)
+  .game-lobby-hero
+  :is(.game-hero-horse, .game-hero-dice, .badge, h3, p) {
+  display: none;
+}
+@media (max-width: 640px) {
+  .game-picker-art {
+    width: 52px;
+    height: 52px;
+    font-size: 30px;
+    border-radius: 14px;
+  }
+  .game-picker-card::after {
+    font-size: 110px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .game-picker-card::after {
+    transition: none;
+  }
+}

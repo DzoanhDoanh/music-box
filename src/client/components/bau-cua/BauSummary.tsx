@@ -1,21 +1,54 @@
-import { Trophy } from 'lucide-react';
+import { Trophy, Undo2 } from 'lucide-react';
 import type { BauSnapshot } from '../../../shared/bau-cua/contracts';
 import { recentLeaders, roundStandings } from '../../../shared/bau-cua/summary';
 export function BauResult({ data, actor }: { data: BauSnapshot; actor: string }) {
-  const r = data.round;
-  if (!r || r.status !== 'RESULT') return null;
+  const current = data.round;
+  if (current?.status === 'CANCELLED') {
+    const refunded = current.bets
+      .filter((b) => b.user_id === actor)
+      .reduce((n, b) => n + b.amount, 0);
+    return (
+      <div key={current.id} className="bau-result-summary is-cancelled" role="status">
+        <Undo2 size={24} />
+        <div>
+          <strong>Vòng {current.number} đã bị hủy</strong>
+          <p>
+            {refunded
+              ? `Đã hoàn ${refunded.toLocaleString('vi-VN')} coin bạn đặt.`
+              : 'Toàn bộ cược đã được hoàn, không ai mất coin.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+  // With auto-next the result phase lasts a few seconds; keep the previous outcome visible
+  // during the next betting phase so nobody misses their payout.
+  const r =
+    current?.status === 'RESULT'
+      ? current
+      : data.history.find(
+          (h) => h.status === 'RESULT' && current && h.number === current.number - 1,
+        );
+  if (!r) return null;
+  const previous = r !== current;
   const names = Object.fromEntries(data.members.map((m) => [m.user_id, m.name]));
   const standings = roundStandings(r, names),
     mine = standings.find((p) => p.user === actor),
     winner = standings.find((p) => p.net > 0);
+  if (previous && !mine) return null;
   return (
     <div
       key={r.id}
-      className={'bau-result-summary ' + (mine && mine.net > 0 ? 'is-win' : '')}
+      className={
+        'bau-result-summary ' +
+        (mine && mine.net > 0 ? 'is-win' : '') +
+        (previous ? ' is-previous' : '')
+      }
       role="status"
     >
       <Trophy size={24} />
       <div>
+        {previous && <small className="bau-result-caption">Vòng {r.number} vừa rồi</small>}
         <strong>
           {mine
             ? mine.net > 0

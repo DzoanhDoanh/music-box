@@ -266,7 +266,7 @@ test('other players bets stay visible live, including undo, full names and a fre
     await expect(dialog.getByRole('listitem')).toHaveCount(3);
     await expect(dialog).toContainText(longName);
     await expect(dialog).toContainText('Tổng 1.700 coin');
-    await guest.getByRole('button', { name: 'Hoàn cược Cua', exact: true }).click();
+    await guest.getByRole('button', { name: /^Hoàn toàn bộ .* vào Cua$/ }).click();
     await expect(dialog.getByRole('listitem')).toHaveCount(2, { timeout: 5000 });
     await expect(dialog).not.toContainText('Bình');
     await expect(dialog).toContainText('Tổng 1.100 coin');

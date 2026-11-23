@@ -27,6 +27,8 @@ import { RecommendationService } from './services/recommendations';
 import { wheelCommandSchema, type WheelSnapshot, type WheelResult } from '../shared/wheel';
 import { BauCuaService } from './services/bau-cua';
 import { commandSchema as bauCommandSchema } from '../shared/bau-cua/contracts';
+import { DuckRaceService } from './services/duck-race';
+import { duckCommandSchema } from '../shared/duck-race/contracts';
 
 type Services = {
   auth: AuthService;
@@ -38,6 +40,7 @@ type Services = {
   chat: ChatService;
   game: GameService;
   bau: BauCuaService;
+  duck: DuckRaceService;
   store: SupabaseRepository;
 };
 type Context = {
@@ -93,6 +96,7 @@ app.get('/api/v1/system/health', (c) =>
         : 'configuration_required',
     youtubeConfigured: Boolean(c.env.YOUTUBE_API_KEY),
     bauCuaEnabled: c.env.ENABLE_BAU_CUA === 'true',
+    duckRaceEnabled: c.env.ENABLE_DUCK_RACE === 'true',
     version: '0.1.0',
   }),
 );
@@ -119,6 +123,7 @@ app.use('/api/v1/*', async (c, next) => {
     chat: new ChatService(store, actor),
     game: new GameService(store, actor),
     bau: new BauCuaService(store, actor),
+    duck: new DuckRaceService(store, actor),
     store,
   });
   await next();
@@ -131,6 +136,48 @@ const pageNumber = (value?: string) =>
     .max(10000)
     .parse(value ?? 0);
 const requestKey = (value?: string) => uuid.parse(value);
+app.use('/api/v1/rooms/:id/duck-race', async (c, next) => {
+  if (c.env.ENABLE_DUCK_RACE !== 'true') throw new AppError('NOT_FOUND', 404);
+  await next();
+});
+app.use('/api/v1/rooms/:id/duck-race/*', async (c, next) => {
+  if (c.env.ENABLE_DUCK_RACE !== 'true') throw new AppError('NOT_FOUND', 404);
+  await next();
+});
+app.get('/api/v1/rooms/:id/duck-race', async (c) =>
+  c.json(await c.get('services').duck.list(uuid.parse(c.req.param('id')))),
+);
+app.post('/api/v1/rooms/:id/duck-race', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .duck.execute(
+        uuid.parse(c.req.param('id')),
+        null,
+        requestKey(c.req.header('Idempotency-Key')),
+        duckCommandSchema.parse(await c.req.json()),
+      ),
+  ),
+);
+app.get('/api/v1/rooms/:id/duck-race/:race', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .duck.read(uuid.parse(c.req.param('id')), uuid.parse(c.req.param('race'))),
+  ),
+);
+app.post('/api/v1/rooms/:id/duck-race/:race', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .duck.execute(
+        uuid.parse(c.req.param('id')),
+        uuid.parse(c.req.param('race')),
+        requestKey(c.req.header('Idempotency-Key')),
+        duckCommandSchema.parse(await c.req.json()),
+      ),
+  ),
+);
 app.use('/api/v1/rooms/:id/bau-cua', async (c, next) => {
   if (c.env.ENABLE_BAU_CUA !== 'true') throw new AppError('NOT_FOUND', 404);
   await next();
@@ -414,6 +461,7 @@ export default {
     const store = new SupabaseRepository(database(env));
     if (event.cron === '* * * * *') {
       if (env.ENABLE_LUDO === 'true') await settleDueGames(store);
+      if (env.ENABLE_DUCK_RACE === 'true') await store.call('duck_race_tick', {});
       return;
     }
     await new MaintenanceService(

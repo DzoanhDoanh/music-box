@@ -158,11 +158,11 @@ function Privacy() {
   );
 }
 createRoot(document.getElementById('root')!).render(
-  <Boundary>
+  <BrowserRouter>
     <QueryClientProvider client={client}>
-      <BrowserRouter>
+      <Boundary>
         <App />
-      </BrowserRouter>
+      </Boundary>
     </QueryClientProvider>
-  </Boundary>,
+  </BrowserRouter>,
 );

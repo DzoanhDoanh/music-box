@@ -241,6 +241,27 @@ export async function testBauCuaCases({ sql, check }) {
     },
   );
   await check(
+    'bau cancel applies a pending pause instead of carrying it to the next round',
+    async () => {
+      const s = await setup();
+      await s.start();
+      await s.cmd(s.owner, { action: 'pause' }, s.table);
+      let v = await s.read(s.owner, s.table);
+      assert.equal(v.table.pause_after_round, true);
+      v = await s.cmd(
+        s.owner,
+        { action: 'cancel', reason: 'Kiểm thử hủy khi chờ tạm dừng' },
+        s.table,
+      );
+      assert.equal(v.round.status, 'CANCELLED');
+      assert.equal(v.table.status, 'PAUSED');
+      assert.equal(v.table.pause_after_round, false);
+      await assert.rejects(s.cmd(s.owner, { action: 'start' }, s.table));
+      await s.cmd(s.owner, { action: 'resume' }, s.table);
+      assert.notEqual((await s.read(s.owner, s.table)).table.status, 'PAUSED');
+    },
+  );
+  await check(
     'bau dealer controls enforce minimum time, fallback, rotation and requested pause',
     async () => {
       const s = await setup({ dealerRounds: 1 }),

@@ -247,7 +247,8 @@ export default function BauParty({
   const [name, setName] = useState('Bầu cua cùng nhau'),
     [creating, setCreating] = useState(false),
     [chip, setChip] = useState(100),
-    [custom, setCustom] = useState('100');
+    [custom, setCustom] = useState('100'),
+    [typed, setTyped] = useState(false);
   const [low, setLow] = useState(() => {
       try {
         return localStorage.getItem('roomtune:bau:low') === 'true';
@@ -323,6 +324,19 @@ export default function BauParty({
     ? Math.max(0, Math.ceil((Date.parse(r.deadline) - clock - game.offset.current) / 1000))
     : null;
   const active = !!r && !['RESULT', 'CANCELLED'].includes(r.status);
+  const cancelled = r?.status === 'CANCELLED';
+  // A cancelled round may carry a revealed seed for auditing; it never has a result to show.
+  const dice = cancelled ? null : (r?.dice ?? null);
+  const presets = [
+    ...new Set([settings.minBet, 100, 500, 1000, 5000].filter((n) => n >= settings.minBet)),
+  ]
+    .filter((n) => n <= settings.maxBet)
+    .slice(0, 4);
+  // The default chip follows the table limits; a typed amount is kept so the hint can explain it.
+  const stake =
+    typed || (chip >= settings.minBet && chip <= settings.maxBet)
+      ? chip
+      : (presets[0] ?? settings.minBet);
   const canBet =
     !!me &&
     !me.spectator &&
@@ -330,24 +344,51 @@ export default function BauParty({
     m?.dealer_id !== actor &&
     r?.status === 'BETTING_OPEN' &&
     (seconds ?? 0) > 0;
-  const personal =
-    r?.bets.filter((b) => b.user_id === actor).reduce((n, b) => n + b.amount, 0) ?? 0;
+  const personal = cancelled
+    ? 0
+    : (r?.bets.filter((b) => b.user_id === actor).reduce((n, b) => n + b.amount, 0) ?? 0);
   const isDealer = m?.dealer_id === actor;
+  const betBlock = !canBet
+    ? null
+    : !Number.isSafeInteger(stake) || stake < settings.minBet || stake > settings.maxBet
+      ? `Mức cược phải từ ${money(settings.minBet)} đến ${money(settings.maxBet)} coin.`
+      : stake > data.wallet.available
+        ? `Không đủ coin khả dụng (còn ${money(data.wallet.available)}).`
+        : personal + stake > settings.playerLimit
+          ? `Bạn đã chạm giới hạn ${money(settings.playerLimit)} coin mỗi vòng.`
+          : (r?.stake_total ?? 0) + stake > settings.tableLimit
+            ? `Bàn đã chạm giới hạn ${money(settings.tableLimit)} coin mỗi vòng.`
+            : null;
+  const waitingReason =
+    m?.status === 'PAUSED'
+      ? data.canManage
+        ? 'Bàn đang tạm dừng. Mở “Quản lý bàn” để tiếp tục.'
+        : 'Bàn đang tạm dừng — chờ chủ phòng hoặc người điều hành tiếp tục.'
+      : !m?.dealer_id
+        ? 'Chưa có người cầm cái. Bấm “Đăng ký cầm cái” để bắt đầu.'
+        : (seconds ?? 0) > 0
+          ? `Vòng mới mở được sau ${seconds} giây.`
+          : isDealer
+            ? 'Bạn đang cầm cái — bấm “Sẵn sàng · Mở vòng” để bắt đầu.'
+            : `Đợi ${dealer?.name ?? 'người cầm cái'} mở vòng mới.`;
+  const dealerWait = r?.action_at
+    ? Math.max(0, Math.ceil((Date.parse(r.action_at) - clock - game.offset.current) / 1000))
+    : 0;
   const dealerActionReady =
     !!r?.action_at && clock + game.offset.current >= Date.parse(r.action_at);
   const outcome = (
     <div className="bau-results" aria-label="Kết quả ba viên xúc xắc" aria-live="polite">
       {[0, 1, 2].map((i) => (
         <span key={i}>
-          {r?.dice ? (
+          {dice ? (
             <>
-              <img src={symbolArtwork[symbols[r.dice[i]]]} alt="" width={28} height={30} />
-              <small>{symbolNames[symbols[r.dice[i]]]}</small>
+              <img src={symbolArtwork[symbols[dice[i]]]} alt="" width={28} height={30} />
+              <small>{symbolNames[symbols[dice[i]]]}</small>
             </>
           ) : (
             <>
-              <b>?</b>
-              <small>Chưa mở</small>
+              <b>{cancelled ? '–' : '?'}</b>
+              <small>{cancelled ? 'Đã hủy' : 'Chưa mở'}</small>
             </>
           )}
         </span>
@@ -360,8 +401,14 @@ export default function BauParty({
         'bau-bowl-2d ' + (r?.status === 'SHAKING' && !reduced && !skip ? 'bau-shaking' : '')
       }
     >
-      <span>{r?.dice ? '✨' : '🥣'}</span>
-      <small>{r?.dice ? 'Kết quả đã xác nhận' : 'Ba viên đang được giữ kín'}</small>
+      <span>{dice ? '✨' : '🥣'}</span>
+      <small>
+        {dice
+          ? 'Kết quả đã xác nhận'
+          : cancelled
+            ? 'Vòng đã hủy, cược đã hoàn'
+            : 'Ba viên đang được giữ kín'}
+      </small>
     </div>
   );
   return (
@@ -575,7 +622,9 @@ export default function BauParty({
                         disabled={busy || !dealerActionReady}
                         onClick={() => send({ action: 'shake' })}
                       >
-                        Lắc bát
+                        {!dealerActionReady && dealerWait > 0
+                          ? `Lắc bát sau ${dealerWait}s`
+                          : 'Lắc bát'}
                       </AsyncButton>
                     )}
                     {isDealer && m.status === 'SHAKING' && (
@@ -584,7 +633,9 @@ export default function BauParty({
                         disabled={busy || !dealerActionReady}
                         onClick={() => send({ action: 'reveal' })}
                       >
-                        Mở bát
+                        {!dealerActionReady && dealerWait > 0
+                          ? `Mở bát sau ${dealerWait}s`
+                          : 'Mở bát'}
                       </AsyncButton>
                     )}
                   </div>
@@ -596,7 +647,7 @@ export default function BauParty({
                     <SceneBoundary fallback={graphicsFallback}>
                       <Suspense fallback={graphicsFallback}>
                         <Scene
-                          dice={r?.dice ?? null}
+                          dice={dice}
                           phase={r?.status ?? m.status}
                           reduced={reduced || skip}
                         />
@@ -605,6 +656,7 @@ export default function BauParty({
                   )}
                   {outcome}
                 </div>
+                <BauResult data={data} actor={actor} />
                 <div className="bau-visual-controls">
                   <label>
                     <input
@@ -675,12 +727,16 @@ export default function BauParty({
                 ) : (
                   <div className="bau-chip-picker" aria-label="Chọn mức coin">
                     <span>Chọn chip</span>
-                    {[100, 500, 1000].map((n) => (
+                    {presets.map((n) => (
                       <button
                         key={n}
-                        aria-pressed={chip === n}
-                        onClick={() => setChip(n)}
-                        className={chip === n ? 'selected' : ''}
+                        aria-pressed={stake === n}
+                        onClick={() => {
+                          setChip(n);
+                          setCustom(String(n));
+                          setTyped(false);
+                        }}
+                        className={stake === n ? 'selected' : ''}
                       >
                         {money(n)}
                       </button>
@@ -695,6 +751,7 @@ export default function BauParty({
                           max={settings.maxBet}
                           onChange={(e) => {
                             setCustom(e.target.value);
+                            setTyped(true);
                             const n = Number(e.target.value);
                             setChip(Number.isSafeInteger(n) && n > 0 ? n : 0);
                           }}
@@ -707,10 +764,10 @@ export default function BauParty({
                 )}
                 <div className="bau-betting-grid">
                   {symbols.map((s, index) => {
-                    const bets = r?.bets.filter((b) => b.symbol === s) ?? [],
+                    const bets = cancelled ? [] : (r?.bets.filter((b) => b.symbol === s) ?? []),
                       mine = bets.find((b) => b.user_id === actor)?.amount ?? 0,
                       total = bets.reduce((n, b) => n + b.amount, 0),
-                      wins = r?.dice?.filter((n) => n === index).length ?? 0;
+                      wins = dice?.filter((n) => n === index).length ?? 0;
                     return (
                       <div
                         key={s}
@@ -720,17 +777,11 @@ export default function BauParty({
                       >
                         <AsyncButton
                           className="bau-symbol-button"
-                          disabled={
-                            busy ||
-                            !canBet ||
-                            chip > data.wallet.available ||
-                            chip < settings.minBet ||
-                            chip > settings.maxBet
-                          }
+                          disabled={busy || !canBet || !!betBlock}
                           onClick={() =>
-                            send({ action: 'bet', round: r!.id, symbol: s, amount: chip })
+                            send({ action: 'bet', round: r!.id, symbol: s, amount: stake })
                           }
-                          aria-label={`Đặt ${money(chip)} coin vào ${symbolNames[s]}`}
+                          aria-label={`Đặt ${money(stake)} coin vào ${symbolNames[s]}`}
                         >
                           <img
                             className="bau-symbol"
@@ -745,15 +796,17 @@ export default function BauParty({
                         </AsyncButton>
                         <div className="bau-my-stake">
                           <span>
-                            Của bạn <b>{money(mine)}</b>
+                            {active || cancelled || !r ? 'Của bạn' : 'Vòng vừa rồi'}{' '}
+                            <b>{money(mine)}</b>
                           </span>
                           {mine > 0 && settings.undoBet && canBet && (
                             <AsyncButton
                               disabled={busy}
                               onClick={() => send({ action: 'undo', round: r!.id, symbol: s })}
-                              aria-label={`Hoàn cược ${symbolNames[s]}`}
+                              aria-label={`Hoàn toàn bộ ${money(mine)} coin đã đặt vào ${symbolNames[s]}`}
+                              title="Hoàn toàn bộ cược ở ô này"
                             >
-                              Hoàn
+                              Hoàn {money(mine)}
                             </AsyncButton>
                           )}
                         </div>
@@ -766,12 +819,12 @@ export default function BauParty({
                   {isDealer
                     ? 'Bạn đang cầm cái; không đặt cược trong vòng của mình.'
                     : canBet
-                      ? `Bấm biểu tượng để đặt ${money(chip)} coin. Chờ thông báo nhận cược trước khi đặt tiếp.`
+                      ? (betBlock ??
+                        `Bấm biểu tượng để đặt ${money(stake)} coin. Chờ thông báo nhận cược trước khi đặt tiếp.`)
                       : active
                         ? 'Đã khóa cược. Hệ thống tiếp tục vòng kể cả khi người cầm cái mất mạng.'
-                        : 'Đợi người cầm cái mở vòng mới.'}
+                        : waitingReason}
                 </p>
-                <BauResult data={data} actor={actor} />
                 {settings.penaltyEnabled && (
                   <p
                     className={
@@ -852,14 +905,18 @@ export default function BauParty({
                             disabled={busy || m.status !== 'BETTING_LOCKED' || !dealerActionReady}
                             onClick={() => send({ action: 'shake' })}
                           >
-                            Lắc bát
+                            {m.status === 'BETTING_LOCKED' && !dealerActionReady && dealerWait > 0
+                              ? `Lắc bát sau ${dealerWait}s`
+                              : 'Lắc bát'}
                           </AsyncButton>
                           <AsyncButton
                             className="bau-primary-action"
                             disabled={busy || m.status !== 'SHAKING' || !dealerActionReady}
                             onClick={() => send({ action: 'reveal' })}
                           >
-                            Mở bát
+                            {m.status === 'SHAKING' && !dealerActionReady && dealerWait > 0
+                              ? `Mở bát sau ${dealerWait}s`
+                              : 'Mở bát'}
                           </AsyncButton>
                           <AsyncButton
                             disabled={busy || active}

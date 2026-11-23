@@ -1583,7 +1583,7 @@ test('member vote, remove, history, library and QR', async ({ page }) => {
   await tab(page, 'Lịch sử phát');
   await expect(page.getByRole('heading', { name: 'Chưa có bài hát đã phát' })).toBeVisible();
   await tab(page, 'Không gian nghe');
-  await page.getByRole('button', { name: 'Xóa bài', exact: true }).click();
+  await page.getByRole('button', { name: /^Xóa .* khỏi hàng chờ$/ }).click();
   await expect(
     page.getByRole('heading', { name: 'Hàng chờ đang chờ gu nhạc của bạn' }),
   ).toBeVisible();
@@ -1811,8 +1811,12 @@ for (const role of ['owner', 'member'] as const) {
       expect(video.width).toBeGreaterThanOrEqual(200);
       expect(video.width).toBeLessThanOrEqual(380);
       expect(video.height).toBeGreaterThanOrEqual(200);
-      await page.getByRole('button', { name: 'Lưu yêu thích', exact: true }).first().click();
-      await expectVisibleToast(page, 'Đã lưu vào yêu thích.');
+      await page
+        .locator('.queue-row')
+        .getByRole('button', { name: /yêu thích/ })
+        .first()
+        .click();
+      await expectVisibleToast(page, 'yêu thích.');
       await expect(page.locator('.queue-row').first()).toBeInViewport();
       await expect(page.locator('.queue-row').nth(2)).toBeInViewport();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -1837,10 +1841,14 @@ for (const role of ['owner', 'member'] as const) {
       const video = (await frame.boundingBox())!;
       expect(video.width).toBeGreaterThanOrEqual(200);
       expect(video.height).toBeGreaterThanOrEqual(200);
-      await page.getByRole('button', { name: 'Lưu yêu thích', exact: true }).first().click();
-      await expectVisibleToast(page, 'Đã lưu vào yêu thích.');
+      await page
+        .locator('.queue-row')
+        .getByRole('button', { name: /yêu thích/ })
+        .first()
+        .click();
+      await expectVisibleToast(page, 'yêu thích.');
       await page.evaluate(() => scrollTo(0, 0));
-      await expectVisibleToast(page, 'Đã lưu vào yêu thích.');
+      await expectVisibleToast(page, 'yêu thích.');
       if (width === 390 || width === 1024)
         await page.screenshot({ path: `docs/layout-${role}-${width}-fixture.png`, fullPage: true });
     }

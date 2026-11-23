@@ -3216,3 +3216,68 @@ body:has(.host-player, .listener-player .youtube-container) .theme-switch {
   width: 100%;
   min-width: 0;
 }
+
+/* Usability pass: invite actions, readable queue titles, room for floating buttons. */
+.qr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+@media (max-width: 640px) {
+  /* The theme switch and chat launcher float bottom-right; keep the last content reachable. */
+  .access-page,
+  .page-shell,
+  .dashboard-footer {
+    padding-bottom: 96px;
+  }
+  .queue-row .song-info > a,
+  .queue-row .song-info > strong {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    line-height: 1.35;
+  }
+}
+.button.favorite-active {
+  color: var(--accent);
+}
+@media (max-width: 640px) {
+  /* Keep "now playing" short so the queue starts higher on phones. */
+  .room-playback .now-playing {
+    padding: 14px;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .room-playback .now-art {
+    width: 56px;
+    height: 56px;
+  }
+  .room-playback .now-info h2 {
+    font-size: 16px;
+    margin: 6px 0 4px;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+  .room-playback .now-meta {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin-top: 6px;
+  }
+  .room-playback .playback-mode-note {
+    margin-top: 8px;
+  }
+}
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}

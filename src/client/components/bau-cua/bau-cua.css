@@ -1232,3 +1232,36 @@
     transition: none !important;
   }
 }
+
+/* Usability pass: cancelled/previous result states and touch-sized controls. */
+.bau-result-summary.is-cancelled {
+  border-style: dashed;
+}
+.bau-result-summary.is-cancelled svg {
+  color: var(--muted);
+}
+.bau-result-summary.is-previous {
+  opacity: 0.88;
+  animation: none;
+}
+.bau-result-caption {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+@media (max-width: 600px) {
+  .bau-my-stake {
+    font-size: 11px;
+  }
+  .bau-my-stake .button {
+    min-height: 40px;
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+  .bau-chip-picker button {
+    min-height: 40px;
+  }
+}

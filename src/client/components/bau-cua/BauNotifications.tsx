@@ -40,12 +40,13 @@ export default function BauNotifications({ room, actor }: { room: string; actor:
     };
   }, [room, actor, key, client]);
   useEffect(() => {
-    if (!query.data) return;
+    // A background notice feed must never take down the room screen.
+    if (!Array.isArray(query.data)) return;
     for (const p of query.data) {
       if (seen.initialized && !seen.ids.has(p.id)) {
         toast.info(
           p.status === 'APPLIED'
-            ? `${p.name} hết coin theo luật Bầu Cua. Đã gỡ ${p.songs.length} bài đang chờ.`
+            ? `${p.name} hết coin theo luật Bầu Cua. Đã gỡ ${p.songs?.length ?? 0} bài đang chờ.`
             : `${p.name} hết coin; không có bài đang chờ phù hợp để gỡ.`,
           { id: `bau-penalty:${actor}:${p.id}` },
         );
