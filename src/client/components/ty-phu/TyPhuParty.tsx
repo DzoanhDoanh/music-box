@@ -34,7 +34,7 @@ import {
 } from '../../../shared/ty-phu/engine';
 import { asEngineState, openRematch, useTyPhu, useTyPhuList } from '../../lib/ty-phu';
 import { AsyncButton, Button, Confirm, ErrorState, Loading } from '../ui';
-import TyPhuBoard, { colorNames, playerColors, stripColor } from './TyPhuBoard';
+import TyPhuBoard, { colorNames, Dice3D, playerColors, stripColor } from './TyPhuBoard';
 import '../game/game.css';
 import './ty-phu.css';
 
@@ -292,17 +292,10 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
               seconds !== null && <b className={seconds <= 10 ? 'urgent' : ''}> · {seconds}s</b>
             )}
           </span>
-          <div
-            className="typhu-dice"
-            role="img"
-            aria-label={state.dice ? `Xúc xắc ${state.dice.join(' và ')}` : 'Chưa tung'}
-          >
-            {(state.dice ?? [0, 0]).map((d, i) => (
-              <span key={i} className="typhu-die">
-                {d || '?'}
-              </span>
-            ))}
-          </div>
+          <Dice3D
+            dice={state.dice}
+            roll={String([...state.log].reverse().find((e) => e.type === 'roll')?.at ?? '')}
+          />
           <small className="typhu-last">{state.log.at(-1)?.text}</small>
         </>
       ) : state.status === 'FINISHED' ? (
