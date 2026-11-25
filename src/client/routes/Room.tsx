@@ -55,6 +55,7 @@ const HostPlayer = lazy(() => import('../components/HostPlayer')),
   GameHub = lazy(() => import('../components/game/GameHub')),
   BauParty = lazy(() => import('../components/bau-cua/BauParty')),
   DuckParty = lazy(() => import('../components/duck-race/DuckParty')),
+  TyPhuParty = lazy(() => import('../components/ty-phu/TyPhuParty')),
   BauNotifications = lazy(() => import('../components/bau-cua/BauNotifications')),
   LuckyWheel = lazy(() => import('../components/LuckyWheel')),
   ListenerPlayer = lazy(() => import('../components/ListenerPlayer')),
@@ -65,6 +66,7 @@ const HostPlayer = lazy(() => import('../components/HostPlayer')),
 const ludoEnabled = import.meta.env.VITE_ENABLE_LUDO === 'true';
 const bauEnabled = import.meta.env.VITE_ENABLE_BAU_CUA === 'true';
 const duckEnabled = import.meta.env.VITE_ENABLE_DUCK_RACE === 'true';
+const tyPhuEnabled = import.meta.env.VITE_ENABLE_TY_PHU === 'true';
 const wheelEnabled = import.meta.env.VITE_ENABLE_WHEEL === 'true';
 export default function RoomPage() {
   const [hostVisible, setHostVisible] = useState(false);
@@ -88,9 +90,12 @@ export default function RoomPage() {
   });
   const [roomCode, setRoomCode] = useState('');
   const gamePage =
-    (ludoEnabled || bauEnabled || duckEnabled) && route.pathname.startsWith(`/room/${id}/games`);
+    (ludoEnabled || bauEnabled || duckEnabled || tyPhuEnabled) &&
+    route.pathname.startsWith(`/room/${id}/games`);
   const duckRoute = matchPath('/room/:id/games/duck-race/:race?', route.pathname);
   const duckPage = duckEnabled && !!duckRoute;
+  const tyPhuRoute = matchPath('/room/:id/games/ty-phu/:game?', route.pathname);
+  const tyPhuPage = tyPhuEnabled && !!tyPhuRoute;
   const bauRoute = matchPath('/room/:id/games/bau-cua/:table?', route.pathname);
   const bauPage = bauEnabled && !!bauRoute;
   const gameLobby = gamePage && route.pathname.replace(/\/$/, '') === `/room/${id}/games`;
@@ -173,7 +178,7 @@ export default function RoomPage() {
     { id: 'search', label: 'Tìm & thêm bài', icon: Search },
     { id: 'library', label: 'Thư viện của tôi', icon: Heart },
     { id: 'history', label: 'Lịch sử phát', icon: History },
-    ...(ludoEnabled || bauEnabled || duckEnabled
+    ...(ludoEnabled || bauEnabled || duckEnabled || tyPhuEnabled
       ? [{ id: 'games' as const, label: 'Trò chơi', icon: Gamepad2 }]
       : []),
     ...(wheelEnabled
@@ -578,7 +583,18 @@ export default function RoomPage() {
             <div className="room-content">
               <ReorderVotePanel snapshot={snapshot} execute={send} />
               {gameLobby && (
-                <GamePicker room={id} ludo={ludoEnabled} bau={bauEnabled} duck={duckEnabled} />
+                <GamePicker
+                  room={id}
+                  ludo={ludoEnabled}
+                  bau={bauEnabled}
+                  duck={duckEnabled}
+                  tyPhu={tyPhuEnabled}
+                />
+              )}
+              {tyPhuPage && (
+                <Suspense fallback={<Loading />}>
+                  <TyPhuParty snapshot={snapshot} game={tyPhuRoute.params.game ?? null} />
+                </Suspense>
               )}
               {duckPage && (
                 <Suspense fallback={<Loading />}>
@@ -603,7 +619,7 @@ export default function RoomPage() {
                   <GameHub
                     key={playerKey}
                     snapshot={snapshot}
-                    visible={tab === 'games' && !bauPage && !duckPage}
+                    visible={tab === 'games' && !bauPage && !duckPage && !tyPhuPage}
                     onShow={() => setTab('games')}
                   />
                 </Suspense>

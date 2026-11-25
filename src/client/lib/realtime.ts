@@ -55,6 +55,9 @@ export class RealtimeService {
   subscribeDuck(race: string, actor: string, callbacks: Partial<RoomSubscription>): () => void {
     return this.watch('duck:' + race, actor, callbacks, false);
   }
+  subscribeTyPhu(game: string, actor: string, callbacks: Partial<RoomSubscription>): () => void {
+    return this.watch('typhu:' + game, actor, callbacks, false);
+  }
   subscribeNotices(room: string, actor: string, callbacks: Partial<RoomSubscription>): () => void {
     return this.watch(room, actor, callbacks, false);
   }
@@ -167,9 +170,12 @@ export class RealtimeService {
     };
     const start = () => {
       if (entry.stopped) return;
-      const channel = this.client.channel(/^(game|bau|duck):/.test(room) ? room : `room:${room}`, {
-        config: { private: true, presence: { key: actor } },
-      });
+      const channel = this.client.channel(
+        /^(game|bau|duck|typhu):/.test(room) ? room : `room:${room}`,
+        {
+          config: { private: true, presence: { key: actor } },
+        },
+      );
       entry.channel = channel;
       channel
         .on('broadcast', { event: 'room.updated' }, ({ payload }) => {
@@ -201,6 +207,13 @@ export class RealtimeService {
         .on('broadcast', { event: 'duck.updated' }, ({ payload }) => {
           if (!entry.stopped && typeof payload?.version === 'number')
             for (const { callbacks } of entry.observers) callbacks.onVersion?.(payload.version);
+        })
+        .on('broadcast', { event: 'ty_phu.updated' }, ({ payload }) => {
+          if (!entry.stopped && typeof payload?.version === 'number')
+            for (const { callbacks } of entry.observers) callbacks.onVersion?.(payload.version);
+        })
+        .on('broadcast', { event: 'ty_phu.list' }, () => {
+          if (!entry.stopped) for (const { callbacks } of entry.observers) callbacks.onGames?.();
         })
         .on('broadcast', { event: 'duck.reaction' }, ({ payload }) => {
           if (

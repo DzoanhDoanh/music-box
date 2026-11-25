@@ -48,6 +48,9 @@
 .game-picker-card.is-bau {
   --tint: #f2617a;
 }
+.game-picker-card.is-typhu {
+  --tint: #ef9f27;
+}
 .game-picker-card.is-ludo {
   --tint: #b49af7;
 }

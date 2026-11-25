@@ -87,7 +87,7 @@ export async function api<T>(
     !body ||
     path === '/rooms' ||
     path === '/library' ||
-    /^\/rooms\/[\w-]+\/(commands|chat|wheel|games(?:\/[\w-]+)?)$/.test(path);
+    /^\/rooms\/[\w-]+\/(commands|chat|wheel|games(?:\/[\w-]+)?|ty-phu(?:\/[\w-]+)?)$/.test(path);
   return withRetry(
     async () => {
       if (!navigator.onLine) throw new AppError('OFFLINE');

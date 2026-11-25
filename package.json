@@ -34,6 +34,7 @@
     "test:db:ty-phu": "node scripts/test-ty-phu.mjs",
     "test:e2e:duck": "node scripts/test-duck-browser.mjs",
     "test:e2e:bau": "playwright test --config playwright.bau.config.ts",
+    "test:e2e:ty-phu": "playwright test --config playwright.typhu.config.ts",
     "deploy": "pnpm build && wrangler deploy",
     "db:start": "supabase start",
     "db:migrate": "supabase db push",

@@ -21,13 +21,30 @@ export default function GamePicker({
   ludo,
   bau,
   duck,
+  tyPhu = false,
 }: {
   room: string;
   ludo: boolean;
   bau: boolean;
   duck: boolean;
+  tyPhu?: boolean;
 }) {
   const games: Game[] = [
+    ...(tyPhu
+      ? [
+          {
+            key: 'typhu',
+            name: 'Tỷ Phú Phố Nhạc',
+            art: '🏙️',
+            tag: 'Cờ tỷ phú',
+            pitch: 'Đi từ Hà Giang vào Sài Gòn, mua đất, xây khách sạn và tổ chức Đại nhạc hội.',
+            players: '2–4 người',
+            length: '20–40 phút',
+            cta: 'Vào sảnh',
+            to: `/room/${room}/games/ty-phu`,
+          },
+        ]
+      : []),
     ...(duck
       ? [
           {

@@ -1,0 +1,545 @@
+.typhu-party {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.typhu-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #ef9f27;
+}
+.typhu-hero h1 {
+  font-size: clamp(26px, 3.4vw, 38px);
+  margin: 6px 0;
+}
+.typhu-hero p {
+  color: var(--muted);
+  max-width: 720px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.typhu-card {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.typhu-card h2 {
+  font-size: 15px;
+}
+.typhu-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.typhu-card label.typhu-check,
+.typhu-match-head .typhu-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.typhu-form-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.typhu-lobby-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+  align-items: start;
+}
+.typhu-table-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.typhu-table-list a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--text);
+  text-decoration: none;
+}
+.typhu-table-list a:hover,
+.typhu-table-list a:focus-visible {
+  border-color: #ef9f27;
+}
+.typhu-table-list small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.typhu-seats {
+  display: flex;
+  gap: 4px;
+}
+.typhu-seats i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.typhu-enter {
+  grid-row: 1 / span 3;
+  grid-column: 2;
+  align-self: center;
+  font-size: 12px;
+  color: #ef9f27;
+}
+
+/* ---------------------------------------------------------------- match */
+.typhu-match-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.typhu-match-head > div {
+  flex: 1;
+  min-width: 0;
+}
+.typhu-match-head h1 {
+  font-size: 22px;
+}
+.typhu-match-head small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.typhu-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 18px;
+  align-items: start;
+}
+.typhu-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------- board */
+.typhu-board-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+}
+.typhu-board {
+  display: grid;
+  grid-template-columns: 1.3fr repeat(7, minmax(0, 1fr)) 1.3fr;
+  grid-template-rows: 1.3fr repeat(7, minmax(0, 1fr)) 1.3fr;
+  gap: 3px;
+  aspect-ratio: 1;
+  padding: 6px;
+  background: var(--line);
+  border-radius: 12px;
+}
+.typhu-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.15;
+  text-align: left;
+  cursor: pointer;
+}
+.typhu-tile.owned {
+  box-shadow: inset 0 0 0 2px var(--owner);
+}
+.typhu-tile.corner {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: var(--soft);
+  font-weight: 600;
+}
+.typhu-corner-icon {
+  font-size: 22px;
+}
+.typhu-strip {
+  display: block;
+  height: 7px;
+  flex-shrink: 0;
+}
+.typhu-tile-name {
+  padding: 2px 3px 0;
+  font-weight: 600;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.typhu-price {
+  margin-top: auto;
+  padding: 0 3px 2px;
+  color: var(--muted);
+}
+.typhu-levels {
+  display: flex;
+  gap: 2px;
+  margin-top: auto;
+  padding: 0 3px 3px;
+  font-size: 12px;
+}
+.typhu-levels b {
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: var(--owner);
+}
+.typhu-festival,
+.typhu-blackout {
+  position: absolute;
+  top: 8px;
+  right: 2px;
+  font-size: 12px;
+}
+.typhu-blackout {
+  right: 16px;
+}
+.typhu-tokens {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px;
+  max-width: 100%;
+}
+.typhu-tokens i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--panel);
+}
+.typhu-tokens i.active {
+  animation: typhu-bob 1s ease-in-out infinite alternate;
+}
+.typhu-tile.selectable {
+  outline: 2px solid #ef9f27;
+  outline-offset: -2px;
+  animation: typhu-pulse 1.2s ease-in-out infinite alternate;
+}
+.typhu-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.typhu-center {
+  grid-column: 2 / 9;
+  grid-row: 2 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, #1d9e75 14%, var(--panel));
+  min-width: 0;
+}
+.typhu-center-floor {
+  grid-column: 2 / 9;
+  grid-row: 2 / 9;
+  border-radius: 8px;
+  background: color-mix(in srgb, #1d9e75 14%, var(--panel));
+}
+.typhu-center-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 10px;
+  max-width: 280px;
+}
+.typhu-turn {
+  font-weight: 700;
+  font-size: 14px;
+}
+.typhu-turn b.urgent {
+  color: var(--danger);
+}
+.typhu-dice {
+  display: flex;
+  gap: 10px;
+}
+.typhu-die {
+  width: 42px;
+  height: 42px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: #e24b4a;
+  font-size: 22px;
+  font-weight: 700;
+}
+.typhu-last {
+  color: var(--muted);
+  font-size: 11px;
+}
+.typhu-winner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #ef9f27;
+}
+.typhu-winner strong {
+  color: var(--text);
+  font-size: 18px;
+}
+.typhu-winner small {
+  color: var(--muted);
+}
+
+/* Tilted board: wide screens only; the centre controls float upright. */
+@media (min-width: 900px) {
+  /* Sized from the column width: the rotated diamond is ~1.41× wide and ~0.81× tall. */
+  .typhu-board-wrap.tilted {
+    container-type: inline-size;
+    aspect-ratio: 1 / 0.62;
+    max-height: 480px;
+    max-width: none;
+  }
+  .typhu-board-wrap.tilted .typhu-board {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: min(500px, 68cqw);
+    transform: translate(-50%, -50%) rotateX(55deg) rotateZ(45deg);
+  }
+  .typhu-board-wrap.tilted .typhu-center-upright {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: none;
+  }
+}
+@media (max-width: 899px) {
+  .typhu-center-upright,
+  .typhu-match-head .typhu-check {
+    display: none;
+  }
+  .typhu-board-wrap.tilted .typhu-center-floor {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------- side panels */
+.typhu-actions p {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.typhu-my-turn {
+  border-color: #ef9f27;
+}
+.typhu-buttons,
+.typhu-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.typhu-options .button {
+  flex: 1 1 140px;
+}
+.typhu-pick-hint {
+  color: #ef9f27;
+  font-weight: 600;
+}
+.typhu-chance {
+  border: 1px dashed #ef9f27;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: typhu-flip 0.5s ease-out;
+}
+.typhu-chance span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.typhu-surrender {
+  align-self: flex-start;
+  font-size: 12px;
+}
+.typhu-players ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.typhu-players li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 8px;
+  border-radius: 10px;
+}
+.typhu-players li.active {
+  background: var(--soft);
+}
+.typhu-players li.bankrupt,
+.typhu-players li.left {
+  opacity: 0.55;
+}
+.typhu-players li > i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-top: 2px;
+}
+.typhu-players strong {
+  display: block;
+  font-size: 13px;
+}
+.typhu-players small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.typhu-players b {
+  font-size: 14px;
+}
+.typhu-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.typhu-detail {
+  position: relative;
+  overflow: hidden;
+}
+.typhu-detail > .typhu-strip {
+  position: absolute;
+  inset: 0 0 auto;
+}
+.typhu-detail header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.typhu-detail table {
+  width: 100%;
+  font-size: 12px;
+  border-collapse: collapse;
+}
+.typhu-detail td {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+.typhu-detail td:last-child {
+  text-align: right;
+}
+.typhu-detail tr.current td {
+  color: #ef9f27;
+  font-weight: 700;
+}
+.typhu-detail p,
+.typhu-log li {
+  font-size: 12px;
+}
+.typhu-log ol {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+}
+
+@keyframes typhu-pulse {
+  from {
+    filter: brightness(1);
+  }
+  to {
+    filter: brightness(1.25);
+  }
+}
+@keyframes typhu-bob {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-2px);
+  }
+}
+@keyframes typhu-flip {
+  from {
+    transform: rotateY(90deg);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .typhu-tile.selectable,
+  .typhu-tokens i.active,
+  .typhu-chance {
+    animation: none;
+  }
+}
+@media (max-width: 1100px) {
+  .typhu-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .typhu-lobby-grid,
+  .typhu-form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .typhu-board {
+    gap: 2px;
+    padding: 3px;
+  }
+  .typhu-tile {
+    font-size: 8px;
+  }
+  .typhu-strip {
+    height: 5px;
+  }
+  .typhu-price {
+    display: none;
+  }
+  .typhu-corner-icon {
+    font-size: 16px;
+  }
+  .typhu-die {
+    width: 32px;
+    height: 32px;
+    font-size: 17px;
+  }
+  .typhu-center-inner {
+    gap: 6px;
+    padding: 4px;
+  }
+  .typhu-last {
+    display: none;
+  }
+}

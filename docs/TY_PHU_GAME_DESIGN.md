@@ -344,6 +344,16 @@ Bước 2 đã xong (25/11/2026):
 - Kiểm thử: `npm run test:db:ty-phu` qua 9 nhóm trên PostgreSQL thật; test HTTP ở
   `tests/integration/ty-phu-api.test.ts`.
 
+Bước 3 đã xong (25/11/2026):
+
+- Giao diện ở `src/client/components/ty-phu/`, route `/room/:id/games/ty-phu/:game?`, thẻ
+  thứ 4 trong màn chọn game.
+- Bàn nghiêng trên màn hình rộng (tắt được), bàn phẳng trên điện thoại.
+- Bảng thao tác theo từng giai đoạn: mua kèm xây theo vòng, xây, mua lại, chọn mục tiêu
+  phiếu, Đại nhạc hội, Xuất phát, Sân bay, nhà tù.
+- Người chơi kèm tiến độ thắng; thẻ chi tiết từng ô; nhật ký ván.
+- E2E: `npm run test:e2e:ty-phu` (desktop + mobile, chạy engine thật trong server giả lập).
+
 1. **Engine + test:** bàn cờ, luật, 8 loại thẻ, mua lại, 5 điều kiện thắng, nợ/phá sản,
    hết giờ; mô phỏng 1.000 ván để chắc ván không kẹt và tổng tiền luôn khớp.
 2. **Database + API:** migration, service, route; test database thật cục bộ.
