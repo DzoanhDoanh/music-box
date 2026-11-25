@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Crown, Dices, Flag, Plus, Users } from 'lucide-react';
+import { ArrowLeft, Bot, Crown, Dices, Flag, Plus, RotateCcw, Users, X } from 'lucide-react';
 import type { Snapshot } from '../../../shared/contracts';
 import {
   AIRPORT_INDEX,
@@ -32,7 +32,7 @@ import {
   currentPrice,
   winProgress,
 } from '../../../shared/ty-phu/engine';
-import { asEngineState, useTyPhu, useTyPhuList } from '../../lib/ty-phu';
+import { asEngineState, openRematch, useTyPhu, useTyPhuList } from '../../lib/ty-phu';
 import { AsyncButton, Button, Confirm, ErrorState, Loading } from '../ui';
 import TyPhuBoard, { colorNames, playerColors, stripColor } from './TyPhuBoard';
 import '../game/game.css';
@@ -286,7 +286,11 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
         <>
           <span className="typhu-turn" style={{ color: playerColors[current.color] }}>
             {current.id === me ? 'Lượt của bạn' : `Lượt của ${current.name}`}
-            {seconds !== null && <b className={seconds <= 10 ? 'urgent' : ''}> · {seconds}s</b>}
+            {current.bot ? (
+              <b> · đang nghĩ…</b>
+            ) : (
+              seconds !== null && <b className={seconds <= 10 ? 'urgent' : ''}> · {seconds}s</b>
+            )}
           </span>
           <div
             className="typhu-dice"
@@ -369,7 +373,7 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
             giftTile={giftTile}
             clearGift={() => setGiftTile(null)}
           />
-          <Players state={state} me={me} />
+          <Players state={state} me={me} send={send} pending={pending} />
           {detail !== null && (
             <TileDetail state={state} index={detail} onClose={() => setDetail(null)} />
           )}
@@ -449,8 +453,19 @@ function ActionPanel({
             {mine.ready ? 'Hủy sẵn sàng' : 'Tôi đã sẵn sàng'}
           </AsyncButton>
         )}
+        {host && state.players.length < 4 && (
+          <AsyncButton
+            variant="secondary"
+            disabled={pending}
+            onClick={() => send({ action: 'add_bot' })}
+          >
+            <Bot size={16} /> Thêm máy
+          </AsyncButton>
+        )}
         {host && !canStart && (
-          <small className="muted">Cần ít nhất 2 người và mọi người bấm sẵn sàng.</small>
+          <small className="muted">
+            Cần ít nhất 2 người và mọi người bấm sẵn sàng. Thiếu người thì thêm máy để chơi cùng.
+          </small>
         )}
         {mine && (
           <AsyncButton variant="ghost" disabled={pending} onClick={() => send({ action: 'leave' })}>
@@ -473,6 +488,7 @@ function ActionPanel({
         {mine && mine.status !== 'ACTIVE' && state.status === 'PLAYING' && (
           <p className="muted">Bạn đã rời cuộc chơi; vẫn có thể theo dõi ván.</p>
         )}
+        {state.status === 'FINISHED' && <Rematch state={state} me={me} send={send} />}
       </section>
     );
   }
@@ -793,7 +809,63 @@ function Surrender({
   );
 }
 
-function Players({ state, me }: { state: TyPhuPublicState; me: string }) {
+function Rematch({
+  state,
+  me,
+  send,
+}: {
+  state: TyPhuPublicState;
+  me: string;
+  send: ReturnType<typeof useTyPhu>['send'];
+}) {
+  const navigate = useNavigate();
+  const path = (id: string) => `/room/${state.room}/games/ty-phu/${id}`;
+  if (state.rematch)
+    return (
+      <Button asChild variant="primary">
+        <Link to={path(state.rematch)}>
+          <RotateCcw size={16} /> Vào ván mới
+        </Link>
+      </Button>
+    );
+  if (state.host !== me)
+    return <p className="muted">Chủ bàn có thể mở ván mới với cùng luật chơi.</p>;
+  return (
+    <AsyncButton
+      variant="primary"
+      onClick={async () => {
+        const id = await openRematch(state.room, me, state);
+        // Linking is best effort: the new table is already open in the list.
+        await send({ action: 'rematch', game: id });
+        navigate(path(id));
+      }}
+    >
+      <RotateCcw size={16} /> Chơi lại
+    </AsyncButton>
+  );
+}
+
+/** What a player still needs for an instant win, when it is a single step away. */
+function nearWin(progress: ReturnType<typeof winProgress>) {
+  const hints: string[] = [];
+  if (progress.monopolies === 2) hints.push('1 monopoly nữa');
+  if (progress.beaches === 3) hints.push('1 bãi biển nữa');
+  const line = progress.lines.find((l) => l.total - l.owned === 1);
+  if (line) hints.push(`1 ô nữa đủ dãy chặng ${line.side}`);
+  return hints;
+}
+
+function Players({
+  state,
+  me,
+  send,
+  pending,
+}: {
+  state: TyPhuPublicState;
+  me: string;
+  send: ReturnType<typeof useTyPhu>['send'];
+  pending: boolean;
+}) {
   const engine = asEngineState(state);
   return (
     <section className="typhu-card typhu-players" aria-label="Người chơi">
@@ -804,6 +876,8 @@ function Players({ state, me }: { state: TyPhuPublicState; me: string }) {
           const bestLine = progress.lines.reduce((best, l) =>
             l.owned / l.total > best.owned / best.total ? l : best,
           );
+          const close =
+            state.status === 'PLAYING' && p.status === 'ACTIVE' ? nearWin(progress) : [];
           return (
             <li
               key={p.id}
@@ -817,6 +891,7 @@ function Players({ state, me }: { state: TyPhuPublicState; me: string }) {
               <div>
                 <strong>
                   {p.name}
+                  {p.bot ? ' 🤖' : ''}
                   {p.id === me ? ' (bạn)' : ''}
                   {p.id === state.host ? ' 👑' : ''}
                 </strong>
@@ -826,11 +901,16 @@ function Players({ state, me }: { state: TyPhuPublicState; me: string }) {
                     : p.status === 'LEFT'
                       ? 'Đã rời ván'
                       : state.status === 'WAITING'
-                        ? p.ready || p.id === state.host
-                          ? 'Sẵn sàng'
-                          : 'Chưa sẵn sàng'
-                        : `Vòng ${p.lap}${p.jailed ? ' · trong tù' : ''}${p.auto ? ' · máy chơi thay' : ''}`}
+                        ? p.bot
+                          ? 'Máy · luôn sẵn sàng'
+                          : p.ready || p.id === state.host
+                            ? 'Sẵn sàng'
+                            : 'Chưa sẵn sàng'
+                        : `Vòng ${p.lap}${p.jailed ? ' · trong tù' : ''}${p.auto && !p.bot ? ' · máy chơi thay' : ''}`}
                 </small>
+                {close.length > 0 && (
+                  <span className="typhu-near-win">🔥 Sắp thắng: {close.join(', ')}</span>
+                )}
                 {state.status !== 'WAITING' && p.status === 'ACTIVE' && (
                   <span className="typhu-progress">
                     <span title="Monopoly">🏘️ {progress.monopolies}/3</span>
@@ -845,7 +925,19 @@ function Players({ state, me }: { state: TyPhuPublicState; me: string }) {
                   </span>
                 )}
               </div>
-              <b>{money(p.cash)}</b>
+              {p.bot && state.status === 'WAITING' && state.host === me ? (
+                <Button
+                  variant="ghost"
+                  className="typhu-remove-bot"
+                  aria-label={`Bỏ ${p.name}`}
+                  disabled={pending}
+                  onClick={() => void send({ action: 'remove_bot', player: p.id })}
+                >
+                  <X size={15} />
+                </Button>
+              ) : (
+                <b>{money(p.cash)}</b>
+              )}
             </li>
           );
         })}

@@ -35,6 +35,9 @@ export const tyPhuCommandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('surrender') }).strict(),
   z.object({ action: z.literal('sell'), tile: tileIndex }).strict(),
   z.object({ action: z.literal('declare_bankrupt') }).strict(),
+  z.object({ action: z.literal('add_bot') }).strict(),
+  z.object({ action: z.literal('remove_bot'), player: z.uuid() }).strict(),
+  z.object({ action: z.literal('rematch'), game: z.uuid() }).strict(),
 ]);
 export type TyPhuCommand = z.infer<typeof tyPhuCommandSchema>;
 
@@ -63,6 +66,8 @@ export type TyPhuPlayer = {
   /** Next turn starts at the airport with a free choice of destination. */
   flyNext: boolean;
   freeFly: boolean;
+  /** Computer seat added by the host; always plays automatically. */
+  bot?: boolean;
 };
 export type TyPhuTileState = { owner: string; level: number; blackout: number };
 export type TyPhuPhase =
@@ -105,6 +110,8 @@ export type TyPhuState = {
   extraRoll: boolean;
   /** Outstanding payment while phase is DEBT; absent in games saved before this rule. */
   debt?: TyPhuDebt | null;
+  /** The follow-up table the host opened after this game ended. */
+  rematch?: string | null;
   /** Remaining chance cards in order. Server-only: never sent to clients. */
   deck: CardId[];
   /** Net bank balance: Σ cash + bank always equals the money handed out at the start. */
@@ -151,6 +158,7 @@ export const tyPhuPlayerSchema = z.object({
   fine: z.boolean(),
   flyNext: z.boolean(),
   freeFly: z.boolean(),
+  bot: z.boolean().optional(),
 });
 export const tyPhuStateSchema = z.object({
   schema: z.literal(1),
@@ -204,6 +212,7 @@ export const tyPhuStateSchema = z.object({
     })
     .nullable()
     .optional(),
+  rematch: uuidOrNull.optional(),
   deck: z.array(cardIdSchema).max(15),
   bank: z.number().int(),
   deadline: z.number().nullable(),

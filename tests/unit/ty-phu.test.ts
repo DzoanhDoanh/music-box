@@ -16,6 +16,7 @@ import type { TyPhuCommand, TyPhuState } from '../../src/shared/ty-phu/contracts
 import {
   bankSalePrice,
   baseRent,
+  botIds,
   buildCap,
   buildCost,
   buyoutPrice,
@@ -446,6 +447,93 @@ describe('Tỷ Phú win conditions', () => {
   });
 });
 
+describe('Tỷ Phú computer seats and rematch', () => {
+  const lobby = () =>
+    createTyPhuState('10000000-0000-4000-8000-000000000001', 'room', A, 'An', 'Bàn thử', {
+      startCash: 2000,
+      turnSeconds: 45,
+      minutes: null,
+      buyout: true,
+    });
+  it('only the host adds or removes computer seats, which are always ready', () => {
+    let s = lobby();
+    s = run(s, B, { action: 'join' });
+    expect(code(() => run(s, B, { action: 'add_bot' }))).toBe('PERMISSION_DENIED');
+    s = run(s, A, { action: 'add_bot' });
+    s = run(s, A, { action: 'add_bot' });
+    const bots = s.players.filter((p) => p.bot);
+    expect(bots.map((p) => p.id)).toEqual(botIds.slice(0, 2));
+    expect(bots.every((p) => p.ready && p.auto)).toBe(true);
+    expect(code(() => run(s, A, { action: 'add_bot' }))).toBe('TYPHU_SEAT_TAKEN');
+    expect(code(() => run(s, A, { action: 'remove_bot', player: B }))).toBe('TYPHU_BAD_TARGET');
+    s = run(s, A, { action: 'remove_bot', player: botIds[0] });
+    expect(s.players.map((p) => p.id)).toEqual([A, B, botIds[1]]);
+  });
+  it('a host can start against the computer alone, and the bot keeps playing itself', () => {
+    let s = lobby();
+    s = run(s, A, { action: 'add_bot' });
+    s = run(s, A, { action: 'start' });
+    expect(s.status).toBe('PLAYING');
+    const bot = who(s, botIds[0]);
+    expect(bot.bot && bot.auto).toBe(true);
+    // Hand the turn to the bot: its deadline is short and the server moves for it.
+    s.turn = bot.id;
+    s.phase = 'ROLL';
+    s.deadline = 0;
+    s = reconcile(s, 10, scripted([1, 2]));
+    expect(who(s, bot.id).position).toBe(3);
+    expect(who(s, bot.id).misses).toBe(0);
+  });
+  it('a bot buys and builds within the lap limit but keeps a cash reserve', () => {
+    let s = lobby();
+    s = run(s, A, { action: 'add_bot' });
+    s = run(s, A, { action: 'start' });
+    const bot = who(s, botIds[0]);
+    bot.position = 22;
+    s.turn = bot.id;
+    s.phase = 'BUY';
+    s.pending = { tile: 22 };
+    s.deadline = 0;
+    s = reconcile(s, 10, scripted());
+    expect(s.tiles[22]).toMatchObject({ owner: bot.id, level: 2 });
+    let poor = run(lobby(), A, { action: 'add_bot' });
+    poor = run(poor, A, { action: 'start' });
+    who(poor, botIds[0]).cash = 300;
+    Object.assign(poor, { turn: botIds[0], phase: 'BUY', pending: { tile: 22 }, deadline: 0 });
+    poor = reconcile(poor, 10, scripted());
+    expect(poor.tiles[22]).toBeNull();
+  });
+  it('the game ends by wealth once only computers are left', () => {
+    let s = lobby();
+    s = run(s, A, { action: 'add_bot' });
+    s = run(s, A, { action: 'add_bot' });
+    s = run(s, A, { action: 'start' });
+    s = run(s, A, { action: 'surrender' });
+    expect(s.status).toBe('FINISHED');
+    expect(botIds).toContain(s.winner);
+  });
+  it('a host leaving the lobby hands it to a person, never to a bot', () => {
+    let s = lobby();
+    s = run(s, A, { action: 'add_bot' });
+    s = run(s, B, { action: 'join' });
+    s = run(s, A, { action: 'leave' });
+    expect(s.host).toBe(B);
+    let alone = run(lobby(), A, { action: 'add_bot' });
+    alone = run(alone, A, { action: 'leave' });
+    expect(alone.status).toBe('CANCELLED');
+  });
+  it('only the host links a rematch, once, after the game is over', () => {
+    let s = started();
+    const next = '10000000-0000-4000-8000-000000000002';
+    expect(code(() => run(s, A, { action: 'rematch', game: next }))).toBe('PERMISSION_DENIED');
+    s = run(s, B, { action: 'surrender' });
+    expect(code(() => run(s, B, { action: 'rematch', game: next }))).toBe('PERMISSION_DENIED');
+    s = run(s, A, { action: 'rematch', game: next });
+    expect(s.rematch).toBe(next);
+    expect(code(() => run(s, A, { action: 'rematch', game: next }))).toBe('TYPHU_ACTION_INVALID');
+  });
+});
+
 describe('Tỷ Phú timeouts and privacy', () => {
   it('expired turns act automatically and three misses switch to auto play', () => {
     let s = started();
@@ -589,5 +677,37 @@ describe('Tỷ Phú simulation', () => {
       p90Actions: turns[900],
     });
     expect(Object.keys(reasons).length).toBeGreaterThan(1);
+  }, 120_000);
+  it('300 games between computer seats always finish with money conserved', () => {
+    const reasons: Record<string, number> = {};
+    for (let game = 0; game < 300; game++) {
+      const random = mulberry(10_000 + game);
+      const rng: TyPhuRandom = {
+        die: () => 1 + Math.floor(random() * 6),
+        index: (n) => Math.floor(random() * n),
+      };
+      let s = createTyPhuState('10000000-0000-4000-8000-000000000001', 'room', A, 'An', 'Bàn', {
+        startCash: 2000,
+        turnSeconds: 45,
+        minutes: null,
+        buyout: true,
+      });
+      for (let i = 0; i < 1 + (game % 3); i++)
+        s = transition(s, A, 'An', { action: 'add_bot' }, 0, rng);
+      s = transition(s, A, 'An', { action: 'start' }, 0, rng);
+      // The person goes fully automatic too, so only engine-driven play remains.
+      s.players.find((p) => p.id === A)!.auto = true;
+      const total = moneyInvariant(s);
+      let now = 1;
+      for (let steps = 0; s.status === 'PLAYING' && steps < 20_000; steps++) {
+        now = Math.max(now + 1, s.deadline ?? now);
+        s = reconcile(s, now, rng);
+        expect(moneyInvariant(s)).toBe(total);
+      }
+      expect(s.status).toBe('FINISHED');
+      reasons[s.winReason!] = (reasons[s.winReason!] ?? 0) + 1;
+    }
+    console.info('Tỷ Phú bot simulation', reasons);
+    expect(reasons.LAST_STANDING ?? 0).toBeLessThan(300);
   }, 120_000);
 });

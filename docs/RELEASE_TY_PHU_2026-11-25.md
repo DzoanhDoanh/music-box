@@ -47,4 +47,6 @@ Mở bàn**. Luật đầy đủ ở [thiết kế](TY_PHU_GAME_DESIGN.md).
 
 - Đã bổ sung cùng ngày: thiếu tiền trong lượt của mình thì người chơi tự chọn ô bán (giai
   đoạn Trả nợ). Nợ phát sinh ngoài lượt (Sinh nhật) vẫn tự bán ô rẻ nhất.
+- Bổ sung 26/11/2026: chơi với máy, nút Chơi lại, nhãn Sắp thắng. Cần áp migration
+  `202611260001_ty_phu_bots.sql` trước khi bật trên bản public.
 - Chưa có đổi/bán đất giữa người chơi và bàn 3D (bước 5 trong thiết kế).

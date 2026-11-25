@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { botIds } from '../../src/shared/ty-phu/engine';
 import { bot, me, roomId, tyPhuFixture } from './fixture';
 
 async function openNewTable(page: Page) {
@@ -126,4 +127,72 @@ test('tile details explain rent per level and the board stays accessible', async
     .withTags(['wcag2a', 'wcag2aa'])
     .analyze();
   expect(report.violations.map((v) => v.id)).toEqual([]);
+});
+
+test('the host adds a computer seat that then plays its own turns', async ({ page, context }) => {
+  const fixture = await tyPhuFixture(context);
+  await openNewTable(page);
+  await page.getByRole('button', { name: 'Thêm máy' }).click();
+  const players = page.getByRole('region', { name: 'Người chơi' });
+  await expect(players).toContainText('Máy · Đàn Bầu');
+  await expect(players).toContainText('Máy · luôn sẵn sàng');
+  await page.getByRole('button', { name: 'Bỏ Máy · Đàn Bầu' }).click();
+  await expect(players).not.toContainText('Máy · Đàn Bầu');
+  await page.getByRole('button', { name: 'Thêm máy' }).click();
+  await page.getByRole('button', { name: 'Bắt đầu ván' }).click();
+  await expect(page.getByRole('heading', { name: 'Lượt của bạn' })).toBeVisible();
+  // Hand the turn to the computer: it rolls by itself once its short deadline passes.
+  fixture.edit((s) => {
+    s.turn = botIds[0];
+    s.phase = 'ROLL';
+    s.deadline = Date.now() + 500;
+  });
+  fixture.nextDice.push(1, 2);
+  await page.reload();
+  await expect(page.getByText(/đang nghĩ/)).toBeVisible();
+  await expect
+    .poll(() => fixture.match!.players.find((p) => p.id === botIds[0])!.position, {
+      timeout: 10_000,
+    })
+    .toBe(3);
+});
+
+test('a player one step from winning is flagged for everyone', async ({ page, context }) => {
+  const fixture = await tyPhuFixture(context);
+  await openNewTable(page);
+  await page.getByRole('button', { name: 'Bắt đầu ván' }).click();
+  await expect(page.getByRole('heading', { name: 'Lượt của bạn' })).toBeVisible();
+  fixture.edit((s) => {
+    for (const i of [4, 13, 20]) s.tiles[i] = { owner: bot, level: 0, blackout: 0 };
+  });
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Người chơi' })).toContainText(
+    'Sắp thắng: 1 bãi biển nữa',
+  );
+});
+
+test('after a game the host opens a rematch that keeps the rules and computer seats', async ({
+  page,
+  context,
+}) => {
+  const fixture = await tyPhuFixture(context);
+  await openNewTable(page);
+  await page.getByRole('button', { name: 'Thêm máy' }).click();
+  await page.getByRole('button', { name: 'Bắt đầu ván' }).click();
+  await expect(page.getByRole('heading', { name: 'Lượt của bạn' })).toBeVisible();
+  const first = fixture.match!.id;
+  fixture.edit((s) => {
+    s.status = 'FINISHED';
+    s.winner = me;
+    s.winReason = 'BEACHES';
+    s.deadline = null;
+  });
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Ván đã kết thúc' })).toBeVisible();
+  await page.getByRole('button', { name: 'Chơi lại' }).click();
+  await expect(page).not.toHaveURL(new RegExp(first));
+  await expect(page.getByRole('heading', { name: 'Chuẩn bị' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Người chơi' })).toContainText('Máy · Đàn Bầu');
+  expect(fixture.older.get(first)!.rematch).toBe(fixture.match!.id);
+  expect(fixture.match!.status).toBe('WAITING');
 });

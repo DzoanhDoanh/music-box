@@ -343,6 +343,20 @@ Trả nợ (thêm ngày 25/11/2026):
 - Khoản nợ phát sinh ngoài lượt của mình (tiền tặng Sinh nhật) vẫn tự bán ô rẻ nhất, để
   không chặn lượt người khác.
 
+Chơi với máy, chơi lại, cảnh báo sắp thắng (thêm ngày 26/11/2026):
+
+- Chủ bàn bấm **Thêm máy** trong sảnh (tối đa 4 ghế). Máy luôn sẵn sàng, nên một người
+  cũng mở được ván. Máy có id cố định không trùng tài khoản thật; migration
+  `202611260001_ty_phu_bots.sql` cho phép ghế máy không phải thành viên phòng.
+- Máy đi sau 1,5 giây mỗi bước: mua và xây theo giới hạn vòng nhưng giữ lại tiền dự
+  phòng (12% tiền khởi đầu, tối thiểu 200), chỉ mua lại khi trọn nhóm hoặc dư nhiều tiền,
+  bay tới ô trống đắt nhất mua được, nộp phạt ra tù khi đủ tiền.
+- Khi không còn người thật trong ván, ván kết thúc theo tài sản.
+- Hết ván, chủ bàn bấm **Chơi lại**: mở bàn mới cùng tên, luật và số ghế máy; ván cũ hiện
+  nút **Vào ván mới** cho mọi người.
+- Người chơi chỉ còn 1 bước là thắng (2 monopoly, 3 bãi biển, thiếu 1 ô cho đủ dãy) được
+  gắn nhãn "Sắp thắng" để cả bàn thấy.
+
 Bước 2 đã xong (25/11/2026):
 
 - Migration `202611250001_ty_phu.sql`: thứ tự bộ phiếu nằm ở `private.ty_phu_decks`,

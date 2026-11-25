@@ -547,3 +547,18 @@
   color: var(--danger);
   font-weight: 700;
 }
+
+.typhu-near-win {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #ef9f27 18%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+}
+.typhu-remove-bot {
+  min-height: 30px;
+  padding: 4px 8px;
+}

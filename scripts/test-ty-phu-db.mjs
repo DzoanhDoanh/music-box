@@ -238,6 +238,34 @@ export async function testTyPhu({ sql, owner, check }) {
     }
   });
 
+  await check('ty phu plays against computer seats that are not room members', async () => {
+    await resetCreateLimit();
+    let state = await create();
+    for (let i = 0; i < 2; i++)
+      state = (await send(owner, state.id, state.version, { action: 'add_bot' })).state;
+    assert.equal(state.players.filter((p) => p.bot).length, 2);
+    assert.equal(
+      await errorCode(send(users[1], state.id, state.version, { action: 'add_bot' })),
+      'PERMISSION_DENIED',
+    );
+    state = (await send(owner, state.id, state.version, { action: 'start' })).state;
+    let steps = 0;
+    while (state.status === 'PLAYING' && steps < 3000) {
+      steps++;
+      if (state.turn === owner) {
+        state = (await send(owner, state.id, state.version, bot(state))).state;
+        continue;
+      }
+      // Computer turns run when their short deadline passes; expire it instead of waiting.
+      await sql`update public.ty_phu_matches set state=jsonb_set(state,'{deadline}','0') where id=${state.id}`;
+      state = (await service(owner).read(room.id, state.id)).state;
+    }
+    assert.equal(state.status, 'FINISHED');
+    const result = await sql`select winner from public.ty_phu_results where match_id=${state.id}`;
+    assert.equal(result[0].winner, state.winner);
+    assert.equal(state.players.reduce((sum, p) => sum + p.cash, 0) + state.bank, 6000);
+  });
+
   await check('ty phu rate-limits table creation per player', async () => {
     await resetCreateLimit();
     await sql`select public.consume_rate_limit(${'ty_phu:create:' + users[1]},6,3600) from generate_series(1,6)`;

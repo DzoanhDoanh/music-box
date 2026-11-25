@@ -98,7 +98,7 @@ export class TyPhuService {
     let next = state;
     const members = new Set(context.members.map((m) => m.id));
     for (const p of state.players)
-      if (p.status === 'ACTIVE' && !members.has(p.id) && next.status !== 'FINISHED')
+      if (p.status === 'ACTIVE' && !p.bot && !members.has(p.id) && next.status !== 'FINISHED')
         next = transition(next, p.id, p.name, { action: 'leave' }, context.serverNow, this.random);
     return reconcile(next, context.serverNow, this.random);
   }

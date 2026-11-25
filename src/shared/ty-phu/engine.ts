@@ -47,6 +47,14 @@ export const MAX_PLAYERS = 4;
 export const AUTO_MS = 1500;
 export const CARD_TARGET_MS = 20_000;
 const LOG_LIMIT = 40;
+/** Computer seats use fixed ids that no real account can have. */
+export const botIds = [
+  'b0000000-0000-4000-8000-000000000001',
+  'b0000000-0000-4000-8000-000000000002',
+  'b0000000-0000-4000-8000-000000000003',
+];
+const botNames = ['Máy · Đàn Bầu', 'Máy · Sáo Trúc', 'Máy · Trống Cơm'];
+const humans = (s: TyPhuState) => s.players.filter((p) => !p.bot);
 
 function fail(code = 'TYPHU_ACTION_INVALID'): never {
   throw new AppError(code, 409);
@@ -660,6 +668,11 @@ function checkWinner(s: TyPhuState, now: number) {
     else s.status = 'CANCELLED';
     return true;
   }
+  if (!alive.some((p) => !p.bot)) {
+    log(s, now, 'bots_only', 'Không còn người chơi thật; ván kết thúc theo tài sản.');
+    finishByWealth(s, now);
+    return true;
+  }
   // The player whose turn it is is checked first, then everyone else (a gift can hand a win).
   const start = Math.max(
     0,
@@ -763,8 +776,8 @@ function apply(
       mustPlayer(s, actor);
       if (s.status === 'WAITING') {
         s.players = s.players.filter((p) => p.id !== actor);
-        if (!s.players.length) s.status = 'CANCELLED';
-        else if (s.host === actor) s.host = s.players[0].id;
+        if (!humans(s).length) s.status = 'CANCELLED';
+        else if (s.host === actor) s.host = humans(s)[0].id;
         return;
       }
       return surrender(s, actor, now);
@@ -784,7 +797,12 @@ function apply(
         const j = rng.index(i + 1);
         [s.players[i], s.players[j]] = [s.players[j], s.players[i]];
       }
-      for (const p of s.players) Object.assign(p, newPlayer(p.id, p.name, p.color, 0));
+      for (const p of s.players)
+        Object.assign(
+          p,
+          newPlayer(p.id, p.name, p.color, 0),
+          p.bot ? { bot: true, auto: true } : {},
+        );
       for (const p of s.players) receive(s, p, s.rules.startCash);
       // The opening cash counts as the baseline, not a bank debt.
       s.bank = 0;
@@ -795,6 +813,32 @@ function apply(
       log(s, now, 'start', 'Ván bắt đầu.', actor);
       return startTurn(s, s.players[0].id, now);
     }
+    case 'add_bot': {
+      if (s.status !== 'WAITING' || s.players.length >= MAX_PLAYERS) fail('TYPHU_SEAT_TAKEN');
+      if (s.host !== actor) fail('PERMISSION_DENIED');
+      const slot = botIds.findIndex((id) => !player(s, id));
+      const used = new Set(s.players.map((p) => p.color));
+      const color = [0, 1, 2, 3].find((c) => !used.has(c))!;
+      const bot = newPlayer(botIds[slot], botNames[slot], color, s.rules.startCash);
+      Object.assign(bot, { bot: true, auto: true, ready: true });
+      s.players.push(bot);
+      log(s, now, 'join', `${bot.name} vào bàn.`, bot.id);
+      return;
+    }
+    case 'remove_bot': {
+      if (s.status !== 'WAITING') fail();
+      if (s.host !== actor) fail('PERMISSION_DENIED');
+      if (!player(s, command.player)?.bot) fail('TYPHU_BAD_TARGET');
+      s.players = s.players.filter((p) => p.id !== command.player);
+      return;
+    }
+    case 'rematch': {
+      if (s.status !== 'FINISHED' || s.host !== actor) fail('PERMISSION_DENIED');
+      if (s.rematch) fail();
+      s.rematch = command.game;
+      log(s, now, 'rematch', 'Chủ bàn đã mở ván mới.', actor);
+      return;
+    }
     case 'surrender':
       if (s.status !== 'PLAYING') fail();
       mustPlayer(s, actor);
@@ -803,7 +847,7 @@ function apply(
 
   const p = requireTurn(s, actor, s.phase);
   p.misses = 0;
-  p.auto = false;
+  if (!p.bot) p.auto = false;
   switch (command.action) {
     case 'roll': {
       if (s.phase === 'FLY') {
@@ -1004,7 +1048,8 @@ export function reconcile(state: TyPhuState, now: number, rng: TyPhuRandom): TyP
         log(s, now, 'auto', `${p.name} vắng mặt; hệ thống chơi thay.`, p.id);
       }
     }
-    autoAct(s, p, now, rng);
+    if (p.bot) botAct(s, p, now, rng);
+    else autoAct(s, p, now, rng);
   }
   s.version++;
   return s;
@@ -1066,6 +1111,68 @@ function autoAct(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) {
     }
     default:
       return settle(s, now);
+  }
+}
+/** Cash a computer seat keeps back for rent and tax. */
+function botReserve(s: TyPhuState) {
+  return Math.max(200, Math.round(s.rules.startCash * 0.12));
+}
+/** A computer seat's move: buys and builds while keeping a reserve, otherwise plays like auto. */
+function botAct(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) {
+  const budget = p.cash - botReserve(s);
+  const run = (command: TyPhuCommand) => apply(s, p.id, p.name, command, now, rng);
+  const index = s.pending?.tile;
+  switch (s.phase) {
+    case 'ROLL':
+      if (p.jailed && !p.pass && budget >= JAIL_FINE) run({ action: 'pay_jail' });
+      return autoAct(s, p, now, rng);
+    case 'BUY': {
+      const t = tile(index!);
+      const price = t.price ?? 0;
+      if (t.kind === 'BEACH')
+        return run(budget >= price ? { action: 'buy', level: 0 } : { action: 'skip' });
+      for (let level = buildCap(p, 0); level >= 0; level--)
+        if (price + buildCost(index!, 0, level) <= budget) return run({ action: 'buy', level });
+      return run({ action: 'skip' });
+    }
+    case 'BUILD': {
+      const owned = s.tiles[index!]!;
+      for (let level = buildCap(p, s.pending!.from ?? owned.level); level > owned.level; level--)
+        if (buildCost(index!, owned.level, level) <= budget) return run({ action: 'build', level });
+      return run({ action: 'skip' });
+    }
+    case 'BUYOUT': {
+      const group = tile(index!).group;
+      const owners = group ? groupTiles(group).map((t) => s.tiles[t.index]?.owner) : [];
+      // Worth it when it finishes a group, otherwise only with plenty of spare cash.
+      const completes = owners.filter((o) => o !== p.id).length === 1;
+      const price = buyoutPrice(s, index!);
+      return run(
+        price <= budget && (completes || price * 2 <= budget)
+          ? { action: 'buyout' }
+          : { action: 'skip' },
+      );
+    }
+    case 'START_BUILD': {
+      const best = cities
+        .filter((c) => canBuildOn(s, p, c.index))
+        .filter((c) => {
+          const level = s.tiles[c.index]!.level;
+          return buildCost(c.index, level, level + 1) <= budget;
+        })
+        .sort((a, b) => baseRent(s, b.index) - baseRent(s, a.index))[0];
+      return run(best ? { action: 'start_build', tile: best.index } : { action: 'skip' });
+    }
+    case 'FLY': {
+      const fee = p.freeFly ? 0 : FLY_FEE;
+      const target = board
+        .filter((t) => (t.kind === 'CITY' || t.kind === 'BEACH') && !s.tiles[t.index])
+        .filter((t) => (t.price ?? 0) + fee <= budget)
+        .sort((a, b) => (b.price ?? 0) - (a.price ?? 0))[0];
+      return run(target ? { action: 'fly', to: target.index } : { action: 'roll' });
+    }
+    default:
+      return autoAct(s, p, now, rng);
   }
 }
 function rentWithFestival(s: TyPhuState, index: number) {

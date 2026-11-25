@@ -55,6 +55,27 @@ export function useTyPhuList(room: string, actor: string) {
   return { query, create };
 }
 
+/**
+ * Opens a fresh table with the finished game's name, rules and computer seats; returns its id.
+ * The caller links it from the old game so everyone else can follow.
+ */
+export async function openRematch(room: string, actor: string, old: TyPhuPublicState) {
+  let snapshot = await api<TyPhuSnapshot>(
+    `/rooms/${room}/ty-phu`,
+    { name: old.name, rules: old.rules },
+    crypto.randomUUID(),
+    actor,
+  );
+  for (let i = old.players.filter((p) => p.bot).length; i > 0; i--)
+    snapshot = await api<TyPhuSnapshot>(
+      `/rooms/${room}/ty-phu/${snapshot.state.id}`,
+      { version: snapshot.state.version, command: { action: 'add_bot' } },
+      crypto.randomUUID(),
+      actor,
+    );
+  return snapshot.state.id;
+}
+
 export function useTyPhu(room: string, actor: string, game: string) {
   const client = useQueryClient();
   const key = useMemo(() => ['ty-phu', room, actor, game], [room, actor, game]);

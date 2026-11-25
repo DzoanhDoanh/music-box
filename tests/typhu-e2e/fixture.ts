@@ -29,6 +29,8 @@ export async function tyPhuFixture(context: BrowserContext) {
     index: (n) => n - 1,
   };
   let match: TyPhuState | null = null;
+  /** Earlier tables (e.g. the finished game behind a rematch). */
+  const older = new Map<string, TyPhuState>();
   const at = new Date().toISOString();
   const room = {
     room: {
@@ -146,10 +148,19 @@ export async function tyPhuFixture(context: BrowserContext) {
               : [],
           });
         const body = request.postDataJSON();
+        if (match) older.set(match.id, match);
         match = createTyPhuState(crypto.randomUUID(), roomId, me, 'An', body.name, body.rules);
         match = transition(match, bot, 'Bình', { action: 'join' }, now(), random);
         match = transition(match, bot, 'Bình', { action: 'ready', ready: true }, now(), random);
         return json(view(), 201);
+      }
+      const previous = older.get(path.split('/').at(-1) ?? '');
+      if (previous) {
+        if (request.method() === 'POST') {
+          const body = request.postDataJSON();
+          older.set(previous.id, transition(previous, me, 'An', body.command, now(), random));
+        }
+        return json({ state: publicTyPhuState(older.get(previous.id)!), serverNow: now() });
       }
       if (match && path === `/rooms/${roomId}/ty-phu/${match.id}`) {
         match = reconcile(match, now(), random);
@@ -181,5 +192,6 @@ export async function tyPhuFixture(context: BrowserContext) {
       match = next;
     },
     nextDice,
+    older,
   };
 }
