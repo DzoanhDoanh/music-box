@@ -106,3 +106,92 @@ export type TyPhuState = {
 };
 export type TyPhuPublicState = Omit<TyPhuState, 'deck'> & { deckCount: number };
 export const cardIdSchema = z.enum(cardIds);
+
+/** Every command carries the version the client acted on (optimistic concurrency). */
+export const tyPhuRequestSchema = z
+  .object({ version: z.number().int().min(0), command: tyPhuCommandSchema })
+  .strict();
+export const createTyPhuSchema = z
+  .object({
+    name: z.string().trim().min(2).max(60),
+    rules: tyPhuRulesSchema.default(defaultTyPhuRules),
+  })
+  .strict();
+
+const uuidOrNull = z.uuid().nullable();
+export const tyPhuPlayerSchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(1).max(40),
+  color: z.number().int().min(0).max(3),
+  ready: z.boolean(),
+  cash: z.number().int().min(0),
+  position: z.number().int().min(0).max(31),
+  lap: z.number().int().min(1),
+  jailed: z.boolean(),
+  jailTries: z.number().int().min(0).max(3),
+  status: z.enum(['ACTIVE', 'BANKRUPT', 'LEFT']),
+  misses: z.number().int().min(0),
+  auto: z.boolean(),
+  doubles: z.number().int().min(0).max(3),
+  pass: z.boolean(),
+  shield: z.boolean(),
+  half: z.boolean(),
+  fine: z.boolean(),
+  flyNext: z.boolean(),
+  freeFly: z.boolean(),
+});
+export const tyPhuStateSchema = z.object({
+  schema: z.literal(1),
+  id: z.uuid(),
+  room: z.uuid(),
+  host: z.uuid(),
+  name: z.string().min(1).max(60),
+  version: z.number().int().min(0),
+  status: z.enum(['WAITING', 'PLAYING', 'FINISHED', 'CANCELLED']),
+  rules: tyPhuRulesSchema,
+  players: z.array(tyPhuPlayerSchema).min(1).max(4),
+  turn: uuidOrNull,
+  phase: z.enum(['ROLL', 'BUY', 'BUILD', 'BUYOUT', 'CARD', 'FESTIVAL', 'START_BUILD', 'FLY']),
+  pending: z
+    .object({
+      tile: z.number().int().min(0).max(31).optional(),
+      card: cardIdSchema.optional(),
+      from: z.number().int().min(0).max(4).optional(),
+    })
+    .nullable(),
+  tiles: z
+    .array(
+      z
+        .object({
+          owner: z.uuid(),
+          level: z.number().int().min(0).max(4),
+          blackout: z.number().int().min(0).max(2),
+        })
+        .nullable(),
+    )
+    .length(32),
+  festival: z.number().int().min(0).max(31).nullable(),
+  dice: z.tuple([z.number().int(), z.number().int()]).nullable(),
+  extraRoll: z.boolean(),
+  deck: z.array(cardIdSchema).max(15),
+  bank: z.number().int(),
+  deadline: z.number().nullable(),
+  startedAt: z.number().nullable(),
+  endsAt: z.number().nullable(),
+  winner: uuidOrNull,
+  winReason: z.enum(['MONOPOLY', 'LINE', 'BEACHES', 'LAST_STANDING', 'TIME']).nullable(),
+  log: z.array(
+    z.object({ at: z.number(), type: z.string(), actor: z.uuid().optional(), text: z.string() }),
+  ),
+});
+export type TyPhuMember = { id: string; name: string; role: string };
+export type TyPhuSnapshot = { state: TyPhuPublicState; serverNow: number };
+export type TyPhuListItem = {
+  id: string;
+  name: string;
+  status: TyPhuState['status'];
+  host: string;
+  players: { id: string; name: string; color: number; status: TyPhuPlayer['status'] }[];
+  winner: string | null;
+  createdAt: string;
+};

@@ -31,6 +31,7 @@
     "test:db": "node scripts/test-db.mjs",
     "test:db:bau": "node scripts/test-bau-cua.mjs",
     "test:db:duck": "node scripts/test-duck-race.mjs",
+    "test:db:ty-phu": "node scripts/test-ty-phu.mjs",
     "test:e2e:duck": "node scripts/test-duck-browser.mjs",
     "test:e2e:bau": "playwright test --config playwright.bau.config.ts",
     "deploy": "pnpm build && wrangler deploy",

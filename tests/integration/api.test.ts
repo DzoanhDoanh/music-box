@@ -17,6 +17,7 @@ describe('Hono boundary', () => {
       youtubeConfigured: false,
       bauCuaEnabled: false,
       duckRaceEnabled: false,
+      tyPhuEnabled: false,
       version: '0.1.0',
     });
     expect(response.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');

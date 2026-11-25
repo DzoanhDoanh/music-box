@@ -105,6 +105,9 @@ export const errorMessages: Record<string, string> = {
   TYPHU_BUILD_LIMIT: 'Ô này chưa được xây tới cấp đó ở vòng hiện tại của bạn.',
   TYPHU_BAD_TARGET: 'Mục tiêu đã chọn không hợp lệ cho phiếu hoặc ô này.',
   TYPHU_SEAT_TAKEN: 'Bàn đã đủ người hoặc bạn đã ngồi trong bàn.',
+  TYPHU_STALE: 'Ván vừa thay đổi. Đã đồng bộ lại; hãy chọn lại thao tác.',
+  TYPHU_TABLE_LIMIT:
+    'Phòng đã có 6 bàn Tỷ Phú chưa kết thúc. Hãy vào bàn có sẵn hoặc kết thúc bàn cũ.',
   TYPHU_NOT_READY: 'Cần ít nhất 2 người và mọi người bấm sẵn sàng trước khi bắt đầu.',
   REORDER_VOTING_DISABLED: 'Phòng chưa bật biểu quyết đổi vị trí bài.',
   REORDER_REQUIRES_APPROVAL: 'Cần biểu quyết đồng ý trước khi đổi vị trí bài.',

@@ -334,6 +334,16 @@ Mô phỏng 1.000 ván do bot chơi ngẫu nhiên (2–4 người):
 
 Bản đầu, khi thiếu tiền, hệ thống tự bán ô rẻ nhất cho ngân hàng.
 
+Bước 2 đã xong (25/11/2026):
+
+- Migration `202611250001_ty_phu.sql`: thứ tự bộ phiếu nằm ở `private.ty_phu_decks`,
+  chỉ service role đọc được.
+- Service `src/server/services/ty-phu.ts`: xúc xắc và xáo bài dùng CSPRNG; tự xử lý
+  lượt hết giờ; cho người đã rời phòng ra khỏi ván.
+- Route `/api/v1/rooms/:id/ty-phu` nằm sau cờ `ENABLE_TY_PHU`.
+- Kiểm thử: `npm run test:db:ty-phu` qua 9 nhóm trên PostgreSQL thật; test HTTP ở
+  `tests/integration/ty-phu-api.test.ts`.
+
 1. **Engine + test:** bàn cờ, luật, 8 loại thẻ, mua lại, 5 điều kiện thắng, nợ/phá sản,
    hết giờ; mô phỏng 1.000 ván để chắc ván không kẹt và tổng tiền luôn khớp.
 2. **Database + API:** migration, service, route; test database thật cục bộ.

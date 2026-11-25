@@ -29,6 +29,8 @@ import { BauCuaService } from './services/bau-cua';
 import { commandSchema as bauCommandSchema } from '../shared/bau-cua/contracts';
 import { DuckRaceService } from './services/duck-race';
 import { duckCommandSchema } from '../shared/duck-race/contracts';
+import { TyPhuService, settleDueTyPhu } from './services/ty-phu';
+import { createTyPhuSchema, tyPhuRequestSchema } from '../shared/ty-phu/contracts';
 
 type Services = {
   auth: AuthService;
@@ -41,6 +43,7 @@ type Services = {
   game: GameService;
   bau: BauCuaService;
   duck: DuckRaceService;
+  tyPhu: TyPhuService;
   store: SupabaseRepository;
 };
 type Context = {
@@ -97,6 +100,7 @@ app.get('/api/v1/system/health', (c) =>
     youtubeConfigured: Boolean(c.env.YOUTUBE_API_KEY),
     bauCuaEnabled: c.env.ENABLE_BAU_CUA === 'true',
     duckRaceEnabled: c.env.ENABLE_DUCK_RACE === 'true',
+    tyPhuEnabled: c.env.ENABLE_TY_PHU === 'true',
     version: '0.1.0',
   }),
 );
@@ -124,6 +128,7 @@ app.use('/api/v1/*', async (c, next) => {
     game: new GameService(store, actor),
     bau: new BauCuaService(store, actor),
     duck: new DuckRaceService(store, actor),
+    tyPhu: new TyPhuService(store, actor),
     store,
   });
   await next();
@@ -136,6 +141,49 @@ const pageNumber = (value?: string) =>
     .max(10000)
     .parse(value ?? 0);
 const requestKey = (value?: string) => uuid.parse(value);
+// Tỷ Phú stays behind its own flag until the migration is applied on the target.
+app.use('/api/v1/rooms/:id/ty-phu', async (c, next) => {
+  if (c.env.ENABLE_TY_PHU !== 'true') throw new AppError('NOT_FOUND', 404);
+  await next();
+});
+app.use('/api/v1/rooms/:id/ty-phu/*', async (c, next) => {
+  if (c.env.ENABLE_TY_PHU !== 'true') throw new AppError('NOT_FOUND', 404);
+  await next();
+});
+app.get('/api/v1/rooms/:id/ty-phu', async (c) =>
+  c.json(await c.get('services').tyPhu.list(uuid.parse(c.req.param('id')))),
+);
+app.post('/api/v1/rooms/:id/ty-phu', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .tyPhu.create(
+        uuid.parse(c.req.param('id')),
+        requestKey(c.req.header('Idempotency-Key')),
+        createTyPhuSchema.parse(await c.req.json()),
+      ),
+    201,
+  ),
+);
+app.get('/api/v1/rooms/:id/ty-phu/:game', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .tyPhu.read(uuid.parse(c.req.param('id')), uuid.parse(c.req.param('game'))),
+  ),
+);
+app.post('/api/v1/rooms/:id/ty-phu/:game', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .tyPhu.execute(
+        uuid.parse(c.req.param('id')),
+        uuid.parse(c.req.param('game')),
+        requestKey(c.req.header('Idempotency-Key')),
+        tyPhuRequestSchema.parse(await c.req.json()),
+      ),
+  ),
+);
 app.use('/api/v1/rooms/:id/duck-race', async (c, next) => {
   if (c.env.ENABLE_DUCK_RACE !== 'true') throw new AppError('NOT_FOUND', 404);
   await next();
@@ -462,6 +510,7 @@ export default {
     if (event.cron === '* * * * *') {
       if (env.ENABLE_LUDO === 'true') await settleDueGames(store);
       if (env.ENABLE_DUCK_RACE === 'true') await store.call('duck_race_tick', {});
+      if (env.ENABLE_TY_PHU === 'true') await settleDueTyPhu(store);
       return;
     }
     await new MaintenanceService(

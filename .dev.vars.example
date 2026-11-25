@@ -11,3 +11,6 @@ ENABLE_WHEEL=false
 ENABLE_BAU_CUA=false
 # Requires 202611180002_duck_race.sql and VITE_ENABLE_DUCK_RACE=true at build time.
 ENABLE_DUCK_RACE=false
+
+# Requires 202611250001_ty_phu.sql and VITE_ENABLE_TY_PHU=true at build time.
+ENABLE_TY_PHU=false
