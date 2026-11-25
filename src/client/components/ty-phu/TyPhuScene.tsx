@@ -923,8 +923,19 @@ class Boundary extends Component<
 
 export default function TyPhuScene(props: TyPhuSceneProps) {
   const { onFailure } = props;
+  const failure = useRef(onFailure);
+  failure.current = onFailure;
+  // React Three Fiber forces a context loss when the canvas unmounts; only a loss while the
+  // table is still on screen is a real failure.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   return (
-    <Boundary onFailure={onFailure}>
+    <Boundary onFailure={() => failure.current()}>
       <Canvas
         shadows
         dpr={[1, 1.75]}
@@ -935,7 +946,7 @@ export default function TyPhuScene(props: TyPhuSceneProps) {
             'webglcontextlost',
             (e) => {
               e.preventDefault();
-              onFailure();
+              if (mounted.current) failure.current();
             },
             { once: true },
           );

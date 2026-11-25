@@ -202,11 +202,33 @@ test('the 3D table renders with WebGL and tiles stay reachable from the keyboard
   context,
 }) => {
   const fixture = await tyPhuFixture(context);
+  // Count WebGL contexts: browsers drop the oldest one (the table) past ~16.
+  await context.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    (window as unknown as { glContexts: number }).glContexts = 0;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: string,
+      ...rest: unknown[]
+    ) {
+      if (type.startsWith('webgl')) (window as unknown as { glContexts: number }).glContexts++;
+      return (original as (...args: unknown[]) => unknown).call(this, type, ...rest);
+    } as typeof original;
+  });
   await openNewTable(page);
   await page.getByRole('button', { name: 'Bắt đầu ván' }).click();
   await expect(page.getByRole('heading', { name: 'Lượt của bạn' })).toBeVisible();
   await page.getByRole('button', { name: 'Bàn 3D' }).click();
   await expect(page.locator('.typhu-canvas canvas')).toBeVisible({ timeout: 15_000 });
+  const contexts = () =>
+    page.evaluate(() => (window as unknown as { glContexts: number }).glContexts);
+  // Let the scene finish creating its renderer before taking the baseline.
+  await page.waitForTimeout(1500);
+  const opened = await contexts();
+  // The turn clock re-renders the page every half second; that must not open new contexts.
+  await page.waitForTimeout(4000);
+  expect(await contexts()).toBe(opened);
+  await expect(page.locator('.typhu-canvas canvas')).toBeVisible();
   const table = page.getByRole('group', { name: 'Bàn cờ Tỷ Phú Phố Nhạc 3D' });
   await expect(table.getByRole('button')).toHaveCount(32);
   // Keyboard users pick a tile through the hidden list; it opens the tile details.

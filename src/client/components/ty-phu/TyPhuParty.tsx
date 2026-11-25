@@ -400,7 +400,8 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
           selectable={selectable}
           onTile={onTile}
           view={view}
-          onFailure3d={() => chooseView('2d')}
+          // Falling back for this visit only: the saved preference stays 3D.
+          onFailure3d={() => setView('2d')}
           hud={hud}
           center={center}
         />

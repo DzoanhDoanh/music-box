@@ -30,14 +30,22 @@ export const shortName = (t: Tile) =>
 const reducedMotion = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** Whether this browser can draw the 3D table at all. */
+let webgl: boolean | null = null;
+/**
+ * Whether this browser can draw the 3D table at all. Probed once: every probe opens a
+ * WebGL context, and browsers drop the oldest context (the live table) past ~16 of them.
+ */
 export function webglAvailable() {
+  if (webgl !== null) return webgl;
   try {
     const canvas = document.createElement('canvas');
-    return Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'));
+    const context = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+    webgl = Boolean(context);
+    context?.getExtension('WEBGL_lose_context')?.loseContext();
   } catch {
-    return false;
+    webgl = false;
   }
+  return webgl;
 }
 
 /**
@@ -231,6 +239,9 @@ function Table3D({
   });
   const [zoom, setZoom] = useState(1);
   const [focused, setFocused] = useState<number | null>(null);
+  // A lost GPU context (driver reset, tab in background, memory pressure) rebuilds the table
+  // a couple of times before giving up on 3D.
+  const [attempt, setAttempt] = useState(0);
   const [yawDrag, setYawDrag] = useState(0);
   const drag = useRef<{ x: number; yaw: number } | null>(null);
   const moved = useRef(0);
@@ -267,6 +278,7 @@ function Table3D({
           onPointerLeave={() => (drag.current = null)}
         >
           <TyPhuScene
+            key={attempt}
             state={state}
             shown={shown}
             selectable={selectable}
@@ -274,7 +286,7 @@ function Table3D({
             onTile={onTile}
             yaw={Math.PI / 4 + (spin * Math.PI) / 2 + yawDrag}
             zoom={zoom}
-            onFailure={onFailure}
+            onFailure={() => (attempt < 2 ? setAttempt((n) => n + 1) : onFailure())}
             dragged={() => moved.current > 6}
           />
         </div>
