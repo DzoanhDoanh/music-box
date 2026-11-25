@@ -81,6 +81,34 @@ test('attack cards highlight valid targets and lower the chosen city', async ({
   await expect.poll(() => fixture.match!.tiles[21]?.level).toBe(1);
 });
 
+test('a short player picks which city to sell and the rent is then paid', async ({
+  page,
+  context,
+}) => {
+  const fixture = await tyPhuFixture(context);
+  await openNewTable(page);
+  await page.getByRole('button', { name: 'Bắt đầu ván' }).click();
+  await expect(page.getByRole('heading', { name: 'Lượt của bạn' })).toBeVisible();
+  fixture.edit((s) => {
+    s.tiles[5] = { owner: bot, level: 3, blackout: 0 }; // rent 200
+    s.tiles[1] = { owner: me, level: 0, blackout: 0 }; // bank pays 30
+    s.tiles[22] = { owner: me, level: 2, blackout: 0 }; // bank pays 220
+    const p = s.players.find((x) => x.id === me)!;
+    s.bank += p.cash - 100;
+    p.cash = 100;
+  });
+  await page.reload();
+  fixture.nextDice.push(2, 3); // → Sa Pa
+  await page.getByRole('button', { name: 'Tung xúc xắc' }).click();
+  await expect(page.getByText('Còn thiếu 100')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Bán Hà Giang · +30' })).toBeVisible();
+  await page.getByRole('button', { name: /^Đà Lạt · An · Cấp 2 · có thể chọn/ }).click();
+  await expect.poll(() => fixture.match!.tiles[22]).toBeNull();
+  expect(fixture.match!.tiles[1]).toMatchObject({ owner: me });
+  expect(fixture.match!.players.find((p) => p.id === me)!.cash).toBe(120);
+  expect(fixture.match!.players.find((p) => p.id === bot)!.cash).toBe(2200);
+});
+
 test('tile details explain rent per level and the board stays accessible', async ({
   page,
   context,

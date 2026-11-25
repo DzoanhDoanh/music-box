@@ -45,5 +45,6 @@ Mở bàn**. Luật đầy đủ ở [thiết kế](TY_PHU_GAME_DESIGN.md).
 
 ## Đã biết
 
-- Thiếu tiền thì hệ thống tự bán ô rẻ nhất cho ngân hàng; người chơi chưa tự chọn được.
+- Đã bổ sung cùng ngày: thiếu tiền trong lượt của mình thì người chơi tự chọn ô bán (giai
+  đoạn Trả nợ). Nợ phát sinh ngoài lượt (Sinh nhật) vẫn tự bán ô rẻ nhất.
 - Chưa có đổi/bán đất giữa người chơi và bàn 3D (bước 5 trong thiết kế).

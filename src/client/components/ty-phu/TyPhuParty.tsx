@@ -25,7 +25,9 @@ import {
   baseRent,
   buildCap,
   buildCost,
+  bankSalePrice,
   buyoutPrice,
+  liquidationValue,
   cardTargets,
   currentPrice,
   winProgress,
@@ -262,6 +264,8 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
       });
     else if (state.phase === 'FLY')
       selectable = board.filter((t) => t.index !== AIRPORT_INDEX).map((t) => t.index);
+    else if (state.phase === 'DEBT')
+      selectable = board.filter((t) => state.tiles[t.index]?.owner === me).map((t) => t.index);
   }
 
   const onTile = (index: number) => {
@@ -269,6 +273,7 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
     if (state.phase === 'FESTIVAL') void send({ action: 'festival', tile: index });
     else if (state.phase === 'START_BUILD') void send({ action: 'start_build', tile: index });
     else if (state.phase === 'FLY') void send({ action: 'fly', to: index });
+    else if (state.phase === 'DEBT') void send({ action: 'sell', tile: index });
     else if (state.phase === 'CARD') {
       if (state.pending?.card === 'GIFT') setGiftTile(index);
       else void send({ action: 'card_target', tile: index });
@@ -661,6 +666,57 @@ function ActionPanel({
         </>
       );
       break;
+    case 'DEBT': {
+      const debt = state.debt!;
+      const creditor = state.players.find((p) => p.id === debt.creditor);
+      const owned = board
+        .filter((t) => state.tiles[t.index]?.owner === me)
+        .map((t) => ({ t, price: bankSalePrice(engine, t.index) }))
+        .sort((a, b) => a.price - b.price || a.t.index - b.t.index);
+      const reason =
+        debt.reason === 'RENT'
+          ? `tiền thuê ${tileAt(debt.tile!).name} cho ${creditor?.name ?? 'chủ ô'}`
+          : debt.reason === 'TAX'
+            ? 'thuế nhà'
+            : 'tiền phạt ra tù';
+      const missing = debt.amount - mine.cash;
+      body = (
+        <>
+          <p>
+            Bạn phải trả <strong>{money(debt.amount)}</strong> {reason} nhưng chỉ có{' '}
+            {money(mine.cash)}. Chọn ô để bán cho ngân hàng (nhận 50% giá hiện tại).
+          </p>
+          <p className="typhu-debt-missing">
+            Còn thiếu {money(missing)} · bán hết được tối đa {money(liquidationValue(engine, me))}
+          </p>
+          <div className="typhu-options">
+            {owned.map(({ t, price }) => (
+              <AsyncButton
+                key={t.index}
+                disabled={pending}
+                onClick={() => send({ action: 'sell', tile: t.index })}
+              >
+                Bán {t.name} · +{money(price)}
+              </AsyncButton>
+            ))}
+          </div>
+          <p className="muted">
+            Bán một ô trong monopoly làm các ô còn lại mất hệ số ×1,5. Nếu phần còn lại không đủ
+            trả, bạn sẽ phá sản.
+          </p>
+          <Confirm
+            title="Tuyên bố phá sản?"
+            description={`Toàn bộ ${money(mine.cash)} tiền mặt chuyển cho ${creditor?.name ?? 'ngân hàng'}, đất trả về ngân hàng và bạn rời ván.`}
+            onConfirm={() => send({ action: 'declare_bankrupt' })}
+          >
+            <Button variant="ghost" disabled={pending}>
+              Tuyên bố phá sản
+            </Button>
+          </Confirm>
+        </>
+      );
+      break;
+    }
     case 'START_BUILD':
       body = (
         <>
@@ -696,6 +752,8 @@ function phaseHint(state: TyPhuPublicState) {
       return 'Đang chọn nơi bay tới.';
     case 'START_BUILD':
       return 'Đang chọn thành phố để xây thêm.';
+    case 'DEBT':
+      return `Đang bán ô để trả nợ ${money(state.debt?.amount ?? 0)}.`;
     default:
       return 'Đang tung xúc xắc.';
   }

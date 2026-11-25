@@ -298,6 +298,111 @@ describe('Tỷ Phú chance cards', () => {
   });
 });
 
+describe('Tỷ Phú debts: the player chooses what to sell', () => {
+  /** Mover lands on Sa Pa (owner's Cấp 3, rent 200) holding 100 cash and two cities. */
+  function inDebt() {
+    let s = started();
+    const [p, owner] = [s.turn!, s.players.find((x) => x.id !== s.turn)!.id];
+    own(s, 5, owner, 3);
+    own(s, 1, p); // Hà Giang: bank pays 30
+    own(s, 22, p, 2); // Đà Lạt Cấp 2: bank pays 220
+    who(s, p).cash = 100;
+    s.bank += 1900;
+    s = run(s, p, { action: 'roll' }, scripted([2, 3]));
+    return { s, p, owner };
+  }
+  it('enters DEBT instead of selling automatically, and skip is not allowed', () => {
+    const { s, p } = inDebt();
+    expect(s.phase).toBe('DEBT');
+    expect(s.debt).toMatchObject({ amount: 200, reason: 'RENT', tile: 5 });
+    expect(who(s, p).cash).toBe(100);
+    expect(code(() => run(s, p, { action: 'skip' }))).toBe('TYPHU_ACTION_INVALID');
+  });
+  it('sells only the chosen tiles and pays once the cash covers the debt', () => {
+    const debt = inDebt();
+    let s = debt.s;
+    const { p, owner } = debt;
+    s = run(s, p, { action: 'sell', tile: 1 });
+    expect(s.phase).toBe('DEBT');
+    expect(s.tiles[22]).toMatchObject({ owner: p });
+    s = run(s, p, { action: 'sell', tile: 22 });
+    expect(s.debt).toBeNull();
+    expect(who(s, p).cash).toBe(100 + 30 + 220 - 200);
+    expect(who(s, owner).cash).toBe(2000 + 200);
+    expect(moneyInvariant(s)).toBe(4000);
+  });
+  it('cannot sell someone else’s tile', () => {
+    const { s, p } = inDebt();
+    expect(code(() => run(s, p, { action: 'sell', tile: 5 }))).toBe('TYPHU_BAD_TARGET');
+  });
+  it('declaring bankruptcy hands the remaining cash to the creditor', () => {
+    const debt = inDebt();
+    let s = debt.s;
+    const { p, owner } = debt;
+    s = run(s, p, { action: 'declare_bankrupt' });
+    expect(who(s, p).status).toBe('BANKRUPT');
+    expect(who(s, owner).cash).toBe(2100);
+    expect(s.winner).toBe(owner);
+  });
+  it('a timeout sells the cheapest tiles first, like before', () => {
+    const { s, p } = inDebt();
+    const after = reconcile({ ...s, deadline: 0 }, 10, scripted());
+    expect(after.tiles[1]).toBeNull();
+    expect(after.tiles[22]).toBeNull();
+    expect(who(after, p).cash).toBe(150);
+    expect(after.phase).not.toBe('DEBT');
+  });
+  it('a debt that selling everything cannot cover is immediate bankruptcy', () => {
+    let s = started();
+    const [p, owner] = [s.turn!, s.players.find((x) => x.id !== s.turn)!.id];
+    own(s, 5, owner, 3);
+    own(s, 1, p);
+    who(s, p).cash = 10;
+    s.bank += 1990;
+    s = run(s, p, { action: 'roll' }, scripted([2, 3]));
+    expect(who(s, p).status).toBe('BANKRUPT');
+    expect(s.phase).not.toBe('DEBT');
+  });
+  it('tax and the third failed jail roll use the same choice', () => {
+    let s = started();
+    const p = s.turn!;
+    own(s, 31, p, 3); // V = 1000 → tax 100
+    who(s, p).cash = 50;
+    who(s, p).position = 28;
+    s.bank += 1950;
+    s = run(s, p, { action: 'roll' }, scripted([1, 1])); // 28 → 30 (Thuế nhà)
+    expect(s.debt).toMatchObject({ reason: 'TAX', amount: 100 });
+    s = run(s, p, { action: 'sell', tile: 31 });
+    expect(who(s, p).cash).toBe(50 + 500 - 100);
+    let j = started();
+    const q = j.turn!;
+    own(j, 22, q, 2); // bank pays 220
+    Object.assign(who(j, q), { jailed: true, jailTries: 2, position: JAIL_INDEX, cash: 40 });
+    j.bank += 1960;
+    j = run(j, q, { action: 'roll' }, scripted([1, 2]));
+    expect(j.debt).toMatchObject({ reason: 'JAIL', amount: 100 });
+    j = run(j, q, { action: 'sell', tile: 22 });
+    expect(who(j, q).cash).toBe(40 + 220 - 100);
+    expect(who(j, q).position).toBe(JAIL_INDEX + 3);
+  });
+  it('selling into a broken monopoly that can no longer cover the debt is bankruptcy', () => {
+    let s = started();
+    const [p, owner] = [s.turn!, s.players.find((x) => x.id !== s.turn)!.id];
+    own(s, 5, owner, 3); // rent 200
+    for (const i of [21, 22, 23]) own(s, i, p); // monopoly: bank pays 150 + 165 + 165
+    who(s, p).cash = 0;
+    s.bank += 2000;
+    s.tiles[5]!.level = HOTEL;
+    own(s, 6, owner);
+    own(s, 7, owner); // owner's monopoly: rent 320 × 1.5 = 480 = everything p could sell
+    s = run(s, p, { action: 'roll' }, scripted([2, 3]));
+    expect(s.phase).toBe('DEBT');
+    s = run(s, p, { action: 'sell', tile: 21 }); // 150; the rest drops to 110 + 110 → 370 < 480
+    expect(who(s, p).status).toBe('BANKRUPT');
+    expect(moneyInvariant(s)).toBe(4000);
+  });
+});
+
 describe('Tỷ Phú win conditions', () => {
   it('three monopolies win immediately', () => {
     let s = started();
@@ -420,6 +525,11 @@ function botCommand(s: TyPhuState, random: () => number): TyPhuCommand {
     case 'FESTIVAL': {
       const mine = cities.filter((c) => s.tiles[c.index]?.owner === p.id);
       return random() < 0.9 ? { action: 'festival', tile: pick(mine).index } : { action: 'skip' };
+    }
+    case 'DEBT': {
+      if (random() < 0.05) return { action: 'declare_bankrupt' };
+      const mine = board.filter((t) => s.tiles[t.index]?.owner === p.id);
+      return { action: 'sell', tile: pick(mine).index };
     }
     case 'START_BUILD': {
       const options = cities.filter((c) => {

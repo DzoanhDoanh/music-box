@@ -332,7 +332,16 @@ Mô phỏng 1.000 ván do bot chơi ngẫu nhiên (2–4 người):
 - Phân bố cách thắng: người trụ lại cuối cùng 37%, 4 bãi biển 32%, 1 dãy nhà 21%,
   3 monopoly 9%, hết giờ 1%.
 
-Bản đầu, khi thiếu tiền, hệ thống tự bán ô rẻ nhất cho ngân hàng.
+Trả nợ (thêm ngày 25/11/2026):
+
+- Khi người đang tới lượt phải trả tiền thuê, thuế hay tiền phạt ra tù mà thiếu tiền mặt,
+  ván chuyển sang giai đoạn **Trả nợ**. Người chơi tự chọn ô bán cho ngân hàng (0,5 × P)
+  cho tới khi đủ, hoặc tuyên bố phá sản; tiền mặt còn lại khi đó về chủ nợ.
+- Nếu bán hết vẫn không đủ thì phá sản ngay. Bán một ô trong monopoly làm các ô còn lại
+  mất ×1,5; nếu vì thế phần còn lại không đủ trả thì cũng phá sản.
+- Hết giờ lượt: hệ thống bán ô rẻ nhất trước.
+- Khoản nợ phát sinh ngoài lượt của mình (tiền tặng Sinh nhật) vẫn tự bán ô rẻ nhất, để
+  không chặn lượt người khác.
 
 Bước 2 đã xong (25/11/2026):
 

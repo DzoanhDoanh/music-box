@@ -33,6 +33,8 @@ export const tyPhuCommandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('start_build'), tile: tileIndex }).strict(),
   z.object({ action: z.literal('fly'), to: tileIndex }).strict(),
   z.object({ action: z.literal('surrender') }).strict(),
+  z.object({ action: z.literal('sell'), tile: tileIndex }).strict(),
+  z.object({ action: z.literal('declare_bankrupt') }).strict(),
 ]);
 export type TyPhuCommand = z.infer<typeof tyPhuCommandSchema>;
 
@@ -71,7 +73,15 @@ export type TyPhuPhase =
   | 'CARD'
   | 'FESTIVAL'
   | 'START_BUILD'
-  | 'FLY';
+  | 'FLY'
+  | 'DEBT';
+/** A payment the current player must finish by selling property (phase DEBT). */
+export type TyPhuDebt = {
+  amount: number;
+  creditor: string | null;
+  reason: 'RENT' | 'TAX' | 'JAIL';
+  tile?: number;
+};
 export type WinReason = 'MONOPOLY' | 'LINE' | 'BEACHES' | 'LAST_STANDING' | 'TIME';
 export type TyPhuEvent = { at: number; type: string; actor?: string; text: string };
 export type TyPhuState = {
@@ -93,6 +103,8 @@ export type TyPhuState = {
   dice: [number, number] | null;
   /** True after a normal double: the same player rolls again once the stop resolves. */
   extraRoll: boolean;
+  /** Outstanding payment while phase is DEBT; absent in games saved before this rule. */
+  debt?: TyPhuDebt | null;
   /** Remaining chance cards in order. Server-only: never sent to clients. */
   deck: CardId[];
   /** Net bank balance: Σ cash + bank always equals the money handed out at the start. */
@@ -151,7 +163,17 @@ export const tyPhuStateSchema = z.object({
   rules: tyPhuRulesSchema,
   players: z.array(tyPhuPlayerSchema).min(1).max(4),
   turn: uuidOrNull,
-  phase: z.enum(['ROLL', 'BUY', 'BUILD', 'BUYOUT', 'CARD', 'FESTIVAL', 'START_BUILD', 'FLY']),
+  phase: z.enum([
+    'ROLL',
+    'BUY',
+    'BUILD',
+    'BUYOUT',
+    'CARD',
+    'FESTIVAL',
+    'START_BUILD',
+    'FLY',
+    'DEBT',
+  ]),
   pending: z
     .object({
       tile: z.number().int().min(0).max(31).optional(),
@@ -173,6 +195,15 @@ export const tyPhuStateSchema = z.object({
   festival: z.number().int().min(0).max(31).nullable(),
   dice: z.tuple([z.number().int(), z.number().int()]).nullable(),
   extraRoll: z.boolean(),
+  debt: z
+    .object({
+      amount: z.number().int().min(1),
+      creditor: uuidOrNull,
+      reason: z.enum(['RENT', 'TAX', 'JAIL']),
+      tile: z.number().int().min(0).max(31).optional(),
+    })
+    .nullable()
+    .optional(),
   deck: z.array(cardIdSchema).max(15),
   bank: z.number().int(),
   deadline: z.number().nullable(),

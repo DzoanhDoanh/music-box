@@ -28,6 +28,7 @@ import { cardIds, cards, type CardId } from './cards';
 import {
   defaultTyPhuRules,
   type TyPhuCommand,
+  type TyPhuDebt,
   type TyPhuPlayer,
   type TyPhuPublicState,
   type TyPhuRules,
@@ -78,6 +79,7 @@ export function createTyPhuState(
     festival: null,
     dice: null,
     extraRoll: false,
+    debt: null,
     deck: [],
     bank: 0,
     deadline: null,
@@ -241,6 +243,88 @@ function pay(
   return amount;
 }
 
+/** Total the bank would pay for everything a player owns. */
+export function liquidationValue(s: TyPhuState, id: string) {
+  return ownedBy(s, id).reduce((sum, t) => sum + bankSalePrice(s, t.index), 0);
+}
+/**
+ * A payment by the player whose turn it is. Shortfalls that selling could cover become a
+ * DEBT phase where the player picks what to sell; hopeless ones are bankruptcy at once.
+ */
+function charge(
+  s: TyPhuState,
+  payer: TyPhuPlayer,
+  payee: TyPhuPlayer | null,
+  base: number,
+  now: number,
+  debt: Omit<TyPhuDebt, 'amount' | 'creditor'>,
+  modifiers: boolean,
+): 'PAID' | 'DEBT' | 'BANKRUPT' {
+  let amount = base;
+  if (modifiers && base > 0) {
+    if (payer.fine) log(s, now, 'card_used', `${payer.name} chịu phạt gấp đôi.`, payer.id);
+    if (payer.half) log(s, now, 'card_used', `${payer.name} dùng phiếu giảm giá nửa vé.`, payer.id);
+    amount = Math.round(base * (payer.fine ? 2 : 1) * (payer.half ? 0.5 : 1));
+    payer.fine = payer.half = false;
+  }
+  if (amount <= 0) return 'PAID';
+  if (payer.cash >= amount) {
+    payer.cash -= amount;
+    if (payee) payee.cash += amount;
+    else s.bank += amount;
+    s.debt = null;
+    return 'PAID';
+  }
+  if (payer.cash + liquidationValue(s, payer.id) < amount) {
+    bankrupt(s, payer, payee, now);
+    return 'BANKRUPT';
+  }
+  s.debt = { ...debt, amount, creditor: payee?.id ?? null };
+  log(s, now, 'debt', `${payer.name} thiếu tiền, cần bán ô để trả ${amount}.`, payer.id);
+  setPhase(s, 'DEBT', now);
+  return 'DEBT';
+}
+function afterRent(s: TyPhuState, p: TyPhuPlayer, index: number, paid: number, now: number) {
+  const t = tile(index);
+  const owner = player(s, s.tiles[index]?.owner ?? '');
+  if (paid && owner)
+    log(s, now, 'rent', `${p.name} trả ${owner.name} ${paid} tiền thuê ${t.name}.`, p.id);
+  if (
+    owner &&
+    p.status === 'ACTIVE' &&
+    s.rules.buyout &&
+    t.kind === 'CITY' &&
+    s.tiles[index]!.level < HOTEL &&
+    p.cash >= buyoutPrice(s, index)
+  )
+    return setPhase(s, 'BUYOUT', now, { tile: index });
+  settle(s, now);
+}
+/** Finishes the outstanding DEBT payment once the player holds enough cash. */
+function completeDebt(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) {
+  const debt = s.debt!;
+  s.debt = null;
+  const creditor = debt.creditor ? player(s, debt.creditor) : null;
+  p.cash -= debt.amount;
+  if (creditor && creditor.status === 'ACTIVE') creditor.cash += debt.amount;
+  else s.bank += debt.amount;
+  s.pending = null;
+  if (debt.reason === 'RENT') return afterRent(s, p, debt.tile!, debt.amount, now);
+  if (debt.reason === 'TAX') {
+    log(s, now, 'tax', `${p.name} nộp thuế nhà ${debt.amount}.`, p.id);
+    return settle(s, now);
+  }
+  log(s, now, 'jail_exit', `${p.name} hết 3 lượt, nộp phạt ${JAIL_FINE} để ra tù.`, p.id);
+  moveBy(s, p, (s.dice?.[0] ?? 0) + (s.dice?.[1] ?? 0), now);
+  land(s, p, now, rng);
+}
+function sellToBank(s: TyPhuState, p: TyPhuPlayer, index: number, now: number) {
+  const price = bankSalePrice(s, index);
+  releaseTile(s, index);
+  receive(s, p, price);
+  log(s, now, 'bank_sale', `${p.name} bán ${tile(index).name} cho ngân hàng được ${price}.`, p.id);
+}
+
 // ---------------------------------------------------------------- building
 
 /** Highest level this player may build to on a tile during the current stop. */
@@ -286,6 +370,7 @@ function startTurn(s: TyPhuState, id: string, now: number) {
   const p = mustPlayer(s, id);
   s.turn = id;
   s.extraRoll = false;
+  s.debt = null;
   s.dice = null;
   p.doubles = 0;
   setPhase(s, p.flyNext ? 'FLY' : 'ROLL', now);
@@ -357,8 +442,11 @@ function land(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom): voi
       return settle(s, now);
     case 'TAX': {
       const value = ownedBy(s, p.id).reduce((sum, c) => sum + tileValue(s, c.index), 0);
-      const paid = pay(s, p, null, Math.round(0.1 * value), now, true);
-      if (paid) log(s, now, 'tax', `${p.name} nộp thuế nhà ${paid}.`, p.id);
+      const before = p.cash;
+      const result = charge(s, p, null, Math.round(0.1 * value), now, { reason: 'TAX' }, true);
+      if (result === 'DEBT') return;
+      if (result === 'PAID' && before > p.cash)
+        log(s, now, 'tax', `${p.name} nộp thuế nhà ${before - p.cash}.`, p.id);
       return settle(s, now);
     }
     case 'CHANCE':
@@ -379,19 +467,11 @@ function land(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom): voi
       const rent = baseRent(s, t.index);
       if (rent === 0 && owned.blackout > 0)
         log(s, now, 'blackout', `${t.name} đang mất điện, không thu tiền thuê.`, p.id);
-      const paid = pay(s, p, owner, rent, now, true);
-      if (paid)
-        log(s, now, 'rent', `${p.name} trả ${owner.name} ${paid} tiền thuê ${t.name}.`, p.id);
-      if (
-        p.status === 'ACTIVE' &&
-        s.rules.buyout &&
-        t.kind === 'CITY' &&
-        s.tiles[t.index]?.owner === owner.id &&
-        s.tiles[t.index]!.level < HOTEL &&
-        p.cash >= buyoutPrice(s, t.index)
-      )
-        return setPhase(s, 'BUYOUT', now, { tile: t.index });
-      return settle(s, now);
+      const before = p.cash;
+      const result = charge(s, p, owner, rent, now, { reason: 'RENT', tile: t.index }, true);
+      if (result === 'DEBT') return;
+      if (result === 'BANKRUPT') return settle(s, now);
+      return afterRent(s, p, t.index, before - p.cash, now);
     }
   }
 }
@@ -620,8 +700,9 @@ function rollDice(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) 
       if (p.jailTries < 3) return settle(s, now);
       p.jailed = false;
       p.jailTries = 0;
-      pay(s, p, null, JAIL_FINE, now);
-      if (p.status !== 'ACTIVE') return settle(s, now);
+      const result = charge(s, p, null, JAIL_FINE, now, { reason: 'JAIL' }, false);
+      if (result === 'DEBT') return;
+      if (result === 'BANKRUPT') return settle(s, now);
       log(s, now, 'jail_exit', `${p.name} hết 3 lượt, nộp phạt ${JAIL_FINE} để ra tù.`, p.id);
     }
     moveBy(s, p, d1 + d2, now);
@@ -810,8 +891,29 @@ function apply(
         return setPhase(s, 'BUILD', now, { tile: index, from: owned.level });
       return settle(s, now);
     }
+    case 'sell': {
+      requireTurn(s, actor, 'DEBT');
+      if (!s.debt || s.tiles[command.tile]?.owner !== p.id) fail('TYPHU_BAD_TARGET');
+      sellToBank(s, p, command.tile, now);
+      if (p.cash >= s.debt!.amount) return completeDebt(s, p, now, rng);
+      // Breaking a monopoly lowers what the rest is worth; stop once it can no longer cover.
+      if (p.cash + liquidationValue(s, p.id) < s.debt!.amount) {
+        const creditor = s.debt!.creditor ? (player(s, s.debt!.creditor) ?? null) : null;
+        s.debt = null;
+        bankrupt(s, p, creditor, now);
+        return settle(s, now);
+      }
+      return setPhase(s, 'DEBT', now);
+    }
+    case 'declare_bankrupt': {
+      requireTurn(s, actor, 'DEBT');
+      const creditor = s.debt?.creditor ? (player(s, s.debt.creditor) ?? null) : null;
+      s.debt = null;
+      bankrupt(s, p, creditor, now);
+      return settle(s, now);
+    }
     case 'skip': {
-      if (s.phase === 'ROLL') fail();
+      if (s.phase === 'ROLL' || s.phase === 'DEBT') fail();
       // A bad card cannot be dodged; only optional choices can be skipped.
       if (s.phase === 'CARD' && cards[s.pending!.card!].kind === 'BAD') fail();
       if (s.phase === 'FLY') {
@@ -911,6 +1013,14 @@ export function reconcile(state: TyPhuState, now: number, rng: TyPhuRandom): TyP
 function autoAct(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) {
   const pending = s.pending;
   switch (s.phase) {
+    case 'DEBT': {
+      // Away players sell their cheapest property first.
+      if (s.debt && liquidate(s, p, s.debt.amount, now)) return completeDebt(s, p, now, rng);
+      const creditor = s.debt?.creditor ? (player(s, s.debt.creditor) ?? null) : null;
+      s.debt = null;
+      bankrupt(s, p, creditor, now);
+      return settle(s, now);
+    }
     case 'ROLL':
       if (p.jailed && p.pass) {
         p.pass = p.jailed = false;

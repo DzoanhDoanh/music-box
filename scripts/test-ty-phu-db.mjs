@@ -283,6 +283,11 @@ export async function testTyPhu({ sql, owner, check }) {
         const other = state.players.find((o) => o.status === 'ACTIVE' && o.id !== p.id);
         return { action: 'card_target', tile, player: other.id };
       }
+      case 'DEBT':
+        return {
+          action: 'sell',
+          tile: board.find((t) => state.tiles[t.index]?.owner === p.id).index,
+        };
       case 'FESTIVAL':
         return {
           action: 'festival',

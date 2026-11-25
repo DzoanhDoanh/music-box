@@ -543,3 +543,7 @@
     display: none;
   }
 }
+.typhu-debt-missing {
+  color: var(--danger);
+  font-weight: 700;
+}
