@@ -1,10 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bot, Crown, Dices, Flag, Plus, RotateCcw, Users, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  Bot,
+  Crown,
+  Dices,
+  Flag,
+  Pause,
+  Play,
+  Plus,
+  RotateCcw,
+  Users,
+  X,
+} from 'lucide-react';
 import type { Snapshot } from '../../../shared/contracts';
 import {
-  AIRPORT_INDEX,
-  BEACH_RENT,
+  BEACH_RENTS,
+  FESTIVAL_FEE,
   FLY_FEE,
   HOTEL,
   JAIL_FINE,
@@ -30,17 +42,19 @@ import {
   liquidationValue,
   cardTargets,
   currentPrice,
+  flyTargets,
   winProgress,
 } from '../../../shared/ty-phu/engine';
 import { asEngineState, openRematch, useTyPhu, useTyPhuList } from '../../lib/ty-phu';
 import { AsyncButton, Button, Confirm, ErrorState, Loading } from '../ui';
 import TyPhuBoard, {
   colorNames,
-  Dice3D,
   playerColors,
+  saveView,
+  savedView,
   stripColor,
-  webglAvailable,
   type BoardView,
+  type TableControls,
 } from './TyPhuBoard';
 import '../game/game.css';
 import './ty-phu.css';
@@ -49,7 +63,7 @@ const money = (n: number) => n.toLocaleString('vi-VN');
 const winNames: Record<WinReason, string> = {
   MONOPOLY: 'Sở hữu 3 monopoly',
   LINE: 'Độc chiếm một dãy nhà',
-  BEACHES: 'Sở hữu 4 bãi biển',
+  BEACHES: 'Sở hữu đủ 4 bãi biển',
   LAST_STANDING: 'Người trụ lại cuối cùng',
   TIME: 'Giàu nhất khi hết giờ',
 };
@@ -226,6 +240,12 @@ function useNow(interval = 500) {
   return now;
 }
 
+type Send = ReturnType<typeof useTyPhu>['send'];
+/** Phases where the player picks a tile on the board; the prompt sits above the table. */
+const pickPhases = ['FLY', 'CARD', 'FESTIVAL', 'START_BUILD', 'DEBT'];
+/** Decisions shown as a dialog over the table. */
+const popupPhases = ['BUY', 'BUILD', 'BUYOUT'];
+
 function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
   const room = snapshot.room.id,
     me = snapshot.me;
@@ -233,23 +253,10 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
   const now = useNow();
   const [detail, setDetail] = useState<number | null>(null);
   const [giftTile, setGiftTile] = useState<number | null>(null);
-  const [view, setView] = useState<BoardView>(() => {
-    if (!webglAvailable()) return '2d';
-    try {
-      const saved = localStorage.getItem('roomtune:typhu:view');
-      if (saved === '3d' || saved === '2d') return saved;
-    } catch {
-      /* preference only */
-    }
-    return innerWidth >= 900 ? '3d' : '2d';
-  });
+  const [view, setView] = useState<BoardView>(savedView);
   const chooseView = (next: BoardView) => {
     setView(next);
-    try {
-      localStorage.setItem('roomtune:typhu:view', next);
-    } catch {
-      /* preference only */
-    }
+    saveView(next);
   };
   const state = query.data?.state;
   const engine = useMemo(() => (state ? asEngineState(state) : null), [state]);
@@ -262,11 +269,14 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
   }
   const mine = state.players.find((p) => p.id === me);
   const current = state.players.find((p) => p.id === state.turn);
-  const myTurn = state.status === 'PLAYING' && state.turn === me && mine?.status === 'ACTIVE';
+  const paused = state.status === 'PLAYING' ? (state.paused ?? null) : null;
+  const myTurn =
+    state.status === 'PLAYING' && state.turn === me && mine?.status === 'ACTIVE' && !paused;
   const seconds =
     state.deadline === null
       ? null
       : Math.max(0, Math.ceil((state.deadline - (now + offset.current)) / 1000));
+  const canPause = state.status === 'PLAYING' && mine?.status === 'ACTIVE' && !mine.bot;
 
   const ownCities = cities.filter((c) => state.tiles[c.index]?.owner === me).map((c) => c.index);
   let selectable: number[] = [];
@@ -279,8 +289,7 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
         const level = state.tiles[i]!.level;
         return level < buildCap(mine, level) && buildCost(i, level, level + 1) <= mine.cash;
       });
-    else if (state.phase === 'FLY')
-      selectable = board.filter((t) => t.index !== AIRPORT_INDEX).map((t) => t.index);
+    else if (state.phase === 'FLY') selectable = flyTargets(engine, mine);
     else if (state.phase === 'DEBT')
       selectable = board.filter((t) => state.tiles[t.index]?.owner === me).map((t) => t.index);
   }
@@ -297,45 +306,11 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
     }
   };
 
-  const center = (
-    <div className="typhu-center-inner">
-      {state.status === 'PLAYING' && current ? (
-        <>
-          <span className="typhu-turn" style={{ color: playerColors[current.color] }}>
-            {current.id === me ? 'Lượt của bạn' : `Lượt của ${current.name}`}
-            {current.bot ? (
-              <b> · đang nghĩ…</b>
-            ) : (
-              seconds !== null && <b className={seconds <= 10 ? 'urgent' : ''}> · {seconds}s</b>
-            )}
-          </span>
-          <Dice3D
-            dice={state.dice}
-            roll={String([...state.log].reverse().find((e) => e.type === 'roll')?.at ?? '')}
-          />
-          <small className="typhu-last">{state.log.at(-1)?.text}</small>
-        </>
-      ) : state.status === 'FINISHED' ? (
-        <div className="typhu-winner">
-          <Crown size={26} />
-          <strong>{state.players.find((p) => p.id === state.winner)?.name} thắng!</strong>
-          <small>{state.winReason ? winNames[state.winReason] : ''}</small>
-        </div>
-      ) : (
-        <div className="typhu-winner">
-          <Users size={24} />
-          <strong>{state.players.length}/4 người</strong>
-          <small>Chờ chủ bàn bắt đầu</small>
-        </div>
-      )}
-    </div>
-  );
-
   const turnLine =
     state.status === 'PLAYING' && current ? (
       <span className="typhu-turn" style={{ color: playerColors[current.color] }}>
         {current.id === me ? 'Lượt của bạn' : `Lượt của ${current.name}`}
-        {current.bot ? (
+        {paused ? null : current.bot ? (
           <b> · đang nghĩ…</b>
         ) : (
           seconds !== null && <b className={seconds <= 10 ? 'urgent' : ''}> · {seconds}s</b>
@@ -351,15 +326,80 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
         <Users size={16} /> {state.players.length}/4 người · chờ chủ bàn bắt đầu
       </span>
     );
-  const hud = (
-    <>
-      <div className="typhu-hud-top" aria-live="polite">
-        {turnLine}
-        {state.dice && <span className="typhu-hud-dice">🎲 {state.dice.join(' + ')}</span>}
-      </div>
-      {state.log.at(-1) && <div className="typhu-hud-log">{state.log.at(-1)!.text}</div>}
-    </>
-  );
+
+  const controls = (busy: boolean): TableControls => {
+    const ready = !busy && myTurn && mine;
+    const status =
+      ready && pickPhases.includes(state.phase) ? (
+        <TurnPrompt
+          state={state}
+          me={me}
+          send={send}
+          pending={pending}
+          giftTile={giftTile}
+          clearGift={() => setGiftTile(null)}
+        />
+      ) : (
+        <div className="typhu-status-line">
+          {turnLine}
+          {!busy && state.log.at(-1) && <small>{state.log.at(-1)!.text}</small>}
+        </div>
+      );
+    let center: ReactNode = null;
+    if (ready && state.phase === 'ROLL')
+      center = <RollButtons state={state} me={me} send={send} pending={pending} />;
+    else if (state.status === 'FINISHED')
+      center = (
+        <div className="typhu-winner">
+          <Crown size={26} />
+          <strong>{state.players.find((p) => p.id === state.winner)?.name} thắng!</strong>
+          <small>{state.winReason ? winNames[state.winReason] : ''}</small>
+        </div>
+      );
+    else if (state.status === 'WAITING')
+      center = (
+        <div className="typhu-winner">
+          <Users size={24} />
+          <strong>{state.players.length}/4 người</strong>
+          <small>Chờ chủ bàn bắt đầu</small>
+        </div>
+      );
+    const popup =
+      ready && popupPhases.includes(state.phase) ? (
+        <DecisionPopup state={state} me={me} send={send} pending={pending} />
+      ) : null;
+    let overlay: ReactNode = null;
+    if (paused)
+      overlay = (
+        <div className="typhu-paused" role="dialog" aria-label="Ván đang tạm dừng">
+          <strong>⏸ Ván đang tạm dừng</strong>
+          <small>
+            {state.players.find((p) => p.id === paused.by)?.name ?? 'Một người chơi'} đã tạm dừng.
+          </small>
+          {canPause && (
+            <AsyncButton
+              variant="primary"
+              disabled={pending}
+              onClick={() => send({ action: 'resume' })}
+            >
+              <Play size={16} /> Chơi tiếp
+            </AsyncButton>
+          )}
+        </div>
+      );
+    else if (!busy && state.status === 'PLAYING' && state.phase === 'REVEAL' && state.pending?.card)
+      overlay = (
+        <CardReveal
+          state={state}
+          mine={state.turn === me}
+          seconds={seconds}
+          send={send}
+          pending={pending}
+        />
+      );
+    else if (state.status === 'FINISHED') overlay = <Confetti />;
+    return { status, center, popup, overlay };
+  };
 
   return (
     <section className="typhu-party typhu-match" aria-label="Ván Tỷ Phú Phố Nhạc">
@@ -372,23 +412,26 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
         <div>
           <h1>{state.name}</h1>
           <small>
-            {statusNames[state.status]}
-            {state.endsAt && state.status === 'PLAYING'
+            {paused ? 'Đang tạm dừng' : statusNames[state.status]}
+            {state.endsAt && state.status === 'PLAYING' && !paused
               ? ` · còn ${Math.max(0, Math.ceil((state.endsAt - (now + offset.current)) / 60000))} phút`
               : ''}
             {connection !== 'Đã kết nối' ? ` · ${connection}` : ''}
           </small>
         </div>
+        {canPause && (
+          <AsyncButton
+            variant="secondary"
+            disabled={pending}
+            onClick={() => send({ action: paused ? 'resume' : 'pause' })}
+          >
+            {paused ? <Play size={16} /> : <Pause size={16} />} {paused ? 'Chơi tiếp' : 'Tạm dừng'}
+          </AsyncButton>
+        )}
         <div className="typhu-view" role="group" aria-label="Kiểu bàn cờ">
-          {(['3d', '2d'] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              aria-pressed={view === v}
-              disabled={v === '3d' && !webglAvailable()}
-              onClick={() => chooseView(v)}
-            >
-              {v === '3d' ? 'Bàn 3D' : 'Bàn 2D'}
+          {(['25d', 'flat'] as const).map((v) => (
+            <button key={v} type="button" aria-pressed={view === v} onClick={() => chooseView(v)}>
+              {v === '25d' ? 'Bàn 2.5D' : 'Bàn phẳng'}
             </button>
           ))}
         </div>
@@ -400,24 +443,15 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
           selectable={selectable}
           onTile={onTile}
           view={view}
-          // Falling back for this visit only: the saved preference stays 3D.
-          onFailure3d={() => setView('2d')}
-          hud={hud}
-          center={center}
+          seconds={paused ? null : seconds}
+          controls={controls}
         />
         <aside className="typhu-side">
-          <ActionPanel
-            state={state}
-            me={me}
-            send={send}
-            pending={pending}
-            giftTile={giftTile}
-            clearGift={() => setGiftTile(null)}
-          />
-          <Players state={state} me={me} send={send} pending={pending} />
+          <ActionPanel state={state} me={me} send={send} pending={pending} />
           {detail !== null && (
             <TileDetail state={state} index={detail} onClose={() => setDetail(null)} />
           )}
+          <Players state={state} me={me} send={send} pending={pending} />
           <section className="typhu-card typhu-log" aria-label="Diễn biến ván">
             <h2>Diễn biến</h2>
             <ol>
@@ -435,9 +469,159 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
   );
 }
 
-// ---------------------------------------------------------------- panels
+// ---------------------------------------------------------------- table controls
 
-function ActionPanel({
+function RollButtons({
+  state,
+  me,
+  send,
+  pending,
+}: {
+  state: TyPhuPublicState;
+  me: string;
+  send: Send;
+  pending: boolean;
+}) {
+  const mine = state.players.find((p) => p.id === me)!;
+  return (
+    <div className="typhu-roll">
+      {mine.jailed && <small>Đang ở tù (lần {mine.jailTries + 1}/3) · tung đôi để ra</small>}
+      <AsyncButton
+        variant="primary"
+        className="typhu-roll-button"
+        disabled={pending}
+        onClick={() => send({ action: 'roll' })}
+      >
+        <Dices size={20} /> Tung xúc xắc
+      </AsyncButton>
+      {mine.jailed && (
+        <div className="typhu-buttons">
+          {mine.pass && (
+            <AsyncButton disabled={pending} onClick={() => send({ action: 'use_pass' })}>
+              Dùng Thẻ VIP
+            </AsyncButton>
+          )}
+          <AsyncButton
+            disabled={pending || mine.cash < JAIL_FINE}
+            onClick={() => send({ action: 'pay_jail' })}
+          >
+            Nộp {JAIL_FINE} ra tù
+          </AsyncButton>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Buy, build and buy-out choices, as a dialog in the middle of the table. */
+function DecisionPopup({
+  state,
+  me,
+  send,
+  pending,
+}: {
+  state: TyPhuPublicState;
+  me: string;
+  send: Send;
+  pending: boolean;
+}) {
+  const engine = asEngineState(state);
+  const mine = state.players.find((p) => p.id === me)!;
+  const index = state.pending!.tile!;
+  const t = tileAt(index);
+  const owned = state.tiles[index];
+  let title: string;
+  let body: ReactNode;
+  if (state.phase === 'BUY') {
+    const maxLevel = t.kind === 'BEACH' ? 0 : buildCap(mine, 0);
+    title = `Mua ${t.name}?`;
+    body = (
+      <>
+        <p>
+          Giá đất {money(t.price!)} · bạn có {money(mine.cash)}
+        </p>
+        <div className="typhu-levels">
+          {Array.from({ length: maxLevel + 1 }, (_, level) => {
+            const cost = t.price! + buildCost(index, 0, level);
+            const rent =
+              t.kind === 'BEACH' ? BEACH_RENTS[1] : Math.round(0.1 * t.price! * levelRent[level]);
+            return (
+              <AsyncButton
+                key={level}
+                variant={level === 0 ? 'primary' : 'secondary'}
+                disabled={pending || cost > mine.cash}
+                onClick={() => send({ action: 'buy', level })}
+              >
+                {level === 0 ? 'Mua đất' : `Mua + ${levelNames[level]}`} · {money(cost)}
+                <small>thuê {money(rent)}</small>
+              </AsyncButton>
+            );
+          })}
+        </div>
+        <SkipButton send={send} pending={pending} label="Không mua" />
+      </>
+    );
+  } else if (state.phase === 'BUILD') {
+    const level = owned!.level;
+    const cap = buildCap(mine, state.pending?.from ?? level);
+    title = `Nâng nhà ở ${t.name}`;
+    body = (
+      <>
+        <p>
+          Đang {levelNames[level]} · thuê {money(baseRent(engine, index))}
+          {cap < HOTEL && level === 3 ? '. Khách sạn mở từ vòng 3 khi ô đã ở Cấp 3.' : ''}
+        </p>
+        <div className="typhu-levels">
+          {Array.from({ length: cap - level }, (_, i) => level + 1 + i).map((to) => {
+            const cost = buildCost(index, level, to);
+            return (
+              <AsyncButton
+                key={to}
+                disabled={pending || cost > mine.cash}
+                onClick={() => send({ action: 'build', level: to })}
+              >
+                {levelNames[to]} · {money(cost)}
+                <small>thuê {money(Math.round(0.1 * t.price! * levelRent[to]))}+</small>
+              </AsyncButton>
+            );
+          })}
+        </div>
+        <SkipButton send={send} pending={pending} label="Không xây" />
+      </>
+    );
+  } else {
+    const owner = state.players.find((p) => p.id === owned?.owner);
+    const price = buyoutPrice(engine, index);
+    title = `Mua lại ${t.name}?`;
+    body = (
+      <>
+        <p>
+          Của {owner?.name} · giá {money(price)}. Chủ cũ không được từ chối.
+        </p>
+        <div className="typhu-buttons">
+          <AsyncButton
+            variant="primary"
+            disabled={pending || price > mine.cash}
+            onClick={() => send({ action: 'buyout' })}
+          >
+            Mua lại · {money(price)}
+          </AsyncButton>
+          <SkipButton send={send} pending={pending} label="Thôi" />
+        </div>
+      </>
+    );
+  }
+  return (
+    <section className="typhu-popup" role="dialog" aria-label={title}>
+      <i className="typhu-strip" style={{ background: stripColor(t) }} />
+      <h2>{title}</h2>
+      {body}
+    </section>
+  );
+}
+
+/** What to pick on the board (fly, card target, festival, build at Start, sell for debt). */
+function TurnPrompt({
   state,
   me,
   send,
@@ -447,12 +631,199 @@ function ActionPanel({
 }: {
   state: TyPhuPublicState;
   me: string;
-  send: ReturnType<typeof useTyPhu>['send'];
+  send: Send;
   pending: boolean;
   giftTile: number | null;
   clearGift: () => void;
 }) {
   const engine = asEngineState(state);
+  const mine = state.players.find((p) => p.id === me)!;
+  switch (state.phase) {
+    case 'FLY':
+      return (
+        <div className="typhu-prompt">
+          <span>
+            ✈️ Chọn ô đất trống hoặc đất của bạn để bay tới
+            {mine.freeFly ? ' (miễn phí)' : ` (phí ${FLY_FEE})`}.
+          </span>
+          <AsyncButton disabled={pending} onClick={() => send({ action: 'roll' })}>
+            <Dices size={16} /> Tung xúc xắc thay vì bay
+          </AsyncButton>
+        </div>
+      );
+    case 'CARD': {
+      const card = state.pending!.card!;
+      const others = state.players.filter((p) => p.status === 'ACTIVE' && p.id !== me);
+      return (
+        <div className="typhu-prompt">
+          <span>
+            🃏 <strong>{cards[card].name}</strong>
+            {card === 'GIFT' && giftTile !== null
+              ? ` · tặng ${tileAt(giftTile).name} cho ai?`
+              : ' · chọn một ô đang sáng.'}
+          </span>
+          {card === 'GIFT' && giftTile !== null && (
+            <>
+              {others.map((o) => (
+                <AsyncButton
+                  key={o.id}
+                  disabled={pending}
+                  onClick={async () => {
+                    await send({ action: 'card_target', tile: giftTile, player: o.id });
+                    clearGift();
+                  }}
+                >
+                  {o.name}
+                </AsyncButton>
+              ))}
+              <Button variant="ghost" onClick={clearGift}>
+                Chọn ô khác
+              </Button>
+            </>
+          )}
+          {cards[card].kind !== 'BAD' && (
+            <SkipButton send={send} pending={pending} label="Không dùng" />
+          )}
+        </div>
+      );
+    }
+    case 'FESTIVAL':
+      return (
+        <div className="typhu-prompt">
+          <span>
+            🎤 Trả {FESTIVAL_FEE} để một thành phố của bạn tổ chức Đại nhạc hội (thuê ×2).
+          </span>
+          <SkipButton send={send} pending={pending} label="Không tổ chức" />
+        </div>
+      );
+    case 'START_BUILD':
+      return (
+        <div className="typhu-prompt">
+          <span>🏁 Dừng ở Xuất phát: chọn một thành phố để xây thêm 1 cấp.</span>
+          <SkipButton send={send} pending={pending} label="Không xây" />
+        </div>
+      );
+    case 'DEBT': {
+      const debt = state.debt!;
+      const creditor = state.players.find((p) => p.id === debt.creditor);
+      const owned = board
+        .filter((t) => state.tiles[t.index]?.owner === me)
+        .map((t) => ({ t, price: bankSalePrice(engine, t.index) }))
+        .sort((a, b) => a.price - b.price || a.t.index - b.t.index);
+      const reason =
+        debt.reason === 'RENT'
+          ? `tiền thuê ${tileAt(debt.tile!).name} cho ${creditor?.name ?? 'chủ ô'}`
+          : debt.reason === 'TAX'
+            ? 'thuế nhà'
+            : 'tiền phạt ra tù';
+      return (
+        <div className="typhu-prompt typhu-debt">
+          <span>
+            Phải trả <strong>{money(debt.amount)}</strong> {reason}, đang có {money(mine.cash)}.{' '}
+            <b className="typhu-debt-missing">Còn thiếu {money(debt.amount - mine.cash)}</b> · bán
+            hết được {money(liquidationValue(engine, me))}. Chọn ô để bán (50% giá).
+          </span>
+          <div className="typhu-options">
+            {owned.map(({ t, price }) => (
+              <AsyncButton
+                key={t.index}
+                disabled={pending}
+                onClick={() => send({ action: 'sell', tile: t.index })}
+              >
+                Bán {t.name} · +{money(price)}
+              </AsyncButton>
+            ))}
+          </div>
+          <Confirm
+            title="Tuyên bố phá sản?"
+            description={`Toàn bộ ${money(mine.cash)} tiền mặt chuyển cho ${creditor?.name ?? 'ngân hàng'}, đất trả về ngân hàng và bạn rời ván.`}
+            onConfirm={() => send({ action: 'declare_bankrupt' })}
+          >
+            <Button variant="ghost" disabled={pending}>
+              Tuyên bố phá sản
+            </Button>
+          </Confirm>
+        </div>
+      );
+    }
+    default:
+      return null;
+  }
+}
+
+/** The drawn chance card, shown to everyone before it takes effect. */
+function CardReveal({
+  state,
+  mine,
+  seconds,
+  send,
+  pending,
+}: {
+  state: TyPhuPublicState;
+  mine: boolean;
+  seconds: number | null;
+  send: Send;
+  pending: boolean;
+}) {
+  const card = cards[state.pending!.card!];
+  const drawer = state.players.find((p) => p.id === state.turn);
+  return (
+    <div className="typhu-reveal" role="dialog" aria-label="Phiếu Cơ hội">
+      <div className={`typhu-card-face kind-${card.kind.toLowerCase()}`}>
+        <span className="typhu-card-top">🃏 Cơ hội · {drawer?.name}</span>
+        <strong>{card.name}</strong>
+        <p>{card.text}</p>
+        <span className="typhu-card-kind">
+          {card.kind === 'ATTACK' ? 'Tấn công' : card.kind === 'BAD' ? 'Xui' : 'May mắn'}
+        </span>
+      </div>
+      {mine ? (
+        <AsyncButton
+          variant="primary"
+          disabled={pending}
+          onClick={() => send({ action: 'card_ok' })}
+        >
+          Thực hiện phiếu{seconds !== null ? ` · ${seconds}s` : ''}
+        </AsyncButton>
+      ) : (
+        <small>Phiếu có hiệu lực sau {seconds ?? 0}s…</small>
+      )}
+    </div>
+  );
+}
+
+function Confetti() {
+  return (
+    <div className="typhu-confetti" aria-hidden="true">
+      {Array.from({ length: 36 }, (_, i) => (
+        <i
+          key={i}
+          style={
+            {
+              '--x': `${(i * 37) % 100}%`,
+              '--d': `${(i % 7) * 0.35}s`,
+              '--c': ['#f6c453', '#e24b4a', '#378add', '#639922', '#d4537e'][i % 5],
+            } as React.CSSProperties
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- side panels
+
+function ActionPanel({
+  state,
+  me,
+  send,
+  pending,
+}: {
+  state: TyPhuPublicState;
+  me: string;
+  send: Send;
+  pending: boolean;
+}) {
   const mine = state.players.find((p) => p.id === me);
   const current = state.players.find((p) => p.id === state.turn);
   const host = state.host === me;
@@ -533,267 +904,28 @@ function ActionPanel({
       </section>
     );
   }
-  if (state.turn !== me) {
-    return (
-      <section className="typhu-card typhu-actions" aria-live="polite">
-        <h2>Chờ {current?.name ?? 'người chơi'}</h2>
-        <p className="muted">{phaseHint(state)}</p>
-        <Surrender send={send} pending={pending} />
-      </section>
-    );
-  }
-
-  const index = state.pending?.tile;
-  const t = index === undefined ? null : tileAt(index);
-  let body: React.ReactNode = null;
-  switch (state.phase) {
-    case 'ROLL':
-      body = (
-        <>
-          <p>
-            {mine.jailed
-              ? `Bạn đang ở tù (lần thử ${mine.jailTries + 1}/3). Tung được đôi để ra tù.`
-              : 'Tung xúc xắc để đi tiếp.'}
-          </p>
-          <div className="typhu-buttons">
-            <AsyncButton
-              variant="primary"
-              disabled={pending}
-              onClick={() => send({ action: 'roll' })}
-            >
-              <Dices size={17} /> Tung xúc xắc
-            </AsyncButton>
-            {mine.jailed && mine.pass && (
-              <AsyncButton disabled={pending} onClick={() => send({ action: 'use_pass' })}>
-                Dùng Thẻ VIP
-              </AsyncButton>
-            )}
-            {mine.jailed && (
-              <AsyncButton
-                disabled={pending || mine.cash < JAIL_FINE}
-                onClick={() => send({ action: 'pay_jail' })}
-              >
-                Nộp {JAIL_FINE} ra tù
-              </AsyncButton>
-            )}
-          </div>
-        </>
-      );
-      break;
-    case 'FLY':
-      body = (
-        <>
-          <p>
-            Bạn đang ở Sân bay. Chọn một ô trên bàn để bay tới
-            {mine.freeFly ? ' (miễn phí).' : ` (phí ${FLY_FEE}).`}
-          </p>
-          <AsyncButton disabled={pending} onClick={() => send({ action: 'roll' })}>
-            <Dices size={17} /> Tung xúc xắc thay vì bay
-          </AsyncButton>
-        </>
-      );
-      break;
-    case 'BUY': {
-      const maxLevel = t!.kind === 'BEACH' ? 0 : buildCap(mine, 0);
-      body = (
-        <>
-          <p>
-            <strong>{t!.name}</strong> chưa có chủ. Giá đất {money(t!.price!)}.
-          </p>
-          <div className="typhu-options">
-            {Array.from({ length: maxLevel + 1 }, (_, level) => {
-              const cost = t!.price! + buildCost(t!.index, 0, level);
-              return (
-                <AsyncButton
-                  key={level}
-                  variant={level === 0 ? 'primary' : 'secondary'}
-                  disabled={pending || cost > mine.cash}
-                  onClick={() => send({ action: 'buy', level })}
-                >
-                  {level === 0 ? 'Mua đất' : `Mua + ${levelNames[level]}`} · {money(cost)}
-                </AsyncButton>
-              );
-            })}
-          </div>
-          <SkipButton send={send} pending={pending} label="Không mua" />
-        </>
-      );
-      break;
-    }
-    case 'BUILD': {
-      const level = state.tiles[index!]!.level;
-      const cap = buildCap(mine, state.pending?.from ?? level);
-      body = (
-        <>
-          <p>
-            Xây thêm ở <strong>{t!.name}</strong> (đang {levelNames[level]}).
-            {cap < HOTEL && level === 3 ? ' Khách sạn mở từ vòng 3 khi ô đã ở Cấp 3.' : ''}
-          </p>
-          <div className="typhu-options">
-            {Array.from({ length: cap - level }, (_, i) => level + 1 + i).map((to) => {
-              const cost = buildCost(index!, level, to);
-              return (
-                <AsyncButton
-                  key={to}
-                  disabled={pending || cost > mine.cash}
-                  onClick={() => send({ action: 'build', level: to })}
-                >
-                  {levelNames[to]} · {money(cost)}
-                </AsyncButton>
-              );
-            })}
-          </div>
-          <SkipButton send={send} pending={pending} label="Không xây" />
-        </>
-      );
-      break;
-    }
-    case 'BUYOUT': {
-      const owner = state.players.find((p) => p.id === state.tiles[index!]?.owner);
-      const price = buyoutPrice(engine, index!);
-      body = (
-        <>
-          <p>
-            Mua lại <strong>{t!.name}</strong> của {owner?.name} với giá {money(price)}? Chủ cũ
-            không được từ chối.
-          </p>
-          <div className="typhu-buttons">
-            <AsyncButton
-              variant="primary"
-              disabled={pending || price > mine.cash}
-              onClick={() => send({ action: 'buyout' })}
-            >
-              Mua lại · {money(price)}
-            </AsyncButton>
-            <SkipButton send={send} pending={pending} label="Thôi" />
-          </div>
-        </>
-      );
-      break;
-    }
-    case 'CARD': {
-      const card = state.pending!.card!;
-      const others = state.players.filter((p) => p.status === 'ACTIVE' && p.id !== me);
-      body = (
-        <>
-          <div className="typhu-chance">
-            <span>🃏 Phiếu Cơ hội</span>
-            <strong>{cards[card].name}</strong>
-            <p>{cards[card].text}</p>
-          </div>
-          {card === 'GIFT' && giftTile !== null ? (
-            <>
-              <p>
-                Tặng <strong>{tileAt(giftTile).name}</strong> cho ai?
-              </p>
-              <div className="typhu-options">
-                {others.map((o) => (
-                  <AsyncButton
-                    key={o.id}
-                    disabled={pending}
-                    onClick={async () => {
-                      await send({ action: 'card_target', tile: giftTile, player: o.id });
-                      clearGift();
-                    }}
-                  >
-                    {o.name}
-                  </AsyncButton>
-                ))}
-              </div>
-              <Button variant="ghost" onClick={clearGift}>
-                Chọn ô khác
-              </Button>
-            </>
-          ) : (
-            <p className="typhu-pick-hint">Chọn một ô đang sáng trên bàn cờ.</p>
-          )}
-          {cards[card].kind !== 'BAD' && (
-            <SkipButton send={send} pending={pending} label="Không dùng" />
-          )}
-        </>
-      );
-      break;
-    }
-    case 'FESTIVAL':
-      body = (
-        <>
-          <p>Chọn một thành phố của bạn để tổ chức Đại nhạc hội (tiền thuê ×2).</p>
-          <p className="typhu-pick-hint">Chọn một ô đang sáng trên bàn cờ.</p>
-          <SkipButton send={send} pending={pending} label="Không tổ chức" />
-        </>
-      );
-      break;
-    case 'DEBT': {
-      const debt = state.debt!;
-      const creditor = state.players.find((p) => p.id === debt.creditor);
-      const owned = board
-        .filter((t) => state.tiles[t.index]?.owner === me)
-        .map((t) => ({ t, price: bankSalePrice(engine, t.index) }))
-        .sort((a, b) => a.price - b.price || a.t.index - b.t.index);
-      const reason =
-        debt.reason === 'RENT'
-          ? `tiền thuê ${tileAt(debt.tile!).name} cho ${creditor?.name ?? 'chủ ô'}`
-          : debt.reason === 'TAX'
-            ? 'thuế nhà'
-            : 'tiền phạt ra tù';
-      const missing = debt.amount - mine.cash;
-      body = (
-        <>
-          <p>
-            Bạn phải trả <strong>{money(debt.amount)}</strong> {reason} nhưng chỉ có{' '}
-            {money(mine.cash)}. Chọn ô để bán cho ngân hàng (nhận 50% giá hiện tại).
-          </p>
-          <p className="typhu-debt-missing">
-            Còn thiếu {money(missing)} · bán hết được tối đa {money(liquidationValue(engine, me))}
-          </p>
-          <div className="typhu-options">
-            {owned.map(({ t, price }) => (
-              <AsyncButton
-                key={t.index}
-                disabled={pending}
-                onClick={() => send({ action: 'sell', tile: t.index })}
-              >
-                Bán {t.name} · +{money(price)}
-              </AsyncButton>
-            ))}
-          </div>
-          <p className="muted">
-            Bán một ô trong monopoly làm các ô còn lại mất hệ số ×1,5. Nếu phần còn lại không đủ
-            trả, bạn sẽ phá sản.
-          </p>
-          <Confirm
-            title="Tuyên bố phá sản?"
-            description={`Toàn bộ ${money(mine.cash)} tiền mặt chuyển cho ${creditor?.name ?? 'ngân hàng'}, đất trả về ngân hàng và bạn rời ván.`}
-            onConfirm={() => send({ action: 'declare_bankrupt' })}
-          >
-            <Button variant="ghost" disabled={pending}>
-              Tuyên bố phá sản
-            </Button>
-          </Confirm>
-        </>
-      );
-      break;
-    }
-    case 'START_BUILD':
-      body = (
-        <>
-          <p>Bạn dừng ở Xuất phát: được xây thêm 1 cấp cho một thành phố của mình.</p>
-          <p className="typhu-pick-hint">Chọn một ô đang sáng trên bàn cờ.</p>
-          <SkipButton send={send} pending={pending} label="Không xây" />
-        </>
-      );
-      break;
-  }
+  const mineTurn = state.turn === me;
   return (
-    <section className="typhu-card typhu-actions typhu-my-turn" aria-live="polite">
-      <h2>Lượt của bạn</h2>
-      {body}
+    <section
+      className={'typhu-card typhu-actions' + (mineTurn ? ' typhu-my-turn' : '')}
+      aria-live="polite"
+    >
+      <h2>{mineTurn ? 'Lượt của bạn' : `Chờ ${current?.name ?? 'người chơi'}`}</h2>
+      <p className="muted">{state.paused ? 'Ván đang tạm dừng.' : phaseHint(state, mineTurn)}</p>
       <Surrender send={send} pending={pending} />
     </section>
   );
 }
-function phaseHint(state: TyPhuPublicState) {
+function phaseHint(state: TyPhuPublicState, mine: boolean) {
   const t = state.pending?.tile === undefined ? null : tileAt(state.pending.tile);
+  if (mine)
+    return state.phase === 'ROLL'
+      ? 'Bấm Tung xúc xắc ở giữa bàn.'
+      : state.phase === 'REVEAL'
+        ? 'Mọi người đang xem phiếu Cơ hội bạn rút.'
+        : popupPhases.includes(state.phase)
+          ? `Chọn trong bảng ${t?.name ?? ''} trên bàn.`
+          : 'Làm theo hướng dẫn phía trên bàn cờ.';
   switch (state.phase) {
     case 'BUY':
       return `Đang cân nhắc mua ${t?.name}.`;
@@ -801,6 +933,8 @@ function phaseHint(state: TyPhuPublicState) {
       return `Đang xây ở ${t?.name}.`;
     case 'BUYOUT':
       return `Đang cân nhắc mua lại ${t?.name}.`;
+    case 'REVEAL':
+      return 'Đang lật phiếu Cơ hội.';
     case 'CARD':
       return `Đang dùng phiếu “${cards[state.pending!.card!].name}”.`;
     case 'FESTIVAL':
@@ -815,28 +949,14 @@ function phaseHint(state: TyPhuPublicState) {
       return 'Đang tung xúc xắc.';
   }
 }
-function SkipButton({
-  send,
-  pending,
-  label,
-}: {
-  send: ReturnType<typeof useTyPhu>['send'];
-  pending: boolean;
-  label: string;
-}) {
+function SkipButton({ send, pending, label }: { send: Send; pending: boolean; label: string }) {
   return (
     <AsyncButton variant="ghost" disabled={pending} onClick={() => send({ action: 'skip' })}>
       {label}
     </AsyncButton>
   );
 }
-function Surrender({
-  send,
-  pending,
-}: {
-  send: ReturnType<typeof useTyPhu>['send'];
-  pending: boolean;
-}) {
+function Surrender({ send, pending }: { send: Send; pending: boolean }) {
   return (
     <Confirm
       title="Đầu hàng và rời ván?"
@@ -1035,17 +1155,18 @@ function TileDetail({
         </>
       ) : t.kind === 'BEACH' ? (
         <p className="muted">
-          Giá {money(t.price!)} · tiền thuê {BEACH_RENT} × số bãi chủ đang có
-          {owner ? ` · chủ: ${owner.name}` : ''}. Sở hữu 4 bãi là thắng.
+          Giá {money(t.price!)} · tiền thuê theo số bãi chủ đang có: 1 bãi {BEACH_RENTS[1]}, 2 bãi{' '}
+          {BEACH_RENTS[2]}, 3 bãi {BEACH_RENTS[3]}
+          {owner ? ` · chủ: ${owner.name}` : ''}. Sở hữu đủ 4 bãi là thắng.
         </p>
       ) : (
         <p className="muted">
           {
             {
               START: 'Đi qua nhận 200 và lên vòng mới. Dừng đúng ô được xây thêm 1 cấp.',
-              JAIL: `Bị giữ tối đa 3 lượt; ra bằng tung đôi, nộp ${JAIL_FINE} hoặc Thẻ VIP.`,
-              FESTIVAL: 'Chọn một thành phố của mình tổ chức Đại nhạc hội: tiền thuê ×2.',
-              AIRPORT: `Lượt sau bay tới ô bất kỳ (phí ${FLY_FEE}).`,
+              JAIL: `Dừng ở đây là hết lượt. Bị giữ tối đa 3 lượt; ra bằng tung đôi, nộp ${JAIL_FINE} hoặc Thẻ VIP.`,
+              FESTIVAL: `Dừng ở đây là hết lượt. Trả ${FESTIVAL_FEE} để một thành phố của mình tổ chức Đại nhạc hội: tiền thuê ×2.`,
+              AIRPORT: `Dừng ở đây là hết lượt. Lượt sau bay tới ô đất trống hoặc đất của mình (phí ${FLY_FEE}).`,
               CHANCE: 'Rút một trong 15 phiếu Cơ hội.',
               TAX: 'Nộp 10% tổng giá trị đất và nhà đang sở hữu.',
               CITY: '',

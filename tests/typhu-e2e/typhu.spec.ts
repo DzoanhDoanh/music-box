@@ -75,6 +75,11 @@ test('attack cards highlight valid targets and lower the chosen city', async ({
   await page.reload();
   fixture.nextDice.push(2, 3); // 7 → 12 (Cơ hội)
   await page.getByRole('button', { name: 'Tung xúc xắc' }).click();
+  // Everyone sees the card first; the drawer then plays it.
+  const card = page.getByRole('dialog', { name: 'Phiếu Cơ hội' });
+  await expect(card).toContainText('Bão quét qua sân khấu');
+  await card.getByRole('button', { name: /Thực hiện phiếu/ }).click();
+  await expect(card).toBeHidden();
   await expect(page.getByText('Bão quét qua sân khấu', { exact: true })).toBeVisible();
   const target = page.getByRole('button', { name: /^Nha Trang · Bình · Cấp 2 · có thể chọn/ });
   await expect(target).toBeVisible();
@@ -197,52 +202,56 @@ test('after a game the host opens a rematch that keeps the rules and computer se
   expect(fixture.match!.status).toBe('WAITING');
 });
 
-test('the 3D table renders with WebGL and tiles stay reachable from the keyboard', async ({
+test('the 2.5D table seats players in the corners and pauses for everyone', async ({
   page,
   context,
 }) => {
   const fixture = await tyPhuFixture(context);
-  // Count WebGL contexts: browsers drop the oldest one (the table) past ~16.
-  await context.addInitScript(() => {
-    const original = HTMLCanvasElement.prototype.getContext;
-    (window as unknown as { glContexts: number }).glContexts = 0;
-    HTMLCanvasElement.prototype.getContext = function (
-      this: HTMLCanvasElement,
-      type: string,
-      ...rest: unknown[]
-    ) {
-      if (type.startsWith('webgl')) (window as unknown as { glContexts: number }).glContexts++;
-      return (original as (...args: unknown[]) => unknown).call(this, type, ...rest);
-    } as typeof original;
-  });
   await openNewTable(page);
   await page.getByRole('button', { name: 'Bắt đầu ván' }).click();
   await expect(page.getByRole('heading', { name: 'Lượt của bạn' })).toBeVisible();
-  await page.getByRole('button', { name: 'Bàn 3D' }).click();
-  await expect(page.locator('.typhu-canvas canvas')).toBeVisible({ timeout: 15_000 });
-  const contexts = () =>
-    page.evaluate(() => (window as unknown as { glContexts: number }).glContexts);
-  // Let the scene finish creating its renderer before taking the baseline.
-  await page.waitForTimeout(1500);
-  const opened = await contexts();
-  // The turn clock re-renders the page every half second; that must not open new contexts.
-  await page.waitForTimeout(4000);
-  expect(await contexts()).toBe(opened);
-  await expect(page.locator('.typhu-canvas canvas')).toBeVisible();
-  const table = page.getByRole('group', { name: 'Bàn cờ Tỷ Phú Phố Nhạc 3D' });
-  await expect(table.getByRole('button')).toHaveCount(32);
-  // Keyboard users pick a tile through the hidden list; it opens the tile details.
-  await table.getByRole('button', { name: /^Sa Pa/ }).focus();
-  await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: 'Sa Pa' })).toBeVisible();
-  await page.getByRole('button', { name: 'Xoay bàn sang phải' }).click();
-  await expect(page.getByRole('button', { name: 'Bàn 3D' })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: 'Bàn 2.5D' })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
-  expect(fixture.match!.status).toBe('PLAYING');
-  await page.getByRole('button', { name: 'Bàn 2D' }).click();
-  await expect(
-    page.getByRole('group', { name: 'Bàn cờ Tỷ Phú Phố Nhạc', exact: true }),
-  ).toBeVisible();
+  await expect(page.locator('.typhu-stage.view-25d')).toBeVisible();
+  // One seat per player, in turn order, with the money underneath.
+  const seats = page.locator('.typhu-seat');
+  await expect(seats).toHaveCount(2);
+  const mySeat = seats.filter({ hasText: 'An (bạn)' });
+  await expect(mySeat).toContainText('2.000');
+  // Tiles show rent, not the land price: Sa Pa (80) rents for 8.
+  await expect(page.getByRole('button', { name: /^Sa Pa · thuê 8$/ })).toBeVisible();
+  // Keyboard: every tile is a button that opens its details.
+  const table = page.getByRole('group', { name: 'Bàn cờ Tỷ Phú Phố Nhạc' });
+  await expect(table.getByRole('button')).toHaveCount(32);
+  await table.getByRole('button', { name: /^Sa Pa/ }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Sa Pa' })).toBeVisible();
+  // Pausing stops the clock and blocks the roll until someone resumes.
+  await page.getByRole('button', { name: 'Tạm dừng' }).click();
+  await expect(page.getByRole('dialog', { name: 'Ván đang tạm dừng' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Tung xúc xắc' })).toHaveCount(0);
+  expect(fixture.match!.deadline).toBeNull();
+  await page
+    .getByRole('dialog', { name: 'Ván đang tạm dừng' })
+    .getByRole('button', { name: 'Chơi tiếp' })
+    .click();
+  await expect(page.getByRole('button', { name: 'Tung xúc xắc' })).toBeVisible();
+  // The buy dialog only opens once the dice have landed and the pawn has walked.
+  fixture.nextDice.push(2, 3);
+  await page.getByRole('button', { name: 'Tung xúc xắc' }).click();
+  await expect(page.getByRole('dialog', { name: 'Mua Sa Pa?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Mua đất · 80' }).click();
+  await expect(mySeat).toContainText('1.920');
+  await noHorizontalScroll(page);
+  await page.screenshot({
+    path: `test-results/typhu/table-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+  // The header sits under the floating chat button once the page is scrolled down.
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.getByRole('button', { name: 'Bàn phẳng' }).click();
+  await expect(page.locator('.typhu-stage.view-flat')).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('roomtune:typhu:view'))).toBe('2d');
 });

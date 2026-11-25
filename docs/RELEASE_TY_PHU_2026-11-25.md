@@ -52,4 +52,8 @@ Mở bàn**. Luật đầy đủ ở [thiết kế](TY_PHU_GAME_DESIGN.md).
   - bàn 3D mới: quân cờ, nhà, khách sạn dựng đứng; quân đi từng ô; xúc xắc 3D; xoay bàn.
     Migration `202611260001_ty_phu_bots.sql` đã áp lên Supabase; health trên
     https://roomtune.dzoanh.me trả `tyPhuEnabled: true`, bundle mới đã phục vụ.
+- Phát hành theo góp ý: bỏ bàn 3D WebGL, thay bằng bàn 2.5D (người chơi ở 4 góc, giá thuê
+  trên ô, xúc xắc rơi trước khi quân đi, tiền bay, popup mua/nâng nhà, thẻ Cơ hội lật cho mọi
+  người xem); tạm dừng ván; Phú Quốc thành ô đất; biển 25/50/200; bay và Đại nhạc hội phí 50;
+  dừng ở Sân bay, Nhà tù, Đại nhạc hội là hết lượt. Không cần migration.
 - Chưa có đổi/bán đất giữa người chơi (bước 5 trong thiết kế).

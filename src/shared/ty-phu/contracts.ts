@@ -38,6 +38,9 @@ export const tyPhuCommandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('add_bot') }).strict(),
   z.object({ action: z.literal('remove_bot'), player: z.uuid() }).strict(),
   z.object({ action: z.literal('rematch'), game: z.uuid() }).strict(),
+  z.object({ action: z.literal('card_ok') }).strict(),
+  z.object({ action: z.literal('pause') }).strict(),
+  z.object({ action: z.literal('resume') }).strict(),
 ]);
 export type TyPhuCommand = z.infer<typeof tyPhuCommandSchema>;
 
@@ -75,6 +78,7 @@ export type TyPhuPhase =
   | 'BUY'
   | 'BUILD'
   | 'BUYOUT'
+  | 'REVEAL'
   | 'CARD'
   | 'FESTIVAL'
   | 'START_BUILD'
@@ -88,6 +92,7 @@ export type TyPhuDebt = {
   tile?: number;
 };
 export type WinReason = 'MONOPOLY' | 'LINE' | 'BEACHES' | 'LAST_STANDING' | 'TIME';
+export type TyPhuPause = { by: string; at: number; left: number | null };
 export type TyPhuEvent = { at: number; type: string; actor?: string; text: string };
 export type TyPhuState = {
   schema: 1;
@@ -112,6 +117,8 @@ export type TyPhuState = {
   debt?: TyPhuDebt | null;
   /** The follow-up table the host opened after this game ended. */
   rematch?: string | null;
+  /** Set while a player has paused the game; `left` is the turn time put aside. */
+  paused?: TyPhuPause | null;
   /** Remaining chance cards in order. Server-only: never sent to clients. */
   deck: CardId[];
   /** Net bank balance: Σ cash + bank always equals the money handed out at the start. */
@@ -176,6 +183,7 @@ export const tyPhuStateSchema = z.object({
     'BUY',
     'BUILD',
     'BUYOUT',
+    'REVEAL',
     'CARD',
     'FESTIVAL',
     'START_BUILD',
@@ -213,6 +221,10 @@ export const tyPhuStateSchema = z.object({
     .nullable()
     .optional(),
   rematch: uuidOrNull.optional(),
+  paused: z
+    .object({ by: z.uuid(), at: z.number(), left: z.number().min(0).nullable() })
+    .nullable()
+    .optional(),
   deck: z.array(cardIdSchema).max(15),
   bank: z.number().int(),
   deadline: z.number().nullable(),

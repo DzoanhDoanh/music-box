@@ -1,4 +1,5 @@
 // Tỷ Phú Phố Nhạc board: 32 tiles = 4 corners + 4 legs × 7, travelling north → south.
+// Tile 29 (Phú Quốc) was a beach before 2026-11-25; saved ownership carries over at land level.
 // See docs/TY_PHU_GAME_DESIGN.md. Indices are stable and stored in saved games.
 
 export type TileKind =
@@ -51,10 +52,13 @@ const special = (index: number, kind: TileKind, name: string, side: Tile['side']
 });
 
 export const BEACH_PRICE = 200;
-export const BEACH_RENT = 50;
+/** Beach rent by how many beaches the owner holds (index = count). */
+export const BEACH_RENTS = [0, 25, 50, 200, 200] as const;
 export const SALARY = 200;
 export const JAIL_FINE = 100;
 export const FLY_FEE = 50;
+/** Paid to the bank to host Đại nhạc hội from the festival corner. */
+export const FESTIVAL_FEE = 50;
 export const BIRTHDAY_GIFT = 50;
 export const JAIL_INDEX = 8;
 export const FESTIVAL_INDEX = 16;
@@ -91,7 +95,7 @@ export const board: readonly Tile[] = [
   city(26, 'Vũng Tàu', 4, 260, 7),
   city(27, 'Cần Thơ', 4, 260, 7),
   special(28, 'CHANCE', 'Cơ hội', 4),
-  beach(29, 'Biển Phú Quốc', 4),
+  city(29, 'Phú Quốc', 4, 300),
   special(30, 'TAX', 'Thuế nhà', 4),
   city(31, 'TP. Hồ Chí Minh', 4, 400),
 ];

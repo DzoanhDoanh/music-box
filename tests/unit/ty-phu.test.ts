@@ -23,6 +23,7 @@ import {
   cardTargets,
   createTyPhuState,
   currentPrice,
+  flyTargets,
   moneyInvariant,
   publicTyPhuState,
   reconcile,
@@ -74,10 +75,11 @@ const code = (fn: () => unknown) => {
 };
 
 describe('Tỷ Phú board', () => {
-  it('has 32 tiles: 19 cities, 5 beaches, 3 chance, 1 tax and 4 corners', () => {
+  it('has 32 tiles: 20 cities, 4 beaches, 3 chance, 1 tax and 4 corners', () => {
     expect(board).toHaveLength(BOARD_SIZE);
-    expect(cities).toHaveLength(19);
-    expect(beaches).toHaveLength(5);
+    expect(cities).toHaveLength(20);
+    expect(beaches).toHaveLength(4);
+    expect(board[29]).toMatchObject({ kind: 'CITY', name: 'Phú Quốc', price: 300 });
     expect(board.filter((t) => t.kind === 'CHANCE').map((t) => t.index)).toEqual([12, 19, 28]);
     expect(board.filter((t) => t.kind === 'TAX').map((t) => t.index)).toEqual([30]);
     expect([0, 8, 16, 24].map((i) => board[i].kind)).toEqual([
@@ -97,7 +99,7 @@ describe('Tỷ Phú board', () => {
     }
     expect(board[31].group).toBeUndefined();
     expect(sideCities(1)).toHaveLength(6);
-    expect(sideCities(4).map((t) => t.index)).toEqual([26, 27, 31]);
+    expect(sideCities(4).map((t) => t.index)).toEqual([26, 27, 29, 31]);
   });
   it('the chance deck has 15 cards with 15 distinct mechanics', () => {
     expect(new Set(cardIds).size).toBe(15);
@@ -123,13 +125,16 @@ describe('Tỷ Phú money formulas', () => {
     s.tiles[22]!.level = HOTEL;
     expect(baseRent(s, 22)).toBe(1320);
   });
-  it('beach rent is 50 × beaches owned and ignores level, group and festival', () => {
+  it('beach rent is 25 / 50 / 200 for 1 / 2 / 3 beaches and ignores level and festival', () => {
     const s = started();
     own(s, 4, A);
-    expect(baseRent(s, 4)).toBe(50);
+    expect(baseRent(s, 4)).toBe(25);
     own(s, 13, A);
+    expect(baseRent(s, 4)).toBe(50);
     own(s, 20, A);
-    expect(baseRent(s, 4)).toBe(150);
+    s.festival = 20;
+    expect(baseRent(s, 20)).toBe(200);
+    expect(board[4].price).toBe(200);
   });
   it('building costs 0.5 G per level and G for the hotel', () => {
     expect(buildCost(22, 0, 3)).toBe(330);
@@ -240,7 +245,10 @@ describe('Tỷ Phú chance cards', () => {
     s.deck = [card];
     const p = s.turn!;
     who(s, p).position = 7; // 5 steps to tile 12 (Cơ hội)
-    return run(s, p, { action: 'roll' }, scripted([2, 3]));
+    const shown = run(s, p, { action: 'roll' }, scripted([2, 3]));
+    expect(shown.phase).toBe('REVEAL');
+    expect(shown.pending).toEqual({ card });
+    return run(shown, p, { action: 'card_ok' });
   };
   it('double fine and half price modify the next rent and cancel each other', () => {
     let s = started();
@@ -296,6 +304,119 @@ describe('Tỷ Phú chance cards', () => {
     let s = started();
     s = draw(s, 'EVICT');
     expect(s.phase).not.toBe('CARD');
+  });
+});
+
+describe('Tỷ Phú corners, fees, chance reveal and pause', () => {
+  it('jail, festival and airport end the turn even after a double', () => {
+    for (const [from, corner] of [
+      [6, 8],
+      [14, 16],
+      [22, 24],
+    ]) {
+      let s = started();
+      const p = s.turn!;
+      own(s, 1, p);
+      who(s, p).position = from;
+      s = run(s, p, { action: 'roll' }, scripted([1, 1]));
+      expect(who(s, p).position).toBe(corner);
+      expect(s.extraRoll).toBe(false);
+      if (s.phase === 'FESTIVAL') s = run(s, p, { action: 'skip' });
+      expect(s.turn).not.toBe(p);
+    }
+  });
+  it('hosting the festival costs 50 and needs the money', () => {
+    let s = started();
+    const p = s.turn!;
+    own(s, 1, p);
+    who(s, p).position = 13;
+    s = run(s, p, { action: 'roll' }, scripted([1, 2]));
+    expect(s.phase).toBe('FESTIVAL');
+    s = run(s, p, { action: 'festival', tile: 1 });
+    expect(s.festival).toBe(1);
+    expect(who(s, p).cash).toBe(1950);
+    let poor = started();
+    const q = poor.turn!;
+    own(poor, 1, q);
+    who(poor, q).cash = 40;
+    poor.bank += 1960;
+    who(poor, q).position = 13;
+    poor = run(poor, q, { action: 'roll' }, scripted([1, 2]));
+    expect(poor.phase).not.toBe('FESTIVAL');
+    expect(poor.turn).not.toBe(q);
+  });
+  it('flights cost 50, only reach free or own land, and need the fare', () => {
+    let s = started();
+    const [p, other] = [s.turn!, s.players.find((x) => x.id !== s.turn)!.id];
+    own(s, 1, p);
+    own(s, 2, other);
+    who(s, p).position = 24;
+    who(s, p).flyNext = true;
+    s.phase = 'FLY';
+    const targets = flyTargets(s, who(s, p));
+    expect(targets).toContain(1);
+    expect(targets).toContain(3);
+    expect(targets).not.toContain(2);
+    for (const locked of [0, 8, 12, 16, 24, 30]) expect(targets).not.toContain(locked);
+    expect(code(() => run(s, p, { action: 'fly', to: 2 }))).toBe('TYPHU_BAD_TARGET');
+    expect(code(() => run(s, p, { action: 'fly', to: 12 }))).toBe('TYPHU_BAD_TARGET');
+    s = run(s, p, { action: 'fly', to: 3 });
+    expect(who(s, p).position).toBe(3);
+    expect(who(s, p).cash).toBe(2000 - 50 + 200); // fare, then salary for passing Start
+    // Without the fare the next turn is an ordinary roll.
+    let poor = started();
+    const q = poor.turn!;
+    who(poor, q).cash = 30;
+    poor.bank += 1970;
+    who(poor, q).position = 22;
+    poor = run(poor, q, { action: 'roll' }, scripted([1, 1]));
+    expect(who(poor, q).flyNext).toBe(true);
+    const r = poor.turn!;
+    poor = run(poor, r, { action: 'roll' }, scripted([1, 2]));
+    if (poor.phase !== 'ROLL') poor = run(poor, r, { action: 'skip' });
+    expect(poor.turn).toBe(q);
+    expect(poor.phase).toBe('ROLL');
+    expect(who(poor, q).flyNext).toBe(false);
+  });
+  it('a drawn card waits for everyone to see it, even for automatic seats', () => {
+    let s = started();
+    const p = s.turn!;
+    s.deck = ['BIRTHDAY'];
+    who(s, p).position = 7;
+    s = run(s, p, { action: 'roll' }, scripted([2, 3]), 1000);
+    expect(s.phase).toBe('REVEAL');
+    expect(who(s, p).cash).toBe(2000);
+    expect(code(() => run(s, p, { action: 'skip' }))).toBe('TYPHU_ACTION_INVALID');
+    // The deadline also covers the dice and the 5-step walk on screen.
+    expect(s.deadline).toBe(1000 + 4000 + 1100 + 5 * 200);
+    const early = reconcile(s, s.deadline! - 1, scripted());
+    expect(early.phase).toBe('REVEAL');
+    const later = reconcile(s, s.deadline!, scripted());
+    expect(who(later, p).cash).toBe(2050);
+    expect(who(later, p).misses).toBe(0);
+  });
+  it('pausing freezes the clock and blocks moves until someone resumes', () => {
+    let s = started();
+    const [p, other] = [s.turn!, s.players.find((x) => x.id !== s.turn)!.id];
+    const deadline = s.deadline!;
+    s = run(s, other, { action: 'pause' }, scripted(), 5000);
+    expect(s.deadline).toBeNull();
+    expect(s.paused).toMatchObject({ by: other, at: 5000, left: deadline - 5000 });
+    expect(code(() => run(s, p, { action: 'roll' }))).toBe('TYPHU_PAUSED');
+    expect(code(() => run(s, p, { action: 'pause' }))).toBe('TYPHU_ACTION_INVALID');
+    expect(reconcile(s, 10_000_000, scripted())).toBe(s);
+    s = run(s, p, { action: 'resume' }, scripted(), 600_000);
+    expect(s.paused).toBeNull();
+    expect(s.deadline).toBe(600_000 + deadline - 5000);
+    s = run(s, p, { action: 'roll' }, scripted([1, 2]), 600_001);
+    expect(who(s, p).position).toBe(3);
+  });
+  it('a timed match gets the paused minutes back', () => {
+    let s = started([A, B], { minutes: 30 });
+    const endsAt = s.endsAt!;
+    s = run(s, A, { action: 'pause' }, scripted(), 1000);
+    s = run(s, B, { action: 'resume' }, scripted(), 61_000);
+    expect(s.endsAt).toBe(endsAt + 60_000);
   });
 });
 
@@ -422,9 +543,9 @@ describe('Tỷ Phú win conditions', () => {
     const s = started();
     const p = s.turn!;
     for (const t of sideCities(4)) own(s, t.index, p);
-    expect(winProgress(s, p).lines[3]).toEqual({ side: 4, owned: 3, total: 3 });
+    expect(winProgress(s, p).lines[3]).toEqual({ side: 4, owned: 4, total: 4 });
   });
-  it('four of the five beaches win', () => {
+  it('owning all four beaches wins', () => {
     let s = started();
     const p = s.turn!;
     for (const i of [4, 13, 20]) own(s, i, p);
@@ -580,8 +701,9 @@ function botCommand(s: TyPhuState, random: () => number): TyPhuCommand {
       return { action: 'roll' };
     case 'FLY':
       if (random() < 0.3) return { action: 'skip' };
-      if (!p.freeFly && p.cash < 50) return { action: 'skip' };
-      return { action: 'fly', to: pick(board.filter((t) => t.index !== 24)).index };
+      return { action: 'fly', to: pick(flyTargets(s, p)) };
+    case 'REVEAL':
+      return { action: 'card_ok' };
     case 'BUY': {
       const t = board[s.pending!.tile!];
       if (random() < 0.15) return { action: 'skip' };
@@ -611,6 +733,7 @@ function botCommand(s: TyPhuState, random: () => number): TyPhuCommand {
       return { action: 'card_target', tile: pick(targets), player: pick(others).id };
     }
     case 'FESTIVAL': {
+      if (p.cash < 50) return { action: 'skip' };
       const mine = cities.filter((c) => s.tiles[c.index]?.owner === p.id);
       return random() < 0.9 ? { action: 'festival', tile: pick(mine).index } : { action: 'skip' };
     }

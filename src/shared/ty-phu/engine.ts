@@ -3,10 +3,11 @@
 import { AppError } from '../domain';
 import {
   AIRPORT_INDEX,
-  BEACH_RENT,
+  BEACH_RENTS,
   BIRTHDAY_GIFT,
   BOARD_SIZE,
   FESTIVAL_INDEX,
+  FESTIVAL_FEE,
   FLY_FEE,
   HOTEL,
   JAIL_FINE,
@@ -46,6 +47,13 @@ export interface TyPhuRandom {
 export const MAX_PLAYERS = 4;
 export const AUTO_MS = 1500;
 export const CARD_TARGET_MS = 20_000;
+/** Everyone sees a drawn chance card this long before it takes effect. */
+export const REVEAL_MS = 4000;
+/** Client animation budget after a roll: dice fall, then the pawn walks tile by tile. */
+export const DICE_MS = 1100;
+export const STEP_MS = 200;
+/** Shortest turn time left after a pause ends. */
+const RESUME_MS = 10_000;
 const LOG_LIMIT = 40;
 /** Computer seats use fixed ids that no real account can have. */
 export const botIds = [
@@ -157,13 +165,13 @@ export const buyoutPrice = (s: TyPhuState, index: number) =>
 export const bankSalePrice = (s: TyPhuState, index: number) =>
   Math.round(0.5 * currentPrice(s, index));
 
-/** Rent before the payer's card modifier: 10% × G × M × K × H (beaches: 50 × count). */
+/** Rent before the payer's card modifier: 10% × G × M × K × H (beaches: 25 / 50 / 200 by count). */
 export function baseRent(s: TyPhuState, index: number) {
   const t = tile(index),
     owned = s.tiles[index];
   if (!owned || !t.price || owned.blackout > 0) return 0;
   if (t.kind === 'BEACH')
-    return BEACH_RENT * beaches.filter((b) => s.tiles[b.index]?.owner === owned.owner).length;
+    return BEACH_RENTS[beaches.filter((b) => s.tiles[b.index]?.owner === owned.owner).length] ?? 0;
   const monopoly = t.group !== undefined && hasMonopoly(s, owned.owner, t.group) ? 1.5 : 1;
   const festival = s.festival === index ? 2 : 1;
   return Math.round(0.1 * t.price * levelRent[owned.level] * monopoly * festival);
@@ -368,12 +376,29 @@ function setPhase(
   now: number,
   pending: TyPhuState['pending'] = null,
   ms?: number,
+  exact = false,
 ) {
   const current = mustPlayer(s, s.turn!);
   s.phase = phase;
   s.pending = pending;
-  s.deadline = now + (ms !== undefined && !current.auto ? ms : turnMs(s, current));
+  const wait = ms !== undefined && (exact || !current.auto) ? ms : turnMs(s, current);
+  // A paused game keeps the time left aside and has no deadline until it resumes.
+  if (s.paused) {
+    s.paused.left = wait;
+    s.deadline = null;
+  } else s.deadline = now + wait;
 }
+/** Tiles a flight may land on: unowned land or the flyer's own land. */
+export function flyTargets(s: TyPhuState, p: TyPhuPlayer) {
+  return board
+    .filter(
+      (t) =>
+        (t.kind === 'CITY' || t.kind === 'BEACH') && (s.tiles[t.index]?.owner ?? p.id) === p.id,
+    )
+    .map((t) => t.index);
+}
+const canFly = (s: TyPhuState, p: TyPhuPlayer) =>
+  (p.freeFly || p.cash >= FLY_FEE) && flyTargets(s, p).length > 0;
 function startTurn(s: TyPhuState, id: string, now: number) {
   const p = mustPlayer(s, id);
   s.turn = id;
@@ -381,6 +406,10 @@ function startTurn(s: TyPhuState, id: string, now: number) {
   s.debt = null;
   s.dice = null;
   p.doubles = 0;
+  if (p.flyNext && !canFly(s, p)) {
+    p.flyNext = p.freeFly = false;
+    log(s, now, 'fly_void', `${p.name} không đủ ${FLY_FEE} để bay, tung xúc xắc như thường.`, p.id);
+  }
   setPhase(s, p.flyNext ? 'FLY' : 'ROLL', now);
 }
 function endTurn(s: TyPhuState, now: number) {
@@ -440,12 +469,17 @@ function land(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom): voi
       if (ownedBy(s, p.id).some((c) => canBuildOn(s, p, c.index)))
         return setPhase(s, 'START_BUILD', now);
       return settle(s, now);
+    // Jail, the festival corner and the airport end the turn, even after a double.
     case 'JAIL':
+      s.extraRoll = false;
       return settle(s, now);
     case 'FESTIVAL':
-      if (ownedBy(s, p.id).some((c) => c.kind === 'CITY')) return setPhase(s, 'FESTIVAL', now);
+      s.extraRoll = false;
+      if (p.cash >= FESTIVAL_FEE && ownedBy(s, p.id).some((c) => c.kind === 'CITY'))
+        return setPhase(s, 'FESTIVAL', now);
       return settle(s, now);
     case 'AIRPORT':
+      s.extraRoll = false;
       p.flyNext = true;
       return settle(s, now);
     case 'TAX': {
@@ -491,6 +525,12 @@ function drawCard(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom):
   const card = s.deck.shift();
   if (!card) return settle(s, now);
   log(s, now, 'card', `${p.name} rút phiếu “${cards[card].name}”.`, p.id);
+  // Everyone sees the card first; it takes effect when the drawer confirms or time runs out.
+  setPhase(s, 'REVEAL', now, { card }, REVEAL_MS, true);
+}
+function resolveCard(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom): void {
+  const card = s.pending!.card!;
+  s.pending = null;
   const target = cards[card].target;
   if (target && cardTargets(s, p, card).length === 0) {
     log(s, now, 'card_void', 'Không có mục tiêu hợp lệ, phiếu không có tác dụng.', p.id);
@@ -647,6 +687,7 @@ function winReason(s: TyPhuState, id: string): WinReason | null {
 }
 function finish(s: TyPhuState, winner: string, reason: WinReason, now: number) {
   s.status = 'FINISHED';
+  s.paused = null;
   s.winner = winner;
   s.winReason = reason;
   s.deadline = null;
@@ -697,7 +738,17 @@ function finishByWealth(s: TyPhuState, now: number) {
 
 // ---------------------------------------------------------------- commands
 
+/** Rolls, then holds the next deadline until the dice and the walk have played out. */
 function rollDice(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) {
+  const from = p.position;
+  rollAndMove(s, p, now, rng);
+  const steps = (p.position - from + BOARD_SIZE) % BOARD_SIZE;
+  const walk = steps > 0 && steps <= 12 ? steps * STEP_MS : 0;
+  if (s.status !== 'PLAYING') return;
+  if (s.deadline !== null) s.deadline += DICE_MS + walk;
+  else if (s.paused?.left != null) s.paused.left += DICE_MS + walk;
+}
+function rollAndMove(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) {
   const d1 = rng.die(),
     d2 = rng.die();
   s.dice = [d1, d2];
@@ -735,6 +786,7 @@ function rollDice(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) 
 
 function requireTurn(s: TyPhuState, actor: string, ...phases: TyPhuState['phase'][]) {
   if (s.status !== 'PLAYING') fail();
+  if (s.paused) fail('TYPHU_PAUSED');
   if (s.turn !== actor) fail('TYPHU_NOT_YOUR_TURN');
   if (!phases.includes(s.phase)) fail();
   return mustPlayer(s, actor);
@@ -843,6 +895,30 @@ function apply(
       if (s.status !== 'PLAYING') fail();
       mustPlayer(s, actor);
       return surrender(s, actor, now);
+    case 'pause': {
+      const who = mustPlayer(s, actor);
+      if (s.status !== 'PLAYING' || s.paused || who.status !== 'ACTIVE') fail();
+      s.paused = {
+        by: actor,
+        at: now,
+        left: s.deadline === null ? null : Math.max(0, s.deadline - now),
+      };
+      s.deadline = null;
+      log(s, now, 'pause', `${who.name} tạm dừng ván.`, actor);
+      return;
+    }
+    case 'resume': {
+      const who = mustPlayer(s, actor);
+      if (s.status !== 'PLAYING' || !s.paused || who.status !== 'ACTIVE') fail();
+      const { at, left } = s.paused;
+      s.paused = null;
+      if (s.endsAt !== null) s.endsAt += Math.max(0, now - at);
+      const current = player(s, s.turn ?? '');
+      const floor = current && !current.auto && s.phase !== 'REVEAL' ? RESUME_MS : 0;
+      s.deadline = left === null ? null : now + Math.max(left, floor);
+      log(s, now, 'resume', `${who.name} cho ván chơi tiếp.`, actor);
+      return;
+    }
   }
 
   const p = requireTurn(s, actor, s.phase);
@@ -957,7 +1033,7 @@ function apply(
       return settle(s, now);
     }
     case 'skip': {
-      if (s.phase === 'ROLL' || s.phase === 'DEBT') fail();
+      if (s.phase === 'ROLL' || s.phase === 'DEBT' || s.phase === 'REVEAL') fail();
       // A bad card cannot be dodged; only optional choices can be skipped.
       if (s.phase === 'CARD' && cards[s.pending!.card!].kind === 'BAD') fail();
       if (s.phase === 'FLY') {
@@ -965,6 +1041,10 @@ function apply(
         return setPhase(s, 'ROLL', now);
       }
       return settle(s, now);
+    }
+    case 'card_ok': {
+      requireTurn(s, actor, 'REVEAL');
+      return resolveCard(s, p, now, rng);
     }
     case 'card_target': {
       requireTurn(s, actor, 'CARD');
@@ -982,8 +1062,15 @@ function apply(
       requireTurn(s, actor, 'FESTIVAL');
       if (s.tiles[command.tile]?.owner !== p.id || tile(command.tile).kind !== 'CITY')
         fail('TYPHU_BAD_TARGET');
+      spend(s, p, FESTIVAL_FEE);
       s.festival = command.tile;
-      log(s, now, 'festival', `${tile(command.tile).name} đăng cai Đại nhạc hội.`, p.id);
+      log(
+        s,
+        now,
+        'festival',
+        `${p.name} trả ${FESTIVAL_FEE} cho ${tile(command.tile).name} đăng cai Đại nhạc hội.`,
+        p.id,
+      );
       return settle(s, now);
     }
     case 'start_build': {
@@ -1004,7 +1091,7 @@ function apply(
     }
     case 'fly': {
       requireTurn(s, actor, 'FLY');
-      if (command.to === AIRPORT_INDEX) fail('TYPHU_BAD_TARGET');
+      if (!flyTargets(s, p).includes(command.to)) fail('TYPHU_BAD_TARGET');
       const fee = p.freeFly ? 0 : FLY_FEE;
       spend(s, p, fee);
       p.flyNext = p.freeFly = false;
@@ -1032,7 +1119,8 @@ function surrender(s: TyPhuState, id: string, now: number) {
 
 /** Applies default actions for every expired deadline. Idempotent for a given `now`. */
 export function reconcile(state: TyPhuState, now: number, rng: TyPhuRandom): TyPhuState {
-  if (state.status !== 'PLAYING' || state.deadline === null || now < state.deadline) return state;
+  if (state.status !== 'PLAYING' || state.paused || state.deadline === null || now < state.deadline)
+    return state;
   const s = structuredClone(state);
   for (let guard = 0; guard < 64 && s.status === 'PLAYING' && s.deadline !== null; guard++) {
     if (now < s.deadline) break;
@@ -1041,7 +1129,8 @@ export function reconcile(state: TyPhuState, now: number, rng: TyPhuRandom): TyP
       break;
     }
     const p = mustPlayer(s, s.turn!);
-    if (!p.auto) {
+    // Watching a chance card is not a missed turn.
+    if (!p.auto && s.phase !== 'REVEAL') {
       p.misses++;
       if (p.misses >= 3) {
         p.auto = true;
@@ -1085,6 +1174,8 @@ function autoAct(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) {
       }
       return settle(s, now);
     }
+    case 'REVEAL':
+      return resolveCard(s, p, now, rng);
     case 'CARD': {
       const card = pending!.card!;
       const targets = cardTargets(s, p, card);
@@ -1104,9 +1195,20 @@ function autoAct(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) {
       return applyCard(s, p, card, now, rng, { tile: ranked[0] });
     }
     case 'FESTIVAL': {
+      // Hosting costs money, so only seats on automatic play host, and only with a reserve.
       const own = cities.filter((c) => s.tiles[c.index]?.owner === p.id).map((c) => c.index);
       const best = own.sort((a, b) => rentWithFestival(s, b) - rentWithFestival(s, a))[0];
-      if (best !== undefined) s.festival = best;
+      if (best !== undefined && p.auto && p.cash - FESTIVAL_FEE >= 300) {
+        spend(s, p, FESTIVAL_FEE);
+        s.festival = best;
+        log(
+          s,
+          now,
+          'festival',
+          `${p.name} trả ${FESTIVAL_FEE} cho ${tile(best).name} đăng cai Đại nhạc hội.`,
+          p.id,
+        );
+      }
       return settle(s, now);
     }
     default:
@@ -1165,8 +1267,9 @@ function botAct(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) {
     }
     case 'FLY': {
       const fee = p.freeFly ? 0 : FLY_FEE;
-      const target = board
-        .filter((t) => (t.kind === 'CITY' || t.kind === 'BEACH') && !s.tiles[t.index])
+      const target = flyTargets(s, p)
+        .map(tile)
+        .filter((t) => !s.tiles[t.index])
         .filter((t) => (t.price ?? 0) + fee <= budget)
         .sort((a, b) => (b.price ?? 0) - (a.price ?? 0))[0];
       return run(target ? { action: 'fly', to: target.index } : { action: 'roll' });

@@ -4,9 +4,9 @@ Game cờ tỷ phú của ROOMTUNE, theo lối chơi các game cờ tỷ phú on
 
 - bàn 4 chặng, giá đất tăng dần theo chặng;
 - bốn góc có chức năng riêng: Xuất phát, Nhà tù, lễ hội nhân đôi tiền thuê, Sân bay;
-- 5 bãi biển rải trên 4 chặng (chặng 4 có 2 bãi);
+- 4 bãi biển, mỗi chặng 1 bãi (Phú Quốc nay là thành phố thường);
 - ô Cơ hội có 15 phiếu với 15 cơ chế khác nhau: tấn công, xui, có lợi và lễ hội;
-- ngoài phá sản đối thủ còn ba cách **thắng ngay**: 3 monopoly, 1 dãy nhà, 4 bãi biển.
+- ngoài phá sản đối thủ còn ba cách **thắng ngay**: 3 monopoly, 1 dãy nhà, đủ 4 bãi biển.
 
 Cơ chế giữ theo thể loại. Bàn cờ, tên ô, nội dung thẻ, hình ảnh và tên gọi là thiết kế
 riêng của ROOMTUNE, không sao chép game nào. Góc "World Cup" đổi tên thành
@@ -28,35 +28,35 @@ Hành trình đi từ **cực Bắc vào Nam**: chặng 1 là miền núi phía 
 Bắc Bộ và Bắc Trung Bộ, chặng 3 là miền Trung và Tây Nguyên, chặng 4 là miền Nam. Giá
 đất tăng dần theo chặng.
 
-Toàn bàn có 19 thành phố (7 nhóm màu), 5 bãi biển, 3 ô Cơ hội, 1 ô Thuế nhà và 4 góc.
+Toàn bàn có 20 thành phố (7 nhóm màu và 2 thành phố lẻ), 4 bãi biển, 3 ô Cơ hội, 1 ô Thuế nhà và 4 góc.
 
-| Ô            | Tên                                            | Loại     | Giá đất         |
-| ------------ | ---------------------------------------------- | -------- | --------------- |
-| 0            | **Xuất phát**                                  | Góc 1    |                 |
-|              | **Chặng 1 — Miền núi phía Bắc**                |          |                 |
-| 1 · 2 · 3    | Hà Giang · Cao Bằng · Lạng Sơn                 | Nhóm 1   | 60 · 60 · 70    |
-| 4            | Biển Trà Cổ (Quảng Ninh)                       | Bãi biển | 200             |
-| 5 · 6 · 7    | Sa Pa · Điện Biên · Mộc Châu                   | Nhóm 2   | 80 · 80 · 100   |
-| 8            | **Nhà tù**                                     | Góc 2    |                 |
-|              | **Chặng 2 — Đồng bằng Bắc Bộ và Bắc Trung Bộ** |          |                 |
-| 9 · 10 · 11  | Hải Phòng · Hà Nội · Ninh Bình                 | Nhóm 3   | 120 · 140 · 120 |
-| 12           | Cơ hội                                         | Thẻ      |                 |
-| 13           | Biển Sầm Sơn (Thanh Hóa)                       | Bãi biển | 200             |
-| 14 · 15      | Vinh · Đồng Hới                                | Nhóm 4   | 160 · 160       |
-| 16           | **Đại nhạc hội**                               | Góc 3    |                 |
-|              | **Chặng 3 — Miền Trung và Tây Nguyên**         |          |                 |
-| 17 · 18      | Huế · Đà Nẵng                                  | Nhóm 5   | 180 · 200       |
-| 19           | Cơ hội                                         | Thẻ      |                 |
-| 20           | Biển Quy Nhơn                                  | Bãi biển | 200             |
-| 21 · 22 · 23 | Nha Trang · Đà Lạt · Buôn Ma Thuột             | Nhóm 6   | 200 · 220 · 220 |
-| 24           | **Sân bay**                                    | Góc 4    |                 |
-|              | **Chặng 4 — Miền Nam**                         |          |                 |
-| 25           | Biển Mũi Né                                    | Bãi biển | 200             |
-| 26 · 27      | Vũng Tàu · Cần Thơ                             | Nhóm 7   | 260 · 260       |
-| 28           | Cơ hội                                         | Thẻ      |                 |
-| 29           | Biển Phú Quốc                                  | Bãi biển | 200             |
-| 30           | **Thuế nhà**                                   | Thuế     |                 |
-| 31           | TP. Hồ Chí Minh                                | Nhóm 7   | 400             |
+| Ô            | Tên                                            | Loại                   | Giá đất         |
+| ------------ | ---------------------------------------------- | ---------------------- | --------------- |
+| 0            | **Xuất phát**                                  | Góc 1                  |                 |
+|              | **Chặng 1 — Miền núi phía Bắc**                |                        |                 |
+| 1 · 2 · 3    | Hà Giang · Cao Bằng · Lạng Sơn                 | Nhóm 1                 | 60 · 60 · 70    |
+| 4            | Biển Trà Cổ (Quảng Ninh)                       | Bãi biển               | 200             |
+| 5 · 6 · 7    | Sa Pa · Điện Biên · Mộc Châu                   | Nhóm 2                 | 80 · 80 · 100   |
+| 8            | **Nhà tù**                                     | Góc 2                  |                 |
+|              | **Chặng 2 — Đồng bằng Bắc Bộ và Bắc Trung Bộ** |                        |                 |
+| 9 · 10 · 11  | Hải Phòng · Hà Nội · Ninh Bình                 | Nhóm 3                 | 120 · 140 · 120 |
+| 12           | Cơ hội                                         | Thẻ                    |                 |
+| 13           | Biển Sầm Sơn (Thanh Hóa)                       | Bãi biển               | 200             |
+| 14 · 15      | Vinh · Đồng Hới                                | Nhóm 4                 | 160 · 160       |
+| 16           | **Đại nhạc hội**                               | Góc 3                  |                 |
+|              | **Chặng 3 — Miền Trung và Tây Nguyên**         |                        |                 |
+| 17 · 18      | Huế · Đà Nẵng                                  | Nhóm 5                 | 180 · 200       |
+| 19           | Cơ hội                                         | Thẻ                    |                 |
+| 20           | Biển Quy Nhơn                                  | Bãi biển               | 200             |
+| 21 · 22 · 23 | Nha Trang · Đà Lạt · Buôn Ma Thuột             | Nhóm 6                 | 200 · 220 · 220 |
+| 24           | **Sân bay**                                    | Góc 4                  |                 |
+|              | **Chặng 4 — Miền Nam**                         |                        |                 |
+| 25           | Biển Mũi Né                                    | Bãi biển               | 200             |
+| 26 · 27      | Vũng Tàu · Cần Thơ                             | Nhóm 7                 | 260 · 260       |
+| 28           | Cơ hội                                         | Thẻ                    |                 |
+| 29           | Phú Quốc                                       | Thành phố (không nhóm) | 300             |
+| 30           | **Thuế nhà**                                   | Thuế                   |                 |
+| 31           | TP. Hồ Chí Minh                                | Nhóm 7                 | 400             |
 
 **Nhóm màu = các thành phố liền kề cùng màu** (2 hoặc 3 ô nằm sát nhau):
 
@@ -171,15 +171,15 @@ Quy tắc xây:
 
 **Các công thức:**
 
-| Trường hợp                           | Công thức                                                                         |
-| ------------------------------------ | --------------------------------------------------------------------------------- |
-| 1. Mua đất chưa có chủ               | `G` (giá thẳng)                                                                   |
-| 2. Tiền thuê khi người khác dừng vào | `10% × G × M × K × H × C`                                                         |
-| 3. Mua lại ô của người khác          | `1,5 × P`. Chủ cũ nhận đủ và không được từ chối. Khách sạn không mua lại được.    |
-| 4. Bán cho ngân hàng                 | `0,5 × P`. Chỉ khi thiếu tiền trả nợ; ô trở về ngân hàng.                         |
-| 5. Bãi biển: mua                     | `200`                                                                             |
-| 6. Bãi biển: tiền thuê               | `50 × số bãi chủ đang có × C` (1 bãi 50, 2 bãi 100, 3 bãi 150; có 4 bãi là thắng) |
-| 7. Thuế nhà                          | `10% × tổng V của mọi ô đang sở hữu × C`                                          |
+| Trường hợp                           | Công thức                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------ |
+| 1. Mua đất chưa có chủ               | `G` (giá thẳng)                                                                |
+| 2. Tiền thuê khi người khác dừng vào | `10% × G × M × K × H × C`                                                      |
+| 3. Mua lại ô của người khác          | `1,5 × P`. Chủ cũ nhận đủ và không được từ chối. Khách sạn không mua lại được. |
+| 4. Bán cho ngân hàng                 | `0,5 × P`. Chỉ khi thiếu tiền trả nợ; ô trở về ngân hàng.                      |
+| 5. Bãi biển: mua                     | `200`                                                                          |
+| 6. Bãi biển: tiền thuê               | 1 bãi 25, 2 bãi 50, 3 bãi 200 (giá mua 200; có đủ 4 bãi là thắng)              |
+| 7. Thuế nhà                          | `10% × tổng V của mọi ô đang sở hữu × C`                                       |
 
 Mọi kết quả làm tròn đến số nguyên gần nhất. Không thu tiền thuê khi ô đang bị Mất
 điện. Chủ đang ở tù vẫn thu tiền thuê.
@@ -276,7 +276,7 @@ ván kết thúc tại đó.
 2. **1 dãy nhà:** sở hữu toàn bộ thành phố trên một chặng. Chặng 1 cần 6 thành phố, chặng
    2 và 3 cần 5 thành phố, chặng 4 cần 3 thành phố (Vũng Tàu, Cần Thơ, TP. Hồ Chí Minh).
    Bãi biển không bắt buộc.
-3. **4 bãi biển:** sở hữu 4 trong 5 bãi biển.
+3. **4 bãi biển:** sở hữu đủ cả 4 bãi biển.
 
 Điều kiện dự phòng, để ván không kéo dài vô hạn:
 
@@ -388,3 +388,25 @@ Bước 3 đã xong (25/11/2026):
 
 - Mua lại (1,5 × giá hiện tại): bật mặc định như thiết kế, hay để chủ bàn tự bật?
 - Thời lượng mặc định 45 phút có hợp không?
+
+## Cập nhật 2026-11-25: bàn 2.5D và luật theo góp ý
+
+- **Giao diện:** bỏ bàn 3D WebGL, thay bằng bàn 2.5D (bàn cờ xoay 45° và nghiêng, nhà, quân cờ,
+  giá thuê đứng thẳng phía trên). Vẫn có "Bàn phẳng". Người chơi ngồi ở 4 góc theo thứ tự lượt,
+  tiền ngay dưới tên. Ô đất ghi **giá thuê hiện tại** (ô chưa có chủ ghi tiền thuê đất trống).
+- **Diễn hoạt:** xúc xắc rơi vào khay giữa bàn rồi quân mới đi từng ô; mua, xây, mua lại hiện
+  dạng hộp thoại giữa bàn; tiền bay từ góc người trả về giữa bàn rồi tới người nhận; ô vừa đổi
+  chủ hoặc lên nhà có hiệu ứng; thắng có pháo giấy. Hạn lượt trên máy chủ cộng thêm thời gian
+  diễn hoạt (1,1 giây xúc xắc + 0,2 giây mỗi ô).
+- **Phiếu Cơ hội:** rút xong vào pha `REVEAL`: mọi người thấy phiếu 4 giây; người rút bấm
+  "Thực hiện phiếu" hoặc hết giờ thì phiếu có hiệu lực. Chờ xem phiếu không tính là lỡ lượt.
+- **Tạm dừng:** người chơi thật đang trong ván bấm Tạm dừng / Chơi tiếp (lệnh `pause`, `resume`).
+  Khi dừng không có hạn lượt, mọi thao tác lượt bị chặn; tiếp tục thì trả lại thời gian còn lại
+  (tối thiểu 10 giây) và cộng phút đã dừng vào giờ kết thúc ván.
+- **Hết lượt ở góc:** dừng ở Nhà tù, Đại nhạc hội hoặc Sân bay là hết lượt, kể cả vừa tung đôi.
+- **Phí 50:** bay từ Sân bay và tổ chức Đại nhạc hội đều tốn 50; không đủ tiền thì không được
+  bay (tung xúc xắc như thường) hoặc không được tổ chức. Phiếu "Vé máy bay giá rẻ" vẫn bay miễn phí,
+  phiếu "Được chọn đăng cai" vẫn miễn phí.
+- **Bay:** chỉ được tới ô đất còn trống hoặc đất của mình; ô của người khác, ô Cơ hội, Thuế và các
+  góc bị khóa.
+- **Biển:** giá 200; thuê 25 / 50 / 200 khi chủ có 1 / 2 / 3 bãi.

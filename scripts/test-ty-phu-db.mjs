@@ -289,6 +289,8 @@ export async function testTyPhu({ sql, owner, check }) {
         return { action: 'roll' };
       case 'FLY':
         return { action: 'skip' };
+      case 'REVEAL':
+        return { action: 'card_ok' };
       case 'BUY': {
         const t = board[state.pending.tile];
         const level = t.kind === 'BEACH' ? 0 : Math.min(buildCap(p, 0), 2);

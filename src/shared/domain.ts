@@ -101,6 +101,7 @@ export const errorMessages: Record<string, string> = {
   GAME_TABLE_LIMIT: 'Phòng đã có 8 bàn chưa kết thúc. Hãy tham gia hoặc kết thúc bàn cũ.',
   TYPHU_ACTION_INVALID: 'Thao tác chưa phù hợp với lượt hiện tại của ván Tỷ Phú.',
   TYPHU_NOT_YOUR_TURN: 'Chưa đến lượt bạn. Hãy chờ người chơi hiện tại.',
+  TYPHU_PAUSED: 'Ván đang tạm dừng. Bấm Chơi tiếp để tiếp tục.',
   TYPHU_NOT_ENOUGH_CASH: 'Bạn chưa đủ tiền cho thao tác này.',
   TYPHU_BUILD_LIMIT: 'Ô này chưa được xây tới cấp đó ở vòng hiện tại của bạn.',
   TYPHU_BAD_TARGET: 'Mục tiêu đã chọn không hợp lệ cho phiếu hoặc ô này.',
