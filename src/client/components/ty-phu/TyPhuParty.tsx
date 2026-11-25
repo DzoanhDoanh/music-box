@@ -34,7 +34,14 @@ import {
 } from '../../../shared/ty-phu/engine';
 import { asEngineState, openRematch, useTyPhu, useTyPhuList } from '../../lib/ty-phu';
 import { AsyncButton, Button, Confirm, ErrorState, Loading } from '../ui';
-import TyPhuBoard, { colorNames, Dice3D, playerColors, stripColor } from './TyPhuBoard';
+import TyPhuBoard, {
+  colorNames,
+  Dice3D,
+  playerColors,
+  stripColor,
+  webglAvailable,
+  type BoardView,
+} from './TyPhuBoard';
 import '../game/game.css';
 import './ty-phu.css';
 
@@ -226,14 +233,24 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
   const now = useNow();
   const [detail, setDetail] = useState<number | null>(null);
   const [giftTile, setGiftTile] = useState<number | null>(null);
-  const [tilted, setTilted] = useState(() => {
+  const [view, setView] = useState<BoardView>(() => {
+    if (!webglAvailable()) return '2d';
     try {
-      const saved = localStorage.getItem('roomtune:typhu:tilted');
-      return saved === null ? innerWidth >= 900 : saved === 'true';
+      const saved = localStorage.getItem('roomtune:typhu:view');
+      if (saved === '3d' || saved === '2d') return saved;
     } catch {
-      return innerWidth >= 900;
+      /* preference only */
     }
+    return innerWidth >= 900 ? '3d' : '2d';
   });
+  const chooseView = (next: BoardView) => {
+    setView(next);
+    try {
+      localStorage.setItem('roomtune:typhu:view', next);
+    } catch {
+      /* preference only */
+    }
+  };
   const state = query.data?.state;
   const engine = useMemo(() => (state ? asEngineState(state) : null), [state]);
   if (!state || !engine) {
@@ -314,6 +331,36 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
     </div>
   );
 
+  const turnLine =
+    state.status === 'PLAYING' && current ? (
+      <span className="typhu-turn" style={{ color: playerColors[current.color] }}>
+        {current.id === me ? 'Lượt của bạn' : `Lượt của ${current.name}`}
+        {current.bot ? (
+          <b> · đang nghĩ…</b>
+        ) : (
+          seconds !== null && <b className={seconds <= 10 ? 'urgent' : ''}> · {seconds}s</b>
+        )}
+      </span>
+    ) : state.status === 'FINISHED' ? (
+      <span className="typhu-turn">
+        <Crown size={16} /> {state.players.find((p) => p.id === state.winner)?.name} thắng
+        {state.winReason ? ` · ${winNames[state.winReason]}` : ''}
+      </span>
+    ) : (
+      <span className="typhu-turn">
+        <Users size={16} /> {state.players.length}/4 người · chờ chủ bàn bắt đầu
+      </span>
+    );
+  const hud = (
+    <>
+      <div className="typhu-hud-top" aria-live="polite">
+        {turnLine}
+        {state.dice && <span className="typhu-hud-dice">🎲 {state.dice.join(' + ')}</span>}
+      </div>
+      {state.log.at(-1) && <div className="typhu-hud-log">{state.log.at(-1)!.text}</div>}
+    </>
+  );
+
   return (
     <section className="typhu-party typhu-match" aria-label="Ván Tỷ Phú Phố Nhạc">
       <header className="typhu-match-head">
@@ -332,21 +379,19 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
             {connection !== 'Đã kết nối' ? ` · ${connection}` : ''}
           </small>
         </div>
-        <label className="typhu-check">
-          <input
-            type="checkbox"
-            checked={tilted}
-            onChange={(e) => {
-              setTilted(e.target.checked);
-              try {
-                localStorage.setItem('roomtune:typhu:tilted', String(e.target.checked));
-              } catch {
-                /* preference only */
-              }
-            }}
-          />
-          Bàn nghiêng
-        </label>
+        <div className="typhu-view" role="group" aria-label="Kiểu bàn cờ">
+          {(['3d', '2d'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={view === v}
+              disabled={v === '3d' && !webglAvailable()}
+              onClick={() => chooseView(v)}
+            >
+              {v === '3d' ? 'Bàn 3D' : 'Bàn 2D'}
+            </button>
+          ))}
+        </div>
       </header>
       <div className="typhu-layout">
         <TyPhuBoard
@@ -354,7 +399,9 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
           me={me}
           selectable={selectable}
           onTile={onTile}
-          tilted={tilted}
+          view={view}
+          onFailure3d={() => chooseView('2d')}
+          hud={hud}
           center={center}
         />
         <aside className="typhu-side">

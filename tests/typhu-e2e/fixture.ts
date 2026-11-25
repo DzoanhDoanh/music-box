@@ -92,6 +92,9 @@ export async function tyPhuFixture(context: BrowserContext) {
   const view = () => ({ state: publicTyPhuState(match!), serverNow: now() });
 
   await context.addInitScript((uid) => {
+    // Board tests drive the 2D board; the 3D table has its own test.
+    if (!localStorage.getItem('roomtune:typhu:view'))
+      localStorage.setItem('roomtune:typhu:view', '2d');
     localStorage.setItem(
       'sb-roomtune-fixture-auth-token',
       JSON.stringify({

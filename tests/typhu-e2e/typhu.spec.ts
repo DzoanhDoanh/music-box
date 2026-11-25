@@ -196,3 +196,31 @@ test('after a game the host opens a rematch that keeps the rules and computer se
   expect(fixture.older.get(first)!.rematch).toBe(fixture.match!.id);
   expect(fixture.match!.status).toBe('WAITING');
 });
+
+test('the 3D table renders with WebGL and tiles stay reachable from the keyboard', async ({
+  page,
+  context,
+}) => {
+  const fixture = await tyPhuFixture(context);
+  await openNewTable(page);
+  await page.getByRole('button', { name: 'Bắt đầu ván' }).click();
+  await expect(page.getByRole('heading', { name: 'Lượt của bạn' })).toBeVisible();
+  await page.getByRole('button', { name: 'Bàn 3D' }).click();
+  await expect(page.locator('.typhu-canvas canvas')).toBeVisible({ timeout: 15_000 });
+  const table = page.getByRole('group', { name: 'Bàn cờ Tỷ Phú Phố Nhạc 3D' });
+  await expect(table.getByRole('button')).toHaveCount(32);
+  // Keyboard users pick a tile through the hidden list; it opens the tile details.
+  await table.getByRole('button', { name: /^Sa Pa/ }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Sa Pa' })).toBeVisible();
+  await page.getByRole('button', { name: 'Xoay bàn sang phải' }).click();
+  await expect(page.getByRole('button', { name: 'Bàn 3D' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  expect(fixture.match!.status).toBe('PLAYING');
+  await page.getByRole('button', { name: 'Bàn 2D' }).click();
+  await expect(
+    page.getByRole('group', { name: 'Bàn cờ Tỷ Phú Phố Nhạc', exact: true }),
+  ).toBeVisible();
+});

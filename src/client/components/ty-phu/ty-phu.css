@@ -130,33 +130,38 @@
 }
 
 /* ---------------------------------------------------------------- board */
-@property --spin {
-  syntax: '<angle>';
-  inherits: true;
-  initial-value: 0deg;
-}
+/* The board is printed paper on a wooden tray in both themes, like a real box game. */
 .typhu-board-wrap {
   position: relative;
   width: 100%;
-  max-width: 700px;
+  max-width: 720px;
   margin: 0 auto;
-  --frame: color-mix(in srgb, #ef9f27 26%, var(--line));
-  --felt: color-mix(in srgb, #1d9e75 16%, var(--panel));
-}
-.typhu-stage-light {
-  display: none;
+  --ink: #3b2a1a;
+  --paper: #f1e2c0;
 }
 .typhu-board {
   position: relative;
   display: grid;
   grid-template-columns: 1.3fr repeat(7, minmax(0, 1fr)) 1.3fr;
   grid-template-rows: 1.3fr repeat(7, minmax(0, 1fr)) 1.3fr;
-  gap: 3px;
+  gap: 2px;
   aspect-ratio: 1;
-  padding: 7px;
-  background: linear-gradient(145deg, var(--frame), var(--line));
-  border-radius: 16px;
-  box-shadow: 0 22px 40px -22px rgba(0, 0, 0, 0.55);
+  padding: 10px;
+  border-radius: 14px;
+  background:
+    repeating-linear-gradient(
+      92deg,
+      rgba(255, 220, 170, 0.05) 0 2px,
+      transparent 2px 9px,
+      rgba(40, 20, 5, 0.08) 9px 10px,
+      transparent 10px 17px
+    ),
+    linear-gradient(145deg, #7a5230, #4a2f19);
+  box-shadow:
+    0 24px 44px -22px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.08),
+    inset 0 0 0 9px rgba(0, 0, 0, 0.18);
+  user-select: none;
 }
 
 /* Tiles */
@@ -169,56 +174,62 @@
   min-height: 0;
   padding: 0;
   border: 0;
-  border-radius: 6px;
-  background: var(--tile-bg, var(--panel));
-  color: var(--text);
+  border-radius: 3px;
+  background: var(--tile-bg, var(--paper));
+  color: var(--ink);
   font: inherit;
-  font-size: 10.5px;
+  font-size: 10px;
   line-height: 1.15;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
-  box-shadow:
-    inset 0 -2px 0 rgba(0, 0, 0, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(59, 42, 26, 0.45);
   transition:
-    transform 0.2s ease,
+    transform 0.15s ease,
     box-shadow 0.2s ease;
 }
-.typhu-tile.leg-1 {
-  --tile-bg: color-mix(in srgb, #97c459 9%, var(--panel));
-}
-.typhu-tile.leg-2 {
-  --tile-bg: color-mix(in srgb, #5dcaa5 9%, var(--panel));
-}
-.typhu-tile.leg-3 {
-  --tile-bg: color-mix(in srgb, #ed93b1 10%, var(--panel));
-}
-.typhu-tile.leg-4 {
-  --tile-bg: color-mix(in srgb, #ef9f27 10%, var(--panel));
+.typhu-tile:hover {
+  transform: translateY(-2px);
+  z-index: 2;
 }
 .typhu-tile.owned {
-  --tile-bg: color-mix(in srgb, var(--owner) 17%, var(--panel));
-  box-shadow:
-    inset 0 0 0 2px var(--owner),
-    inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+  --tile-bg: color-mix(in srgb, var(--owner) 15%, var(--paper));
+  box-shadow: inset 0 0 0 2px var(--owner);
 }
 .typhu-strip {
   display: block;
-  height: 8px;
+  height: 22%;
+  min-height: 7px;
+  max-height: 16px;
   flex-shrink: 0;
-  border-radius: 6px 6px 0 0;
+  margin: 2px 2px 0;
   background: var(--strip);
+  border-bottom: 1px solid rgba(59, 42, 26, 0.55);
+}
+.typhu-tile.kind-beach .typhu-strip {
+  background:
+    radial-gradient(
+        circle at 25% 120%,
+        transparent 35%,
+        rgba(255, 255, 255, 0.7) 36% 44%,
+        transparent 45%
+      )
+      0 0 / 10px 8px,
+    var(--strip);
 }
 .typhu-tile-name {
-  padding: 3px 4px 0;
-  font-weight: 700;
+  padding: 3px 3px 0;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
   overflow: hidden;
   overflow-wrap: anywhere;
 }
 .typhu-price {
   margin-top: auto;
-  padding: 0 4px 3px;
-  color: var(--muted);
+  padding: 0 3px 3px;
+  color: #5b3a1e;
+  font-family: 'Noto Serif', Cambria, 'Times New Roman', serif;
+  font-weight: 700;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
@@ -226,42 +237,54 @@
   align-items: center;
   justify-content: center;
   gap: 2px;
-  text-align: center;
-  font-weight: 800;
-  letter-spacing: 0.01em;
+  font-family: 'Noto Serif', Cambria, 'Times New Roman', serif;
+  font-weight: 900;
 }
 .typhu-tile.kind-start {
-  --tile-bg: linear-gradient(135deg, color-mix(in srgb, #e24b4a 26%, var(--panel)), var(--panel));
+  --tile-bg: radial-gradient(
+    circle,
+    color-mix(in srgb, #e24b4a 28%, var(--paper)),
+    var(--paper) 75%
+  );
 }
 .typhu-tile.kind-jail {
   --tile-bg: repeating-linear-gradient(
     90deg,
-    color-mix(in srgb, #5f5e5a 22%, var(--panel)) 0 6px,
-    var(--panel) 6px 11px
+    color-mix(in srgb, #5f5e5a 26%, var(--paper)) 0 4px,
+    var(--paper) 4px 10px
   );
 }
 .typhu-tile.kind-festival {
-  --tile-bg: linear-gradient(135deg, color-mix(in srgb, #d4537e 30%, var(--panel)), var(--panel));
+  --tile-bg: radial-gradient(
+    circle,
+    color-mix(in srgb, #d4537e 30%, var(--paper)),
+    var(--paper) 75%
+  );
 }
 .typhu-tile.kind-airport {
-  --tile-bg: linear-gradient(135deg, color-mix(in srgb, #378add 28%, var(--panel)), var(--panel));
-}
-.typhu-tile.corner,
-.typhu-tile.kind-start,
-.typhu-tile.kind-jail,
-.typhu-tile.kind-festival,
-.typhu-tile.kind-airport {
-  background: var(--tile-bg);
+  --tile-bg: radial-gradient(
+    circle,
+    color-mix(in srgb, #378add 28%, var(--paper)),
+    var(--paper) 75%
+  );
 }
 .typhu-corner-icon {
   display: block;
-  font-size: 24px;
+  font-size: 26px;
   line-height: 1;
+  filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.25));
 }
 .typhu-tile.kind-chance .typhu-tile-name,
 .typhu-tile.kind-tax .typhu-tile-name {
   margin: auto 0;
-  text-align: center;
+}
+.typhu-chance-mark {
+  display: block;
+  font:
+    900 22px/1 Georgia,
+    'Times New Roman',
+    serif;
+  color: #b3261e;
 }
 
 /* Buildings, flags and markers */
@@ -276,13 +299,11 @@
   gap: 1px;
   pointer-events: none;
 }
-.typhu-stand {
-  display: block;
-}
-.typhu-stand svg {
+.typhu-build svg {
   display: block;
   width: 100%;
   height: auto;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
 }
 .typhu-house {
   width: 30%;
@@ -302,14 +323,14 @@
 }
 .typhu-festival {
   position: absolute;
-  top: 10px;
+  top: 14px;
   right: 3px;
   font-size: 13px;
   line-height: 1;
 }
 .typhu-blackout {
   position: absolute;
-  top: 10px;
+  top: 14px;
   left: 3px;
   font-size: 12px;
 }
@@ -324,73 +345,49 @@
   outline-offset: -2px;
   animation: typhu-glow 0.9s ease-in-out infinite alternate;
 }
-.typhu-tile:hover {
-  z-index: 2;
-}
 .typhu-tile:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
   z-index: 2;
 }
 
-/* Centre */
-.typhu-center,
-.typhu-center-floor {
+/* Centre: the printed old-town map with the controls on a paper card. */
+.typhu-center {
   grid-column: 2 / 9;
   grid-row: 2 / 9;
-  border-radius: 10px;
-  background:
-    radial-gradient(
-      circle at 50% 38%,
-      color-mix(in srgb, #ef9f27 12%, transparent),
-      transparent 60%
-    ),
-    var(--felt);
-  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.18);
-}
-.typhu-center {
   display: flex;
   align-items: center;
   justify-content: center;
   min-width: 0;
-}
-.typhu-center-floor {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: color-mix(in srgb, #ef9f27 16%, transparent);
-  font-weight: 900;
-  text-align: center;
-  line-height: 0.95;
-}
-.typhu-floor-title {
-  font-size: clamp(34px, 7cqw, 64px);
-  letter-spacing: 0.08em;
-}
-.typhu-floor-sub {
-  font-size: clamp(14px, 2.6cqw, 24px);
-  letter-spacing: 0.5em;
+  border-radius: 3px;
+  background-color: var(--paper);
+  background-size: cover;
+  background-position: center;
+  box-shadow: inset 0 0 0 1px rgba(59, 42, 26, 0.5);
 }
 .typhu-center-inner {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   text-align: center;
-  padding: 10px;
-  max-width: 280px;
+  padding: 12px 16px;
+  max-width: 300px;
+  border-radius: 12px;
+  background: rgba(244, 230, 198, 0.9);
+  border: 1px solid rgba(107, 63, 31, 0.45);
+  box-shadow: 0 8px 22px -10px rgba(59, 42, 26, 0.6);
+  color: var(--ink);
 }
 .typhu-turn {
   font-weight: 800;
   font-size: 15px;
-  text-shadow: 0 1px 8px var(--panel);
 }
 .typhu-turn b.urgent {
   color: var(--danger);
 }
 .typhu-last {
-  color: var(--muted);
+  color: #5b3a1e;
   font-size: 11px;
 }
 .typhu-winner {
@@ -398,29 +395,29 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  color: #ef9f27;
+  color: #b7791f;
 }
 .typhu-winner strong {
-  color: var(--text);
+  color: var(--ink);
   font-size: 18px;
 }
 .typhu-winner small {
-  color: var(--muted);
+  color: #5b3a1e;
 }
 
 /* Pawns */
 .typhu-token-layer {
   position: absolute;
-  inset: 7px;
+  inset: 10px;
   pointer-events: none;
 }
 .typhu-pawn {
   position: absolute;
-  width: 4.4%;
+  width: 4.6%;
   transform: translate(-50%, -55%);
   transition:
-    left 0.17s ease-out,
-    top 0.17s ease-out;
+    left 0.2s ease-out,
+    top 0.2s ease-out;
 }
 .typhu-pawn-shadow {
   position: absolute;
@@ -437,11 +434,14 @@
   animation: typhu-ring 0.9s ease-in-out infinite alternate;
 }
 .typhu-pawn-body svg {
+  display: block;
+  width: 100%;
+  height: auto;
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
-  animation: typhu-hop 0.17s ease-out;
+  animation: typhu-hop 0.2s ease-out;
 }
 
-/* Dice */
+/* Dice (2D board) */
 .typhu-dice {
   display: flex;
   gap: 20px;
@@ -449,7 +449,7 @@
   perspective: 700px;
 }
 .typhu-die3d {
-  --d: 42px;
+  --d: 40px;
   width: var(--d);
   height: var(--d);
   transform-style: preserve-3d;
@@ -509,184 +509,151 @@
   transform: rotateX(-90deg) translateZ(calc(var(--d) / 2));
 }
 
+/* ---------------------------------------------------------------- 3D table (WebGL) */
+.typhu-table {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 11;
+  max-height: calc(100vh - 140px);
+  min-height: 340px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 40%, #3a2716, #17110c 75%);
+  user-select: none;
+  touch-action: pan-y;
+}
+.typhu-canvas {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+}
+.typhu-canvas:active {
+  cursor: grabbing;
+}
+.typhu-table-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #e9dcc2;
+  font-size: 14px;
+}
+.typhu-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.typhu-hud-top {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 24px);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(23, 17, 12, 0.74);
+  border: 1px solid rgba(246, 196, 83, 0.25);
+  backdrop-filter: blur(6px);
+  color: #f6ead2;
+  white-space: nowrap;
+}
+.typhu-hud-top .typhu-turn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.typhu-hud-dice {
+  color: #f6c453;
+  font-weight: 700;
+  font-size: 13px;
+}
+.typhu-hud-log {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  max-width: calc(100% - 200px);
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(23, 17, 12, 0.68);
+  color: #e9dcc2;
+  font-size: 12px;
+}
+.typhu-sr-board {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .typhu-spin {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
+  right: 12px;
+  bottom: 12px;
   display: flex;
   gap: 6px;
 }
 .typhu-spin button {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--text);
+  border: 1px solid rgba(246, 196, 83, 0.35);
+  background: rgba(23, 17, 12, 0.74);
+  color: #f6ead2;
   cursor: pointer;
 }
 .typhu-spin button:hover,
 .typhu-spin button:focus-visible {
-  border-color: #ef9f27;
+  border-color: #f6c453;
+  color: #f6c453;
 }
-
-/* 3D board: wide screens only; the centre controls float upright above it. */
+.typhu-match-head > .typhu-view {
+  flex: 0 0 auto;
+}
+.typhu-view {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.typhu-view button {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.typhu-view button[aria-pressed='true'] {
+  background: #ef9f27;
+  color: #1d140c;
+}
+.typhu-view button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 @media (min-width: 900px) {
-  .typhu-board-wrap:not(.tilted) {
-    max-width: min(700px, calc(100vh - 140px));
-  }
-  .typhu-board-wrap.tilted {
-    container-type: inline-size;
-    aspect-ratio: 1 / 0.66;
-    max-width: none;
-    perspective: 2400px;
-    perspective-origin: 50% 20%;
-    transition: --spin 0.9s cubic-bezier(0.3, 0.7, 0.2, 1);
-  }
-  .tilted .typhu-stage-light {
-    display: block;
-    position: absolute;
-    inset: -4% 0 0;
-    border-radius: 24px;
-    background:
-      radial-gradient(ellipse 55% 50% at 50% 58%, rgba(239, 159, 39, 0.16), transparent 70%),
-      radial-gradient(ellipse 30% 26% at 50% 10%, rgba(255, 255, 255, 0.08), transparent 70%);
-    pointer-events: none;
-  }
-  .tilted .typhu-board {
-    position: absolute;
-    left: 50%;
-    top: 44%;
-    width: min(600px, 62cqw, calc((100vh - 150px) * 0.95));
-    border-radius: 8px;
-    background: linear-gradient(145deg, #7a5230, #4a2f19);
-    box-shadow: none;
-    transform-style: preserve-3d;
-    transform: translate(-50%, -50%) rotateX(56deg) rotateZ(calc(45deg + var(--spin)));
-  }
-  /* Soft shadow the board casts on the table. */
-  .tilted .typhu-board::after {
-    content: '';
-    position: absolute;
-    inset: 2%;
-    border-radius: 24px;
-    background: rgba(0, 0, 0, 0.55);
-    filter: blur(22px);
-    transform: translateZ(-40px);
-    pointer-events: none;
-  }
-  .typhu-slab {
-    position: absolute;
-    background: linear-gradient(#5c3b1f, #2e1d0f);
-    backface-visibility: hidden;
-    pointer-events: none;
-  }
-  .typhu-slab-n {
-    left: 0;
-    top: -18px;
-    width: 100%;
-    height: 18px;
-    transform-origin: bottom;
-    transform: rotateX(90deg);
-  }
-  .typhu-slab-s {
-    left: 0;
-    top: 100%;
-    width: 100%;
-    height: 18px;
-    transform-origin: top;
-    transform: rotateX(-90deg);
-  }
-  .typhu-slab-w {
-    top: 0;
-    left: -18px;
-    width: 18px;
-    height: 100%;
-    transform-origin: right;
-    transform: rotateY(-90deg);
-    background: linear-gradient(90deg, #2e1d0f, #5c3b1f);
-  }
-  .typhu-slab-e {
-    top: 0;
-    left: 100%;
-    width: 18px;
-    height: 100%;
-    transform-origin: left;
-    transform: rotateY(90deg);
-    background: linear-gradient(90deg, #5c3b1f, #2e1d0f);
-  }
-  .tilted .typhu-tile,
-  .tilted .typhu-build,
-  .tilted .typhu-token-layer,
-  .tilted .typhu-pawn {
-    transform-style: preserve-3d;
-  }
-  .tilted .typhu-tile {
-    font-size: 11px;
-  }
-  .tilted .typhu-tile:hover,
-  .tilted .typhu-tile:focus-visible,
-  .tilted .typhu-tile.selectable {
-    transform: translateZ(7px);
-  }
-  /* Anything marked "stand" rises out of the board and turns to face the camera. */
-  .tilted .typhu-stand {
-    transform-origin: 50% 100%;
-    transform: rotateZ(calc(-45deg - var(--spin))) rotateX(-90deg);
-  }
-  .tilted .typhu-house {
-    width: 34%;
-    max-width: 22px;
-  }
-  .tilted .typhu-hotel {
-    width: 50%;
-    max-width: 30px;
-  }
-  .tilted .typhu-flag {
-    width: 30%;
-    max-width: 17px;
-  }
-  .tilted .typhu-umbrella {
-    font-size: 22px;
-  }
-  .tilted .typhu-corner-icon {
-    font-size: 38px;
-  }
-  .tilted .typhu-festival {
-    font-size: 22px;
-    top: 4px;
-  }
-  .tilted .typhu-pawn {
-    width: 5.6%;
-    transform: translate(-50%, -100%);
-  }
-  .tilted .typhu-pawn-shadow {
-    bottom: -12%;
-    height: 34%;
-    left: -10%;
-    right: -10%;
-  }
-  .tilted .typhu-center-upright {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    background: none;
-    box-shadow: none;
-  }
-  .tilted .typhu-center-floor {
-    container-type: inline-size;
+  .typhu-board-wrap {
+    max-width: min(720px, calc(100vh - 140px));
   }
 }
 @media (max-width: 899px) {
-  .typhu-center-upright,
-  .typhu-spin,
-  .typhu-match-head .typhu-check {
-    display: none;
+  .typhu-table {
+    aspect-ratio: 1 / 1.05;
   }
-  .typhu-board-wrap.tilted .typhu-center-floor {
+  .typhu-hud-log {
     display: none;
   }
 }
@@ -892,8 +859,7 @@
   }
   .typhu-cube,
   .typhu-pawn,
-  .typhu-tile,
-  .typhu-board-wrap.tilted {
+  .typhu-tile {
     transition: none;
   }
 }
@@ -908,12 +874,18 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .typhu-board {
-    gap: 2px;
-    padding: 4px;
+    gap: 1px;
+    padding: 5px;
     border-radius: 10px;
   }
   .typhu-token-layer {
-    inset: 4px;
+    inset: 5px;
+  }
+  .typhu-tile-name {
+    text-transform: none;
+  }
+  .typhu-chance-mark {
+    font-size: 14px;
   }
   .typhu-tile {
     font-size: 8px;
@@ -969,4 +941,16 @@
 .typhu-remove-bot {
   min-height: 30px;
   padding: 4px 8px;
+}
+@media (max-width: 640px) {
+  .typhu-match-head h1 {
+    font-size: 18px;
+  }
+  .typhu-match-head > .typhu-view {
+    order: 3;
+    flex: 1 1 100%;
+  }
+  .typhu-view button {
+    flex: 1;
+  }
 }
