@@ -4,6 +4,6 @@ credentials-file: C:/Users/dovan/.cloudflared/90ac7355-80af-479d-9675-8129094e35
 # Publish only application routes. Local debugger/explorer/source files are excluded.
 ingress:
   - hostname: roomtune.dzoanh.me
-    path: '^/($|(join|login|rooms|privacy)/?$|room/[a-fA-F0-9-]+(/games(/([a-fA-F0-9-]+|(bau-cua|duck-race|ty-phu)(/[a-fA-F0-9-]+)?))?)?/?$|assets/[^/]+$|favicon\.svg$|robots\.txt$|api/v1/.*$)'
+    path: '^/($|(join|login|rooms|privacy)/?$|room/[a-fA-F0-9-]+(/games(/([a-fA-F0-9-]+|(bau-cua|duck-race|ty-phu)(/[a-fA-F0-9-]+)?))?)?/?$|assets/[^/]+$|tarot/[0-9]{2}\.jpg$|favicon\.svg$|robots\.txt$|api/v1/.*$)'
     service: http://127.0.0.1:4173
   - service: http_status:404
