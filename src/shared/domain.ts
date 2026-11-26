@@ -89,6 +89,7 @@ export const errorMessages: Record<string, string> = {
   BAU_RESTORE_UNAVAILABLE: 'Bài này không còn đủ điều kiện khôi phục từ hình phạt.',
   WHEEL_EMPTY:
     'Cần ít nhất hai lựa chọn hợp lệ để quay. Với thưởng nhạc, chỉ tính người online có bài đang chờ.',
+  TAROT_BUSY: 'Bạn vừa rút bài. Chờ vài giây rồi rút tiếp nhé.',
   WHEEL_BUSY: 'Phòng vừa quay. Hãy chờ vòng quay hiện tại kết thúc.',
   WHEEL_STALE: 'Có người vừa quay trước bạn. Kết quả đã được cập nhật, hãy xem rồi quay lại.',
   GAME_ACTION_INVALID: 'Thao tác không phù hợp với trạng thái ván hiện tại.',

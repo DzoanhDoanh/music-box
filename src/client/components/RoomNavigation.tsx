@@ -19,11 +19,12 @@ export type RoomTab =
   | 'admin'
   | 'settings'
   | 'games'
-  | 'wheel';
+  | 'wheel'
+  | 'tarot';
 export type RoomNavItem = { id: RoomTab; label: string; icon: LucideIcon };
 const groups = [
   { label: 'Cá nhân', icon: FolderHeart, tabs: ['library', 'history'] },
-  { label: 'Giải trí', icon: Gamepad2, tabs: ['games', 'wheel'] },
+  { label: 'Giải trí', icon: Gamepad2, tabs: ['games', 'wheel', 'tarot'] },
   { label: 'Quản lý', icon: SlidersHorizontal, tabs: ['host', 'admin', 'settings'] },
 ];
 export default function RoomNavigation({

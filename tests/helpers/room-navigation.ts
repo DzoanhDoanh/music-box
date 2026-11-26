@@ -12,7 +12,7 @@ export async function chooseRoomTab(page: Page, name: string) {
     else {
       const group = ['Thư viện của tôi', 'Lịch sử phát'].includes(name)
         ? 'Cá nhân'
-        : ['Trò chơi', 'Vòng quay may mắn'].includes(name)
+        : ['Trò chơi', 'Vòng quay may mắn', 'Bói Tarot'].includes(name)
           ? 'Giải trí'
           : 'Quản lý';
       await page.getByRole('button', { name: group, exact: true }).click();

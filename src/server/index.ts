@@ -25,6 +25,11 @@ import { PlaylistService } from './services/library';
 import { MaintenanceService, SearchService } from './services/search';
 import { RecommendationService } from './services/recommendations';
 import { wheelCommandSchema, type WheelSnapshot, type WheelResult } from '../shared/wheel';
+import {
+  tarotCommandSchema,
+  type TarotReading,
+  type TarotSnapshot,
+} from '../shared/tarot/contracts';
 import { BauCuaService } from './services/bau-cua';
 import { commandSchema as bauCommandSchema } from '../shared/bau-cua/contracts';
 import { DuckRaceService } from './services/duck-race';
@@ -101,6 +106,7 @@ app.get('/api/v1/system/health', (c) =>
     bauCuaEnabled: c.env.ENABLE_BAU_CUA === 'true',
     duckRaceEnabled: c.env.ENABLE_DUCK_RACE === 'true',
     tyPhuEnabled: c.env.ENABLE_TY_PHU === 'true',
+    tarotEnabled: c.env.ENABLE_TAROT === 'true',
     version: '0.1.0',
   }),
 );
@@ -301,6 +307,28 @@ app.post('/api/v1/rooms/:id/wheel', async (c) =>
       p_room: uuid.parse(c.req.param('id')),
       p_request: requestKey(c.req.header('Idempotency-Key')),
       p_command: wheelCommandSchema.parse(await c.req.json()),
+    }),
+  ),
+);
+app.use('/api/v1/rooms/:id/tarot', async (c, next) => {
+  if (c.env.ENABLE_TAROT !== 'true') throw new AppError('NOT_FOUND', 404);
+  await next();
+});
+app.get('/api/v1/rooms/:id/tarot', async (c) =>
+  c.json(
+    await c.get('services').store.call<TarotSnapshot>('tarot_snapshot', {
+      p_actor: c.get('actor'),
+      p_room: uuid.parse(c.req.param('id')),
+    }),
+  ),
+);
+app.post('/api/v1/rooms/:id/tarot', async (c) =>
+  c.json(
+    await c.get('services').store.call<TarotReading>('tarot_draw', {
+      p_actor: c.get('actor'),
+      p_room: uuid.parse(c.req.param('id')),
+      p_request: requestKey(c.req.header('Idempotency-Key')),
+      p_command: tarotCommandSchema.parse(await c.req.json()),
     }),
   ),
 );

@@ -422,6 +422,8 @@ try {
   await testReorderVoting({ sql, owner, users, videos: ids, check });
   const { testWheel } = await import('./test-wheel-db.mjs');
   await testWheel({ sql, owner, users, videos: ids, check });
+  const { testTarot } = await import('./test-tarot-db.mjs');
+  await testTarot({ sql, owner, users, check });
   const { testChat } = await import('./test-chat-db.mjs');
   await testChat({ sql, owner, check });
   const { testGame } = await import('./test-game-db.mjs');

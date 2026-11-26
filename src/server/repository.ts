@@ -20,6 +20,7 @@ export interface Env {
   ENABLE_BAU_CUA?: string;
   ENABLE_DUCK_RACE?: string;
   ENABLE_TY_PHU?: string;
+  ENABLE_TAROT?: string;
 }
 export type UpstreamTiming = (stage: 'auth' | 'limits' | 'data', ms: number) => void;
 export function database(env: Env, timing?: UpstreamTiming): SupabaseClient {

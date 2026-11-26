@@ -24,6 +24,7 @@ import {
   Gamepad2,
   ArrowLeft,
   CircleDot,
+  Moon,
   Copy,
   UserRound,
 } from 'lucide-react';
@@ -58,6 +59,7 @@ const HostPlayer = lazy(() => import('../components/HostPlayer')),
   TyPhuParty = lazy(() => import('../components/ty-phu/TyPhuParty')),
   BauNotifications = lazy(() => import('../components/bau-cua/BauNotifications')),
   LuckyWheel = lazy(() => import('../components/LuckyWheel')),
+  TarotReading = lazy(() => import('../components/tarot/TarotReading')),
   ListenerPlayer = lazy(() => import('../components/ListenerPlayer')),
   SearchPanel = lazy(() => import('../components/SearchPanel')),
   RoomSettings = lazy(() => import('../components/RoomSettings')),
@@ -68,6 +70,7 @@ const bauEnabled = import.meta.env.VITE_ENABLE_BAU_CUA === 'true';
 const duckEnabled = import.meta.env.VITE_ENABLE_DUCK_RACE === 'true';
 const tyPhuEnabled = import.meta.env.VITE_ENABLE_TY_PHU === 'true';
 const wheelEnabled = import.meta.env.VITE_ENABLE_WHEEL === 'true';
+const tarotEnabled = import.meta.env.VITE_ENABLE_TAROT === 'true';
 export default function RoomPage() {
   const [hostVisible, setHostVisible] = useState(false);
   const [claimFromListener, setClaimFromListener] = useState<string | null>(null);
@@ -99,14 +102,17 @@ export default function RoomPage() {
   const bauRoute = matchPath('/room/:id/games/bau-cua/:table?', route.pathname);
   const bauPage = bauEnabled && !!bauRoute;
   const gameLobby = gamePage && route.pathname.replace(/\/$/, '') === `/room/${id}/games`;
-  const wheelPage = wheelEnabled && new URLSearchParams(route.search).get('tool') === 'wheel';
-  const tab = gamePage ? 'games' : wheelPage ? 'wheel' : musicTab;
+  const tool = new URLSearchParams(route.search).get('tool');
+  const wheelPage = wheelEnabled && tool === 'wheel';
+  const tarotPage = tarotEnabled && tool === 'tarot';
+  const tab = gamePage ? 'games' : wheelPage ? 'wheel' : tarotPage ? 'tarot' : musicTab;
   const setTab = (next: Tab) => {
     if (next === 'games') navigate(`/room/${id}/games`);
     else if (next === 'wheel') navigate(`/room/${id}?tool=wheel`);
+    else if (next === 'tarot') navigate(`/room/${id}?tool=tarot`);
     else {
       setMusicTab(next);
-      if (gamePage || wheelPage) navigate(`/room/${id}`);
+      if (gamePage || wheelPage || tarotPage) navigate(`/room/${id}`);
     }
   };
   useEffect(() => {
@@ -184,6 +190,7 @@ export default function RoomPage() {
     ...(wheelEnabled
       ? [{ id: 'wheel' as const, label: 'Vòng quay may mắn', icon: CircleDot }]
       : []),
+    ...(tarotEnabled ? [{ id: 'tarot' as const, label: 'Bói Tarot', icon: Moon }] : []),
     ...(manager
       ? [
           { id: 'host' as const, label: 'Máy phát nhạc', icon: MonitorSpeaker },
@@ -252,7 +259,18 @@ export default function RoomPage() {
     return send({ action: 'reorder', ids, version: snapshot.version });
   }
   return (
-    <div className={'dashboard' + (gamePage ? ' game-screen' : wheelPage ? ' wheel-screen' : '')}>
+    <div
+      className={
+        'dashboard' +
+        (gamePage
+          ? ' game-screen'
+          : wheelPage
+            ? ' wheel-screen'
+            : tarotPage
+              ? ' wheel-screen tarot-screen'
+              : '')
+      }
+    >
       {bauEnabled && !accessRevoked && !sessionLost && (
         <Suspense fallback={null}>
           <BauNotifications room={id} actor={snapshot.me} />
@@ -626,6 +644,7 @@ export default function RoomPage() {
               )}
               <Suspense fallback={<Loading />}>
                 {tab === 'wheel' && <LuckyWheel key={playerKey} snapshot={snapshot} />}
+                {tab === 'tarot' && <TarotReading key={playerKey} snapshot={snapshot} />}
                 {showQueue && (
                   <>
                     <div className="queue-layout">

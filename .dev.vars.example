@@ -14,3 +14,5 @@ ENABLE_DUCK_RACE=false
 
 # Requires 202611250001_ty_phu.sql and VITE_ENABLE_TY_PHU=true at build time.
 ENABLE_TY_PHU=false
+# Requires 202611260002_tarot.sql and VITE_ENABLE_TAROT=true at build time.
+ENABLE_TAROT=false
