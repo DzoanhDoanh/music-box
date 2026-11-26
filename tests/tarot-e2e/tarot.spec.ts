@@ -100,7 +100,7 @@ async function fixture(page: Page, options: { ai?: boolean } = {}) {
 /** Shuffle, then pick `count` cards from the fan by intuition. */
 async function pickCards(panel: Locator, count: number) {
   await panel.getByRole('button', { name: 'Xào bài', exact: true }).click();
-  await expect(panel.getByRole('group', { name: 'Bộ bài đã xòe' })).toBeVisible();
+  await expect(panel.getByRole('group', { name: 'Bộ bài đã trải' })).toBeVisible();
   for (let i = 0; i < count; i++)
     await panel.getByRole('button', { name: `Lá úp thứ ${5 + i * 4}`, exact: true }).press('Enter');
 }
@@ -117,8 +117,26 @@ test('a three-card reading: shuffle, pick from the fan, flip for the room and su
   await panel.getByRole('textbox', { name: 'Câu hỏi' }).fill('  Sắp tới thế nào?  ');
   await panel.getByRole('button', { name: 'Xào bài', exact: true }).click();
   await expect(panel.getByRole('status', { name: 'Đang xào bài' })).toBeVisible();
-  await expect(panel.getByRole('group', { name: 'Bộ bài đã xòe' })).toBeVisible();
-  await expect(panel.getByRole('button', { name: /^Lá úp thứ/ })).toHaveCount(22);
+  await expect(panel.getByRole('group', { name: 'Bộ bài đã trải' })).toBeVisible();
+  await expect(panel.getByRole('button', { name: /^Lá úp thứ/ })).toHaveCount(78);
+  // Every card of the deck lies fully inside the table, none cut off at the edges.
+  const fan = panel.getByRole('group', { name: 'Bộ bài đã trải' });
+  await fan.evaluate((node) =>
+    Promise.all(node.getAnimations({ subtree: true }).map((a) => a.finished)),
+  );
+  const clipped = await fan.evaluate((node) => {
+    const table = node.closest('.tarot-stage')!.getBoundingClientRect();
+    return [...node.querySelectorAll('button')].filter((card) => {
+      const box = card.getBoundingClientRect();
+      return (
+        box.left < table.left ||
+        box.right > table.right ||
+        box.top < table.top ||
+        box.bottom > table.bottom
+      );
+    }).length;
+  });
+  expect(clipped).toBe(0);
   await page.waitForTimeout(800);
   await panel.locator('.tarot-stage').screenshot({ path: info.outputPath('tarot-fan.png') });
   await panel.getByRole('button', { name: 'Lá úp thứ 3', exact: true }).press('Enter');

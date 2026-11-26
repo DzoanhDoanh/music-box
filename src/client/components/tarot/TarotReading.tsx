@@ -33,7 +33,8 @@ import './tarot.css';
 type Pending = { key: string; command: TarotCommand };
 type Draft = { spread: TarotSpread; topic: TarotTopic; question: string };
 type Mode = 'view' | 'shuffle' | 'pick';
-const FAN_SIZE = 22;
+/** The whole deck is laid out face down to pick from. */
+const FAN_SIZE = 78;
 const SHUFFLE_UI_MS = 1300;
 
 function readStored<T>(key: string, parse: (value: unknown) => T | null): T | null {
@@ -232,7 +233,7 @@ function Fan({
           ? 'Đang mở bài…'
           : `Hít một hơi, nghĩ về câu hỏi và chọn ${need} lá theo trực giác (${chosen.length}/${need})`}
       </p>
-      <div className="tarot-fan" role="group" aria-label="Bộ bài đã xòe">
+      <div className="tarot-fan" role="group" aria-label="Bộ bài đã trải">
         {Array.from({ length: FAN_SIZE }, (_, i) => {
           const order = chosen.indexOf(i);
           return (
@@ -240,7 +241,7 @@ function Fan({
               key={i}
               type="button"
               className={'tarot-fan-card' + (order >= 0 ? ' chosen' : '')}
-              style={{ '--k': i - (FAN_SIZE - 1) / 2, '--n': FAN_SIZE } as CSSProperties}
+              style={{ '--i': i } as CSSProperties}
               aria-label={`Lá úp thứ ${i + 1}`}
               aria-pressed={order >= 0}
               disabled={locked || (order < 0 && chosen.length >= need)}

@@ -247,8 +247,11 @@
   font-style: italic;
 }
 .tarot-fan-wrap {
+  /* The fan sizes its cards and its own height from this width. */
+  container-type: inline-size;
   display: grid;
   justify-items: center;
+  width: 100%;
 }
 .tarot-fan-hint {
   margin: 4px 0 0;
@@ -258,58 +261,77 @@
   color: var(--gold-soft);
   max-width: 460px;
 }
+/* All 78 cards laid out on the table in overlapping rows: 13 per row on phones, 26 when wide.
+   Each card is --k cells wide, so neighbours overlap and the last card ends exactly at the edge. */
 .tarot-fan {
-  --w: clamp(48px, 10cqi, 88px);
-  --step: 3.3deg;
+  --n: 13;
+  --k: 2.4;
+  --rows: calc(78 / var(--n));
+  --cell: calc(min(100cqi, 760px) / (var(--n) + var(--k) - 1));
+  --w: calc(var(--cell) * var(--k));
+  --h: calc(var(--w) * 12 / 7);
+  --row: calc(var(--h) * 0.44);
   position: relative;
-  width: 100%;
-  /* card height (12/7 w) + the drop of the outer cards on the arc + room to lift a card */
-  height: calc(var(--w) * 3.2 + 40px);
-  margin-top: 6px;
+  width: min(100%, 760px);
+  /* rows, the last card's full height, and room to lift a card above the first row */
+  height: calc(var(--h) + (var(--rows) - 1) * var(--row) + 30px);
+  margin-top: 8px;
+}
+@container (min-width: 520px) {
+  .tarot-fan {
+    --n: 26;
+    --k: 2.6;
+  }
 }
 .tarot-fan-card {
+  --col: mod(var(--i), var(--n));
+  --line: round(down, var(--i) / var(--n), 1);
+  /* -1 at the left end of a row, +1 at the right end: a gentle arc per row */
+  --t: calc(var(--col) / (var(--n) - 1) * 2 - 1);
+  --tilt: rotate(calc(var(--t) * 4deg)) translateY(calc(var(--t) * var(--t) * 6px));
   all: unset;
   box-sizing: border-box;
   position: absolute;
-  left: 50%;
-  bottom: calc(var(--w) * 1.35);
+  left: calc(var(--col) * var(--cell));
+  top: calc(26px + var(--line) * var(--row));
   width: var(--w);
-  margin-left: calc(var(--w) / -2);
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  transform-origin: 50% 400%;
-  transform: rotate(calc(var(--k) * var(--step)));
+  transform: var(--tilt);
   transition:
-    transform 0.35s cubic-bezier(0.2, 0.8, 0.3, 1),
-    filter 0.35s;
-  animation: tarot-spread-out 0.7s cubic-bezier(0.2, 0.8, 0.3, 1) both;
-  filter: drop-shadow(0 6px 10px rgba(5, 2, 15, 0.6));
+    transform 0.3s cubic-bezier(0.2, 0.8, 0.3, 1),
+    filter 0.3s;
+  animation: tarot-spread-out 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation-delay: calc(var(--i) * 7ms);
+  filter: drop-shadow(0 4px 6px rgba(5, 2, 15, 0.55));
 }
 .tarot-fan-card:hover:not(:disabled),
 .tarot-fan-card:focus-visible {
-  transform: rotate(calc(var(--k) * var(--step))) translateY(-14px);
+  z-index: 2;
+  transform: var(--tilt) translateY(-12px);
 }
 .tarot-fan-card:focus-visible {
   outline: 2px solid var(--gold);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 .tarot-fan-card.chosen {
-  transform: rotate(calc(var(--k) * var(--step))) translateY(-34px);
-  filter: drop-shadow(0 0 14px rgba(255, 214, 130, 0.85));
+  z-index: 3;
+  transform: var(--tilt) translateY(-22px) scale(1.06);
+  filter: drop-shadow(0 0 12px rgba(255, 214, 130, 0.9));
 }
 .tarot-fan-card:disabled:not(.chosen) {
   cursor: default;
-  filter: brightness(0.6) drop-shadow(0 6px 10px rgba(5, 2, 15, 0.6));
+  filter: brightness(0.6) drop-shadow(0 4px 6px rgba(5, 2, 15, 0.55));
 }
 .tarot-fan-order {
   position: absolute;
-  top: -10px;
+  top: -8px;
   left: 50%;
   translate: -50% 0;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   font-size: 12px;
   color: #2a1b52;
@@ -687,7 +709,7 @@
 }
 @keyframes tarot-spread-out {
   from {
-    transform: rotate(0deg);
+    transform: translateY(-18px) scale(0.92);
     opacity: 0;
   }
 }
