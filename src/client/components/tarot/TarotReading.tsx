@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { History, Moon, Sparkles, Wand2 } from 'lucide-react';
+import { History, Moon, Shuffle, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Snapshot } from '../../../shared/contracts';
 import { deck } from '../../../shared/tarot/deck';
@@ -8,11 +8,13 @@ import {
   interpret,
   QUESTION_MAX,
   spreads,
+  spreadSize,
   TAROT_FLIP_MS,
   TAROT_SHUFFLE_MS,
   tarotCommandSchema,
   topics,
   type TarotCommand,
+  type TarotLine,
   type TarotReading as Reading,
   type TarotSnapshot,
   type TarotSpread,
@@ -21,14 +23,18 @@ import {
 import { isConnectionError } from '../../../shared/auth-errors';
 import { api, supabase } from '../../lib/api';
 import { RealtimeService } from '../../lib/realtime';
-import { Button, Loading } from '../ui';
-import { TarotCardFace } from './TarotCardFace';
+import { Button, Loading, Modal } from '../ui';
+import { TarotCardBack, TarotCardSvg } from './TarotArt';
 // The room layout for full-width tools (.wheel-screen) lives with the lucky wheel.
 import '../lucky-wheel.css';
 import './tarot.css';
 
 type Pending = { key: string; command: TarotCommand };
 type Draft = { spread: TarotSpread; topic: TarotTopic; question: string };
+type Mode = 'view' | 'shuffle' | 'pick';
+const FAN_SIZE = 22;
+const SHUFFLE_UI_MS = 1300;
+
 function readStored<T>(key: string, parse: (value: unknown) => T | null): T | null {
   try {
     return parse(JSON.parse(sessionStorage.getItem(key) ?? 'null'));
@@ -56,75 +62,198 @@ const parsePending = (value: unknown): Pending | null => {
   const command = tarotCommandSchema.safeParse(v.command);
   return command.success ? { key: v.key, command: command.data } : null;
 };
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** Milliseconds after the reading was created when card `i` turns face up. */
 const flipAt = (i: number) => TAROT_SHUFFLE_MS + i * TAROT_FLIP_MS;
 
-function Spread({ reading, now }: { reading: Reading; now: number }) {
-  const elapsed = now - Date.parse(reading.created_at);
-  const shuffling = elapsed < TAROT_SHUFFLE_MS;
-  const result = interpret(reading);
-  const positions = spreads[reading.spread].positions;
+function CardZoom({ line, onClose }: { line: TarotLine | null; onClose: () => void }) {
   return (
-    <div
-      className={'tarot-spread' + (shuffling ? ' shuffling' : '')}
-      data-count={reading.cards.length}
+    <Modal
+      open={line !== null}
+      onOpenChange={(open) => !open && onClose()}
+      title={line ? `${line.card.name}${line.reversed ? ' (ngược)' : ''}` : 'Lá bài'}
+      description={
+        line
+          ? `${line.position} · ${line.card.keywords[line.reversed ? 'reversed' : 'upright']}`
+          : ''
+      }
+      className="tarot-zoom"
     >
-      {reading.cards.map(({ card, reversed }, i) => {
-        const open = elapsed >= flipAt(i);
-        const c = deck[card];
-        return (
-          <figure className="tarot-slot" key={i}>
-            <figcaption>{positions[i]}</figcaption>
-            <div
-              className={'tarot-card' + (open ? ' open' : '') + (reversed ? ' reversed' : '')}
-              role="img"
-              aria-label={
-                open ? `${positions[i]}: ${c.name}${reversed ? ' (ngược)' : ''}` : 'Lá bài úp'
-              }
-              style={{ animationDelay: `${i * 90}ms` }}
-            >
-              <div className="tarot-card-inner">
-                <div className="tarot-back" aria-hidden="true">
-                  <Moon size={30} />
-                </div>
-                <div className="tarot-front" aria-hidden="true">
-                  <TarotCardFace card={c} />
-                </div>
-              </div>
-            </div>
-            {open && (
-              <span className={'tarot-orientation' + (reversed ? ' rev' : '')}>
-                {reversed ? 'Ngược' : 'Xuôi'}
+      {line && (
+        <div className="tarot-zoom-body">
+          <div className={'tarot-zoom-card' + (line.reversed ? ' reversed' : '')}>
+            <TarotCardSvg card={line.card} />
+          </div>
+          <div>
+            <p>{line.meaning}</p>
+            {line.advice && <p className="tarot-advice">{line.advice}</p>}
+            <p className="tarot-zoom-other">
+              <b>{line.reversed ? 'Khi xuôi:' : 'Khi ngược:'}</b>{' '}
+              {line.reversed ? line.card.upright : line.card.reversed}
+            </p>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function Spread({ reading, now }: { reading: Reading; now: number }) {
+  const [zoom, setZoom] = useState<number | null>(null);
+  const elapsed = now - Date.parse(reading.created_at);
+  const gathering = elapsed < TAROT_SHUFFLE_MS;
+  const result = interpret(reading);
+  const roles = spreads[reading.spread].roles;
+  const done = elapsed >= flipAt(reading.cards.length - 1);
+  return (
+    <>
+      <div
+        className={'tarot-spread' + (gathering ? ' gathering' : '')}
+        data-count={reading.cards.length}
+      >
+        {result.lines.map((line, i) => {
+          const open = elapsed >= flipAt(i);
+          const label = open
+            ? `${line.position}: ${line.card.name}${line.reversed ? ' (ngược)' : ''}`
+            : 'Lá bài úp';
+          return (
+            <figure className="tarot-slot" key={i} style={{ '--i': i } as CSSProperties}>
+              <figcaption>
+                <b>{line.position}</b>
+                {reading.cards.length > 1 && <small>{roles[i]}</small>}
+              </figcaption>
+              <button
+                type="button"
+                className={
+                  'tarot-card' + (open ? ' open' : '') + (line.reversed ? ' reversed' : '')
+                }
+                aria-label={label}
+                disabled={!open}
+                onClick={() => setZoom(i)}
+              >
+                <span className="tarot-card-inner" aria-hidden="true">
+                  <span className="tarot-back">
+                    <TarotCardBack />
+                  </span>
+                  <span className="tarot-front">
+                    <TarotCardSvg card={line.card} />
+                  </span>
+                </span>
+              </button>
+              <span
+                className={'tarot-orientation' + (line.reversed ? ' rev' : '')}
+                aria-hidden={!open}
+              >
+                {open ? (line.reversed ? 'Ngược' : 'Xuôi') : ' '}
               </span>
+            </figure>
+          );
+        })}
+      </div>
+      <div className="tarot-reading" aria-live="polite">
+        {done && (result.answer || result.flow) && (
+          <div className="tarot-verdict">
+            {result.answer && <strong className="tarot-answer">{result.answer}</strong>}
+            {result.flow && (
+              <>
+                <span className="tarot-flow-label">Dòng chảy năng lượng</span>
+                <strong className="tarot-flow">{result.flow.name}</strong>
+              </>
             )}
-          </figure>
-        );
-      })}
-      <div className="tarot-meanings" aria-live="polite">
+          </div>
+        )}
         {result.lines.map(
           (line, i) =>
             elapsed >= flipAt(i) && (
               <article key={i} className="tarot-meaning">
-                <h4>
-                  <span>{line.position}</span> {line.card.name}
-                  {line.reversed && <em> · ngược</em>}
-                </h4>
-                <p className="tarot-keywords">
-                  {line.reversed ? line.card.keywords.reversed : line.card.keywords.upright}
-                </p>
-                <p>{line.meaning}</p>
-                {line.advice && <p className="tarot-advice">{line.advice}</p>}
+                <button
+                  type="button"
+                  className="tarot-thumb"
+                  onClick={() => setZoom(i)}
+                  aria-label={`Xem lớn ${line.card.name}`}
+                >
+                  <span className={line.reversed ? 'reversed' : ''}>
+                    <TarotCardSvg card={line.card} />
+                  </span>
+                </button>
+                <div>
+                  <h4>
+                    <span>{line.position}</span> {line.card.name}
+                    {line.reversed && <em> · ngược</em>}
+                  </h4>
+                  <p className="tarot-keywords">
+                    {line.reversed ? line.card.keywords.reversed : line.card.keywords.upright}
+                  </p>
+                  <p>{line.meaning}</p>
+                  {line.advice && <p className="tarot-advice">{line.advice}</p>}
+                </div>
               </article>
             ),
         )}
-        {elapsed >= flipAt(reading.cards.length - 1) && (
+        {done && result.summary && (
           <div className="tarot-summary">
-            {result.answer && <strong className="tarot-answer">{result.answer}</strong>}
+            <Sparkles size={16} aria-hidden="true" />
             <p>{result.summary}</p>
           </div>
         )}
       </div>
+      <CardZoom line={zoom === null ? null : result.lines[zoom]} onClose={() => setZoom(null)} />
+    </>
+  );
+}
+
+function Fan({
+  need,
+  chosen,
+  locked,
+  onPick,
+}: {
+  need: number;
+  chosen: number[];
+  locked: boolean;
+  onPick: (i: number) => void;
+}) {
+  return (
+    <div className="tarot-fan-wrap">
+      <p className="tarot-fan-hint" role="status">
+        {locked
+          ? 'Đang mở bài…'
+          : `Hít một hơi, nghĩ về câu hỏi và chọn ${need} lá theo trực giác (${chosen.length}/${need})`}
+      </p>
+      <div className="tarot-fan" role="group" aria-label="Bộ bài đã xòe">
+        {Array.from({ length: FAN_SIZE }, (_, i) => {
+          const order = chosen.indexOf(i);
+          return (
+            <button
+              key={i}
+              type="button"
+              className={'tarot-fan-card' + (order >= 0 ? ' chosen' : '')}
+              style={{ '--k': i - (FAN_SIZE - 1) / 2, '--n': FAN_SIZE } as CSSProperties}
+              aria-label={`Lá úp thứ ${i + 1}`}
+              aria-pressed={order >= 0}
+              disabled={locked || (order < 0 && chosen.length >= need)}
+              onClick={() => onPick(i)}
+            >
+              <TarotCardBack />
+              {order >= 0 && <b className="tarot-fan-order">{order + 1}</b>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Shuffling() {
+  return (
+    <div className="tarot-shuffle" role="status" aria-label="Đang xào bài">
+      {Array.from({ length: 6 }, (_, i) => (
+        <span key={i} style={{ '--s': i } as CSSProperties}>
+          <TarotCardBack />
+        </span>
+      ))}
+      <p>Đang xào bài…</p>
     </div>
   );
 }
@@ -146,6 +275,8 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
   );
   // An older reading picked from history; a newer reading in the room takes the stage again.
   const [picked, setPicked] = useState<{ id: string; over: string | null } | null>(null);
+  const [mode, setMode] = useState<Mode>('view');
+  const [chosen, setChosen] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const working = useRef(false);
   const stage = useRef<HTMLDivElement>(null);
@@ -169,6 +300,11 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
       onResync: refresh,
     });
   }, [room, actor, client]);
+  useEffect(() => {
+    if (mode !== 'shuffle') return;
+    const timer = setTimeout(() => setMode('pick'), reducedMotion() ? 0 : SHUFFLE_UI_MS);
+    return () => clearTimeout(timer);
+  }, [mode]);
   const data = query.data;
   const latest = data?.latest ?? null;
   const viewing = picked && picked.over === (latest?.id ?? null) ? picked.id : null;
@@ -182,19 +318,19 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
   );
   const command = { action: 'draw' as const, ...draft };
   const valid = tarotCommandSchema.safeParse(command);
+  const need = spreadSize[draft.spread];
   function update(change: Partial<Draft>) {
     const next = { ...draft, ...change };
     setDraft(next);
     writeStored(`${storage}:draft`, next);
+    if (change.spread && change.spread !== draft.spread) setChosen([]);
   }
   function savePending(value: Pending | null) {
     setPending(value);
     writeStored(storage, value);
   }
-  async function draw() {
+  async function draw(request: Pending) {
     if (working.current) return;
-    if (!pending && (!valid.success || cooldown || drawing)) return;
-    const request = pending ?? { key: crypto.randomUUID(), command: valid.data! };
     working.current = true;
     setBusy(true);
     savePending(request);
@@ -207,11 +343,11 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
       );
       savePending(null);
       setViewing(null);
+      setMode('view');
+      setChosen([]);
       stage.current?.scrollIntoView({
         block: 'start',
-        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-          ? 'instant'
-          : 'smooth',
+        behavior: reducedMotion() ? 'instant' : 'smooth',
       });
       client.setQueryData<TarotSnapshot>(key, (current) =>
         current &&
@@ -225,7 +361,11 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
       );
       await client.invalidateQueries({ queryKey: key });
     } catch (error) {
-      if (!isConnectionError(error)) savePending(null);
+      if (!isConnectionError(error)) {
+        savePending(null);
+        setChosen([]);
+        setMode('view');
+      }
       toast.error(error instanceof Error ? error.message : 'Chưa rút được bài. Hãy thử lại.');
       void query.refetch();
     } finally {
@@ -233,8 +373,17 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
       setBusy(false);
     }
   }
+  function pick(i: number) {
+    if (busy) return;
+    const next = chosen.includes(i) ? chosen.filter((x) => x !== i) : [...chosen, i];
+    setChosen(next);
+    if (next.length === need && valid.success)
+      // Let the last chosen card lift before the cards are revealed.
+      setTimeout(() => void draw({ key: crypto.randomUUID(), command: valid.data }), 450);
+  }
+  const canStart = !query.error && valid.success && cooldown === 0 && !drawing && !pending;
   if (query.isPending) return <Loading>Đang trải bài…</Loading>;
-  const locked = busy || !!pending;
+  const locked = busy || !!pending || mode !== 'view';
   return (
     <section className="tarot-panel" aria-label="Bói Tarot">
       <header className="lucky-heading">
@@ -244,7 +393,7 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
         <h1>
           Bói Tarot<span>.</span>
         </h1>
-        <p>Đặt một câu hỏi, rút vài lá bài và cùng cả phòng đọc thông điệp.</p>
+        <p>Đặt một câu hỏi, tự tay chọn bài và cùng cả phòng đọc thông điệp.</p>
       </header>
       {query.error && (
         <div className="connection-banner" role="alert">
@@ -253,10 +402,32 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
       )}
       <div className="tarot-layout">
         <div className="tarot-stage" ref={stage}>
-          {shown ? (
+          <div className="tarot-sky" aria-hidden="true" />
+          {mode === 'shuffle' ? (
+            <Shuffling />
+          ) : mode === 'pick' ? (
+            <>
+              <Fan
+                need={need}
+                chosen={chosen}
+                locked={busy || chosen.length === need}
+                onPick={pick}
+              />
+              <Button
+                className="tarot-cancel"
+                disabled={busy}
+                onClick={() => {
+                  setMode('view');
+                  setChosen([]);
+                }}
+              >
+                <X size={16} /> Thôi, không rút nữa
+              </Button>
+            </>
+          ) : shown ? (
             <>
               <div className="tarot-stage-caption">
-                <Sparkles size={15} />
+                <Sparkles size={15} aria-hidden="true" />
                 <span>
                   <b>{shown.actor_name}</b> · {spreads[shown.spread].label} · {topics[shown.topic]}
                 </span>
@@ -267,7 +438,7 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
               <Spread
                 key={shown.id}
                 reading={shown}
-                now={shown.id === latest?.id ? serverNow : Infinity}
+                now={shown.id === latest?.id ? serverNow : Number.POSITIVE_INFINITY}
               />
               {viewing && latest && viewing !== latest.id && (
                 <Button className="tarot-back-latest" onClick={() => setViewing(null)}>
@@ -278,12 +449,14 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
           ) : (
             <div className="tarot-empty">
               <div className="tarot-deck-stack" aria-hidden="true">
-                <span />
-                <span />
-                <span />
+                {[0, 1, 2].map((i) => (
+                  <span key={i}>
+                    <TarotCardBack />
+                  </span>
+                ))}
               </div>
               <strong>Bộ bài 78 lá đang chờ.</strong>
-              <p>Chọn kiểu trải bài bên cạnh rồi rút lá đầu tiên của phòng.</p>
+              <p>Chọn kiểu trải bài, đặt câu hỏi rồi bấm Xào bài.</p>
             </div>
           )}
         </div>
@@ -324,13 +497,14 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
               disabled={locked}
               placeholder={
                 draft.spread === 'YES_NO'
-                  ? 'Tuần này mình có nên đổi việc không?'
-                  : 'Điều gì đang chờ mình phía trước?'
+                  ? 'Tuần này mình có nên nhận lời mời làm việc mới không?'
+                  : 'Mình nên làm gì để mọi việc tốt hơn?'
               }
               onChange={(event) => update({ question: event.target.value })}
             />
             <small>
-              {draft.question.length}/{QUESTION_MAX} · Câu hỏi hiện cho cả phòng xem.
+              {draft.question.length}/{QUESTION_MAX} · Mẹo: câu hỏi “làm thế nào” cho lời khuyên rõ
+              hơn câu hỏi “có hay không”. Câu hỏi hiện cho cả phòng xem.
             </small>
           </label>
           {draft.question.trim() !== '' && !valid.success && (
@@ -343,26 +517,44 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
               Lượt rút chưa được xác nhận. Thử lại sẽ kiểm tra đúng lượt đó, không rút hai lần.
             </p>
           )}
-          <Button
-            variant="primary"
-            className="tarot-draw-button"
-            loading={busy}
-            loadingLabel="Đang trộn bài…"
-            onClick={() => void draw()}
-            disabled={!pending && (!!query.error || !valid.success || cooldown > 0 || drawing)}
-          >
-            <Wand2 size={19} />
-            {pending
-              ? 'Xác nhận lại lượt rút'
-              : drawing
-                ? 'Đang lật bài…'
-                : cooldown
-                  ? `Rút tiếp sau ${cooldown}s`
-                  : 'Rút bài'}
-          </Button>
+          {pending ? (
+            <Button
+              variant="primary"
+              className="tarot-draw-button"
+              loading={busy}
+              loadingLabel="Đang mở bài…"
+              onClick={() => void draw(pending)}
+            >
+              <Sparkles size={19} /> Xác nhận lại lượt rút
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              className="tarot-draw-button"
+              loading={busy}
+              loadingLabel="Đang mở bài…"
+              disabled={!canStart || mode !== 'view'}
+              onClick={() => {
+                setChosen([]);
+                setViewing(null);
+                setMode('shuffle');
+              }}
+            >
+              <Shuffle size={19} />
+              {mode === 'shuffle'
+                ? 'Đang xào bài…'
+                : mode === 'pick'
+                  ? `Chọn ${need - chosen.length} lá nữa`
+                  : drawing
+                    ? 'Đang lật bài…'
+                    : cooldown
+                      ? `Rút tiếp sau ${cooldown}s`
+                      : 'Xào bài'}
+            </Button>
+          )}
           <small>
-            Bài được trộn và rút trên máy chủ, ai cũng thấy cùng một kết quả. Mỗi người rút một lượt
-            / 20 giây.
+            Lá bài do máy chủ trộn và mở, ai trong phòng cũng thấy cùng một kết quả. Mỗi người rút
+            một lượt / 20 giây.
           </small>
         </div>
       </div>
@@ -376,7 +568,10 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
               <li key={item.id}>
                 <button
                   className={item.id === shown?.id ? 'active' : ''}
-                  onClick={() => setViewing(item.id)}
+                  onClick={() => {
+                    setMode('view');
+                    setViewing(item.id);
+                  }}
                   disabled={item.id === latest?.id && drawing}
                 >
                   <span>

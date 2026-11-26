@@ -92,7 +92,8 @@ export async function testTarot({ sql, owner, users, check }) {
       assert.equal(one.cards.length, 1);
       await allowAgain(room);
       const yes = await draw(member, room, { ...three, spread: 'YES_NO', question: 'Có nên đi?' });
-      assert.equal(yes.cards.length, 1);
+      assert.equal(yes.cards.length, 3);
+      assert.equal(Date.parse(yes.reveal_at) - Date.parse(yes.created_at), 1500 + 900 * 3);
       assert.equal((await read(owner, room)).recent.length, 3);
     },
   );

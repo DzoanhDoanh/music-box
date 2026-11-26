@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cardNumeral, deck, DECK_SIZE } from '../../src/shared/tarot/deck';
-import { interpret, spreads, tarotCommandSchema } from '../../src/shared/tarot/contracts';
+import { interpret, readFlow, spreads, tarotCommandSchema } from '../../src/shared/tarot/contracts';
 
 describe('Tarot deck', () => {
   it('has 78 cards with stable ids: 22 majors, then 14 per suit', () => {
@@ -87,5 +87,42 @@ describe('Tarot interpretation', () => {
     expect(
       interpret({ spread: 'YES_NO', topic: 'WORK', cards: [{ card: 40, reversed: true }] }).answer,
     ).toBe('Chưa phải lúc');
+  });
+  it('reads a three-card yes/no from the centre card and its suit', () => {
+    const ask = (center: number, reversed = false) =>
+      interpret({
+        spread: 'YES_NO',
+        topic: 'GENERAL',
+        cards: [
+          { card: 19, reversed: false },
+          { card: center, reversed },
+          { card: 17, reversed: false },
+        ],
+      });
+    expect(ask(22).answer).toBe('Có, nếu bạn nỗ lực'); // Át Gậy
+    expect(ask(36).answer).toBe('Có'); // Át Cốc
+    expect(ask(64).answer).toBe('Có, nhưng phải đánh đổi'); // Át Tiền
+    expect(ask(50).answer).toBe('Không'); // Át Kiếm
+    expect(ask(21).answer).toBe('Có, rất rõ');
+    expect(ask(36, true).answer).toBe('Chưa phải lúc');
+    expect(ask(36).summary).toMatch(/Hai lá hai bên đều ủng hộ/);
+    expect(ask(36).lines.map((l) => l.position)).toEqual([...spreads.YES_NO.positions]);
+  });
+  it('names how a three-card spread moves', () => {
+    expect(readFlow([-2, 0, 2]).name).toBe('Chuyển hóa tích cực');
+    expect(readFlow([2, -1, -2]).name).toBe('Chuyển hóa tiêu cực');
+    expect(readFlow([1, 1, 2]).name).toBe('Tăng trưởng');
+    expect(readFlow([2, 1, 0]).name).toBe('Thụt lùi');
+    expect(readFlow([0, 0, 0]).name).toBe('Đứng yên');
+    const reading = interpret({
+      spread: 'THREE',
+      topic: 'GENERAL',
+      cards: [
+        { card: 40, reversed: false }, // 5 Cốc, heavy
+        { card: 55, reversed: false },
+        { card: 17, reversed: false }, // Ngôi Sao, bright
+      ],
+    });
+    expect(reading.flow?.name).toBe('Chuyển hóa tích cực');
   });
 });

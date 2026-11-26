@@ -13,6 +13,8 @@ export interface TarotCard {
   keywords: { upright: string; reversed: string };
   upright: string;
   reversed: string;
+  /** Energy of the upright card from −2 (heavy) to +2 (bright); used to read how a spread moves. */
+  tone: number;
 }
 
 export const suits: Record<TarotSuit, { name: string; element: string }> = {
@@ -572,6 +574,20 @@ const minors: Record<TarotSuit, MinorRow[]> = {
   ],
 };
 
+// Upright energy per card, in deck order (majors, then Wands, Cups, Swords, Pentacles Ace→King).
+const tones = [
+  [1, 2, 1, 2, 1, 1, 2, 2, 2, 0, 1, 1, 0, -1, 1, -2, -2, 2, -1, 2, 1, 2],
+  [2, 1, 1, 2, -1, 2, 0, 1, 0, -1, 1, 1, 1, 1],
+  [2, 2, 2, -1, -2, 1, -1, -1, 2, 2, 1, 1, 1, 1],
+  [1, -1, -2, 0, -1, 0, -1, -2, -2, -2, 0, 0, 0, 1],
+  [2, 0, 1, 0, -2, 1, 0, 1, 2, 2, 1, 1, 1, 2],
+].flat();
+/** Energy of a drawn card: reversing softens a heavy card and dims a bright or neutral one. */
+export function cardTone(card: Pick<TarotCard, 'tone'>, reversed: boolean) {
+  if (!reversed) return card.tone;
+  return card.tone < 0 ? 1 : -1;
+}
+
 export const deck: TarotCard[] = [
   ...majors.map(
     ([name, up, rev, upright, reversed], rank): TarotCard => ({
@@ -583,6 +599,7 @@ export const deck: TarotCard[] = [
       keywords: { upright: up, reversed: rev },
       upright,
       reversed,
+      tone: tones[rank],
     }),
   ),
   ...suitOrder.flatMap((suit, s) =>
@@ -596,6 +613,7 @@ export const deck: TarotCard[] = [
         keywords: { upright: up, reversed: rev },
         upright,
         reversed,
+        tone: tones[22 + s * 14 + i],
       }),
     ),
   ),
