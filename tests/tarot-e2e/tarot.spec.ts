@@ -74,9 +74,9 @@ async function fixture(
     state.paid = paid;
     return route.fulfill({ json: { paid } });
   });
-  // The owner's own AI in the room settings; the key is write-only.
-  const aiSaves: Record<string, unknown>[] = [],
-    aiTests: Record<string, unknown>[] = [];
+  // The owner's own AI in the room settings: saved only after its test call answers ("good-model"),
+  // switched on only once saved. The key is write-only.
+  const aiCalls: { path: string; body: Record<string, unknown> }[] = [];
   let aiView = {
     enabled: false,
     base_url: '',
@@ -85,30 +85,44 @@ async function fixture(
     key_hint: null as string | null,
     updated_at: null as string | null,
   };
-  await page.route('**/api/v1/rooms/*/tarot/ai', async (route) => {
+  let apiUp = true;
+  const answers = (model: string) => apiUp && model.startsWith('good-model');
+  await page.route('**/api/v1/rooms/*/tarot/ai**', async (route) => {
+    const path = new URL(route.request().url()).pathname.split('/tarot/ai')[1];
     if (route.request().method() === 'GET') return route.fulfill({ json: aiView });
     const body = route.request().postDataJSON() as Record<string, string | boolean>;
-    aiSaves.push(body);
-    const key = typeof body.api_key === 'string' ? body.api_key : null;
-    aiView = {
-      enabled: Boolean(body.enabled),
-      base_url: String(body.base_url),
-      model: String(body.model),
-      has_key: body.clear_key ? false : key ? true : aiView.has_key,
-      key_hint: body.clear_key ? null : key ? key.slice(-4) : aiView.key_hint,
-      updated_at: new Date().toISOString(),
-    };
-    return route.fulfill({ json: aiView });
-  });
-  await page.route('**/api/v1/rooms/*/tarot/ai/test', async (route) => {
-    const body = route.request().postDataJSON() as Record<string, unknown>;
-    aiTests.push(body);
-    return route.fulfill({
-      json:
-        body.model === 'good-model'
-          ? { ok: true, message: 'Kết nối được. Model trả lời sau 1.2 giây.' }
-          : { ok: false, message: 'Sai Base URL hoặc model không tồn tại (model not found).' },
-    });
+    aiCalls.push({ path, body });
+    if (path === '') {
+      if (!answers(String(body.model)))
+        return route.fulfill({
+          json: { ok: false, message: 'Chưa lưu: Sai Base URL hoặc model không tồn tại.' },
+        });
+      const key = typeof body.api_key === 'string' ? body.api_key : null;
+      aiView = {
+        ...aiView,
+        base_url: String(body.base_url),
+        model: String(body.model),
+        has_key: key ? true : aiView.has_key,
+        key_hint: key ? key.slice(-4) : aiView.key_hint,
+      };
+      return route.fulfill({
+        json: {
+          ok: true,
+          message: 'Kết nối được và đã lưu. Model trả lời sau 1.2 giây.',
+          view: aiView,
+        },
+      });
+    }
+    if (path === '/enabled') {
+      if (body.enabled && !answers(aiView.model))
+        return route.fulfill({
+          json: { ok: false, message: 'Chưa bật được: Không kết nối được tới Base URL.' },
+        });
+      aiView = { ...aiView, enabled: Boolean(body.enabled) };
+      return route.fulfill({ json: { ok: true, message: 'Đã đổi.', view: aiView } });
+    }
+    aiView = { ...aiView, enabled: false, has_key: false, key_hint: null };
+    return route.fulfill({ json: { ok: true, message: 'Đã xóa API key.', view: aiView } });
   });
   const retries: string[] = [];
   await page.route('**/api/v1/rooms/*/tarot/*/ai', async (route) => {
@@ -124,8 +138,10 @@ async function fixture(
   });
   await page.goto(`/room/${room}`);
   return {
-    aiSaves,
-    aiTests,
+    aiCalls,
+    setApiUp(value: boolean) {
+      apiUp = value;
+    },
     settings,
     retries,
     finishAi(text: string | null) {
@@ -402,48 +418,57 @@ test('the room owner makes Tarot free in the room settings', async ({ page }) =>
   expect(f.state.my_coins).toBe(0);
 });
 
-test("the room owner connects the room's own OpenAI-compatible AI in the room settings", async ({
+test("the room's own AI is saved only after it answers, and only then can be switched on", async ({
   page,
 }, info) => {
   const f = await fixture(page, { owner: true });
   await chooseRoomTab(page, 'Cài đặt phòng');
   const section = page.getByRole('group', { name: 'AI luận giải Tarot' });
-  await expect(section.getByRole('button', { name: 'Thử kết nối' })).toBeDisabled();
+  const toggle = section.getByRole('switch', { name: 'Dùng API riêng' });
+  const save = section.getByRole('button', { name: 'Kiểm tra & lưu' });
+  // Nothing saved: the switch is locked and says why.
+  await expect(toggle).toBeDisabled();
+  await expect(
+    section.getByText(/Chưa bật được: cần kiểm tra & lưu API thành công trước/),
+  ).toBeVisible();
+  await expect(save).toBeDisabled();
   await section.getByLabel('Base URL').fill('https://rqjec9w.abc-tunnel.example/v1');
   await section.getByLabel('API key').fill('sk-my-own-key-9876');
   await section.getByLabel('Model').fill('bad-model');
-  await section.getByRole('button', { name: 'Thử kết nối' }).click();
-  await expect(section.getByRole('status')).toHaveText(/model không tồn tại/);
+  await save.click();
+  await expect(section.getByRole('status')).toHaveText(/Chưa lưu: .*model không tồn tại/);
+  await expect(toggle).toBeDisabled();
   await section.getByLabel('Model').fill('good-model');
-  await section.getByRole('button', { name: 'Thử kết nối' }).click();
-  await expect(section.getByRole('status')).toHaveText(/Kết nối được/);
-  expect(f.aiTests.at(-1)).toEqual({
+  await save.click();
+  await expect(section.getByRole('status')).toHaveText(/Kết nối được và đã lưu/);
+  await expect(section.getByLabel('API key')).toHaveValue('');
+  await expect(section.getByLabel('API key')).toHaveAttribute('placeholder', /Đã lưu ••••9876/);
+  expect(f.aiCalls.map((c) => c.path)).toEqual(['', '']);
+  expect(f.aiCalls[1].body).toEqual({
     base_url: 'https://rqjec9w.abc-tunnel.example/v1',
     model: 'good-model',
     api_key: 'sk-my-own-key-9876',
   });
-  await section.getByRole('switch', { name: 'Dùng API riêng' }).check();
+  // Saved: the switch unlocks. If the API went down meanwhile, it will not switch on.
+  await expect(toggle).toBeEnabled();
+  f.setApiUp(false);
+  await toggle.click();
+  await expect(section.getByRole('status')).toHaveText(/Chưa bật được/);
+  await expect(toggle).not.toBeChecked();
+  f.setApiUp(true);
+  await toggle.click();
+  await expect(toggle).toBeChecked();
+  await expect(section.getByText(/Đang dùng good-model \(key ••••9876\)/)).toBeVisible();
   await section.screenshot({ path: info.outputPath('tarot-ai-settings.png') });
-  await section.getByRole('button', { name: 'Lưu AI riêng' }).click();
-  await expect(section.getByLabel('API key')).toHaveValue('');
-  await expect(section.getByLabel('API key')).toHaveAttribute('placeholder', /Đã lưu ••••9876/);
-  expect(f.aiSaves).toEqual([
-    {
-      enabled: true,
-      base_url: 'https://rqjec9w.abc-tunnel.example/v1',
-      model: 'good-model',
-      api_key: 'sk-my-own-key-9876',
-    },
-  ]);
-  // The saved key is kept when only the model changes, and can be removed.
+  // Editing without saving is flagged; a new save keeps the stored key.
   await section.getByLabel('Model').fill('good-model-2');
-  await section.getByRole('button', { name: 'Lưu AI riêng' }).click();
-  await expect.poll(() => f.aiSaves.length).toBe(2);
-  expect(f.aiSaves[1]).not.toHaveProperty('api_key');
+  await expect(section.getByText(/chưa được lưu/)).toBeVisible();
+  await save.click();
+  await expect(section.getByRole('status')).toHaveText(/đã lưu/);
+  expect(f.aiCalls.at(-1)!.body).not.toHaveProperty('api_key');
   await section.getByRole('button', { name: 'Xóa key' }).click();
-  await expect.poll(() => f.aiSaves.length).toBe(3);
-  expect(f.aiSaves[2]).toMatchObject({ enabled: false, clear_key: true });
-  await expect(section.getByRole('button', { name: 'Xóa key' })).toHaveCount(0);
+  await expect(toggle).toBeDisabled();
+  await expect(toggle).not.toBeChecked();
   const scan = await new AxeBuilder({ page })
     .include('.tarot-ai-setting')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])

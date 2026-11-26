@@ -778,3 +778,11 @@
 .tarot-ai-test.fail {
   color: var(--danger);
 }
+.tarot-ai-steps {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}

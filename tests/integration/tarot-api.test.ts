@@ -84,11 +84,11 @@ beforeEach(() => {
       if (path.endsWith('/tarot_ai_secret')) return Response.json(roomSecret);
       if (path.endsWith('/tarot_ai_view'))
         return Response.json({
-          enabled: false,
-          base_url: '',
-          model: '',
-          has_key: false,
-          key_hint: null,
+          enabled: Boolean(roomSecret?.enabled),
+          base_url: roomSecret?.base_url ?? '',
+          model: roomSecret?.model ?? '',
+          has_key: Boolean(roomSecret),
+          key_hint: roomSecret ? '-123' : null,
           updated_at: null,
         });
       if (path.endsWith('/tarot_ai_configure'))
@@ -340,9 +340,12 @@ describe("The room's own AI", () => {
     await vi.waitFor(() => expect(saved()).toBeTruthy());
     expect(custom).toEqual([]);
   });
-  it('seals the key before it reaches the database and never sends it back', async () => {
+  const configured = () => calls.filter((c) => c.path.endsWith('/tarot_ai_configure'));
+  const ok = () => Response.json({ choices: [{ message: { content: 'OK' } }] });
+
+  it('tests before saving, seals the key and never sends it back', async () => {
+    customReply = ok;
     const response = await post('/ai', {
-      enabled: true,
       base_url: 'https://llm.example.com/v1/chat/completions/',
       model: ' my-model ',
       api_key: ' sk-room-secret-123 ',
@@ -350,10 +353,13 @@ describe("The room's own AI", () => {
     expect(response.status).toBe(200);
     const text = await response.text();
     expect(text).not.toContain('sk-room-secret');
-    const stored = calls.find((c) => c.path.endsWith('/tarot_ai_configure'))!.body;
+    expect(JSON.parse(text)).toMatchObject({ ok: true, view: { has_key: true, key_hint: '-123' } });
+    expect(custom).toHaveLength(1);
+    expect(custom[0].headers.get('authorization')).toBe('Bearer sk-room-secret-123');
+    const stored = configured()[0].body;
     expect(stored).toMatchObject({
       p_actor: actor,
-      p_enabled: true,
+      p_enabled: false,
       p_base_url: 'https://llm.example.com/v1',
       p_model: 'my-model',
       p_hint: '-123',
@@ -373,6 +379,73 @@ describe("The room's own AI", () => {
       ),
     ).rejects.toThrow();
   });
+  it('saves nothing when the API does not answer, and explains why', async () => {
+    const cases: [() => Response, string][] = [
+      [
+        () => Response.json({ error: { message: 'model not found' } }, { status: 404 }),
+        'Chưa lưu: Sai Base URL hoặc model không tồn tại (model not found).',
+      ],
+      [
+        () => Response.json({ error: { message: 'bad key' } }, { status: 401 }),
+        'Chưa lưu: API key không hợp lệ hoặc không có quyền (bad key).',
+      ],
+      [
+        () => new Response(null, { status: 302, headers: { Location: 'https://x' } }),
+        'Chưa lưu: Base URL chuyển hướng sang địa chỉ khác. Hãy nhập địa chỉ cuối cùng.',
+      ],
+    ];
+    for (const [reply, message] of cases) {
+      customReply = reply;
+      const response = await post('/ai', {
+        base_url: 'https://llm.example.com/v1',
+        model: 'm',
+        api_key: 'sk-test-12345',
+      });
+      expect(await response.json()).toEqual({ ok: false, message });
+    }
+    // No key typed and none saved: nothing is called at all.
+    const missing = await post('/ai', { base_url: 'https://llm.example.com/v1', model: 'm' });
+    expect(await missing.json()).toEqual({ ok: false, message: 'Hãy nhập API key.' });
+    expect(configured()).toEqual([]);
+  });
+  it('switches on only a saved setup that still answers; switching off needs no test', async () => {
+    // Nothing saved yet.
+    let response = await post('/ai/enabled', { enabled: true });
+    expect(await response.json()).toEqual({
+      ok: false,
+      message: 'Hãy kiểm tra & lưu API thành công trước khi bật.',
+    });
+    roomSecret = {
+      enabled: false,
+      base_url: 'https://llm.example.com/v1',
+      model: 'm',
+      key_cipher: await seal('sk-room-secret-123'),
+    };
+    customReply = () => Response.json({ error: { message: 'tunnel down' } }, { status: 502 });
+    response = await post('/ai/enabled', { enabled: true });
+    expect(await response.json()).toEqual({
+      ok: false,
+      message: 'Chưa bật được: API báo lỗi 502 (tunnel down).',
+    });
+    expect(configured()).toEqual([]);
+    customReply = ok;
+    response = await post('/ai/enabled', { enabled: true });
+    expect(await response.json()).toMatchObject({ ok: true, view: { enabled: true } });
+    expect(configured().at(-1)!.body).toMatchObject({
+      p_enabled: true,
+      p_base_url: 'https://llm.example.com/v1',
+      p_model: 'm',
+      p_cipher: null,
+      p_clear: false,
+    });
+    const calledBefore = custom.length;
+    response = await post('/ai/enabled', { enabled: false });
+    expect(await response.json()).toMatchObject({ ok: true, view: { enabled: false } });
+    expect(custom).toHaveLength(calledBefore);
+    response = await post('/ai/clear', {});
+    expect(await response.json()).toMatchObject({ ok: true });
+    expect(configured().at(-1)!.body).toMatchObject({ p_enabled: false, p_clear: true });
+  });
   it('refuses base URLs that point at this machine or a private network', async () => {
     for (const base_url of [
       'http://llm.example.com/v1',
@@ -384,37 +457,11 @@ describe("The room's own AI", () => {
       'https://printer.local/v1',
       'https://user:pass@llm.example.com/v1',
     ]) {
-      const response = await post('/ai', { enabled: false, base_url, model: 'm' });
+      const response = await post('/ai', { base_url, model: 'm', api_key: 'sk-test-12345' });
       expect(response.status, base_url).toBe(400);
       expect(JSON.stringify(await response.json())).toMatch(/https công khai/);
     }
-    expect(calls.filter((c) => c.path.endsWith('/tarot_ai_configure'))).toEqual([]);
-  });
-  it('tests a connection without saving, and explains failures', async () => {
-    customReply = () => Response.json({ choices: [{ message: { content: 'OK' } }] });
-    let response = await post('/ai/test', {
-      base_url: 'https://llm.example.com/v1',
-      model: 'm',
-      api_key: 'sk-test-12345',
-    });
-    expect(await response.json()).toMatchObject({ ok: true });
-    customReply = () => Response.json({ error: { message: 'model not found' } }, { status: 404 });
-    response = await post('/ai/test', {
-      base_url: 'https://llm.example.com/v1',
-      model: 'nope',
-      api_key: 'sk-test-12345',
-    });
-    expect(await response.json()).toEqual({
-      ok: false,
-      message: 'Sai Base URL hoặc model không tồn tại (model not found).',
-    });
-    customReply = () => new Response(null, { status: 302, headers: { Location: 'https://x' } });
-    response = await post('/ai/test', {
-      base_url: 'https://llm.example.com/v1',
-      model: 'm',
-      api_key: 'sk-test-12345',
-    });
-    expect((await response.json()).message).toMatch(/chuyển hướng/);
-    expect(calls.filter((c) => c.path.endsWith('/tarot_ai_configure'))).toEqual([]);
+    expect(custom).toEqual([]);
+    expect(configured()).toEqual([]);
   });
 });

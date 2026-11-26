@@ -14,6 +14,7 @@ import {
 } from '../shared/contracts';
 import { AppError } from '../shared/domain';
 import { database, SupabaseRepository, type Env } from './repository';
+import type { RoomStore } from './ports';
 import { YouTubeService } from './youtube';
 import { AuthService } from './services/auth';
 import { RoomService } from './services/room';
@@ -28,8 +29,9 @@ import { wheelCommandSchema, type WheelSnapshot, type WheelResult } from '../sha
 import {
   tarotCommandSchema,
   tarotSettingsSchema,
-  tarotAiSettingsSchema,
-  tarotAiTestSchema,
+  tarotAiSaveSchema,
+  tarotAiEnableSchema,
+  type TarotAiResult,
   type TarotAiView,
   type TarotReading,
   type TarotSnapshot,
@@ -42,6 +44,7 @@ import {
   keyHint,
   openKey,
   sealKey,
+  type CustomAi,
 } from './services/tarot-ai-custom';
 import { BauCuaService } from './services/bau-cua';
 import { commandSchema as bauCommandSchema } from '../shared/bau-cua/contracts';
@@ -378,6 +381,8 @@ app.post('/api/v1/rooms/:id/tarot/settings', async (c) =>
 );
 // The room owner's own AI (any OpenAI-compatible API). The key is sealed here before it is
 // stored and is never sent back: the owner only sees its last four characters.
+// Order is enforced here, not only in the page: a setup is saved only after it answered a test
+// call, and switching it on tests the saved setup again.
 app.get('/api/v1/rooms/:id/tarot/ai', async (c) =>
   c.json(
     await c.get('services').store.call<TarotAiView>('tarot_ai_view', {
@@ -386,57 +391,114 @@ app.get('/api/v1/rooms/:id/tarot/ai', async (c) =>
     }),
   ),
 );
+async function testRoomAi(ai: CustomAi) {
+  const started = Date.now();
+  try {
+    await askCustomAi(ai, 'Bạn là trợ lý kiểm tra kết nối.', 'Trả lời đúng một từ: OK', {
+      maxTokens: 256,
+      timeoutMs: 30_000,
+    });
+    return { ok: true as const, seconds: ((Date.now() - started) / 1000).toFixed(1) };
+  } catch (error) {
+    return { ok: false as const, message: describeFailure(error) };
+  }
+}
+async function savedRoomAi(store: RoomStore, secret: string, room: string) {
+  const saved = await store.call<{ base_url: string; model: string; key_cipher: string } | null>(
+    'tarot_ai_secret',
+    { p_room: room },
+  );
+  return saved
+    ? {
+        baseUrl: saved.base_url,
+        model: saved.model,
+        key: await openKey(secret, room, saved.key_cipher),
+      }
+    : null;
+}
+// Test a base URL, key and model, and store them only when the API answered.
 app.post('/api/v1/rooms/:id/tarot/ai', async (c) => {
   const actor = c.get('actor'),
     room = uuid.parse(c.req.param('id'));
   const store = c.get('services').store;
-  const input = tarotAiSettingsSchema.parse(await c.req.json());
-  // Only the owner gets as far as encrypting anything.
-  await store.call<TarotAiView>('tarot_ai_view', { p_actor: actor, p_room: room });
-  const baseUrl = input.base_url ? checkBaseUrl(input.base_url) : '';
-  const key = input.api_key && !input.clear_key ? input.api_key : null;
-  return c.json(
-    await store.call<TarotAiView>('tarot_ai_configure', {
-      p_actor: actor,
-      p_room: room,
-      p_enabled: input.enabled,
-      p_base_url: baseUrl,
-      p_model: input.model,
-      p_cipher: key ? await sealKey(c.env.SUPABASE_SECRET_KEY, room, key) : null,
-      p_hint: key ? keyHint(key) : null,
-      p_clear: Boolean(input.clear_key),
-    }),
-  );
+  const input = tarotAiSaveSchema.parse(await c.req.json());
+  // Only the owner gets as far as calling anything.
+  const view = await store.call<TarotAiView>('tarot_ai_view', { p_actor: actor, p_room: room });
+  const baseUrl = checkBaseUrl(input.base_url);
+  const key =
+    input.api_key ?? (await savedRoomAi(store, c.env.SUPABASE_SECRET_KEY, room))?.key ?? null;
+  if (!key) return c.json({ ok: false, message: 'Hãy nhập API key.' } satisfies TarotAiResult);
+  const test = await testRoomAi({ baseUrl, model: input.model, key });
+  if (!test.ok)
+    return c.json({ ok: false, message: `Chưa lưu: ${test.message}` } satisfies TarotAiResult);
+  const next = await store.call<TarotAiView>('tarot_ai_configure', {
+    p_actor: actor,
+    p_room: room,
+    p_enabled: view.enabled,
+    p_base_url: baseUrl,
+    p_model: input.model,
+    p_cipher: input.api_key ? await sealKey(c.env.SUPABASE_SECRET_KEY, room, input.api_key) : null,
+    p_hint: input.api_key ? keyHint(input.api_key) : null,
+    p_clear: false,
+  });
+  return c.json({
+    ok: true,
+    message: `Kết nối được và đã lưu. Model trả lời sau ${test.seconds} giây.`,
+    view: next,
+  } satisfies TarotAiResult);
 });
-// Try a base URL, key and model with one short request before saving them.
-app.post('/api/v1/rooms/:id/tarot/ai/test', async (c) => {
+// Switch the saved setup on (after testing it again) or off.
+app.post('/api/v1/rooms/:id/tarot/ai/enabled', async (c) => {
   const actor = c.get('actor'),
     room = uuid.parse(c.req.param('id'));
   const store = c.get('services').store;
-  const input = tarotAiTestSchema.parse(await c.req.json());
-  await store.call<TarotAiView>('tarot_ai_view', { p_actor: actor, p_room: room });
-  const baseUrl = checkBaseUrl(input.base_url);
-  let key = input.api_key ?? null;
-  if (!key) {
-    const saved = await store.call<{ key_cipher: string } | null>('tarot_ai_secret', {
-      p_room: room,
-    });
-    if (saved) key = await openKey(c.env.SUPABASE_SECRET_KEY, room, saved.key_cipher);
+  const { enabled } = tarotAiEnableSchema.parse(await c.req.json());
+  const view = await store.call<TarotAiView>('tarot_ai_view', { p_actor: actor, p_room: room });
+  let message = 'Đã tắt AI riêng. Phòng dùng AI mặc định.';
+  if (enabled) {
+    const saved = await savedRoomAi(store, c.env.SUPABASE_SECRET_KEY, room);
+    if (!saved || !view.base_url || !view.model)
+      return c.json({
+        ok: false,
+        message: 'Hãy kiểm tra & lưu API thành công trước khi bật.',
+      } satisfies TarotAiResult);
+    const test = await testRoomAi(saved);
+    if (!test.ok)
+      return c.json({
+        ok: false,
+        message: `Chưa bật được: ${test.message}`,
+      } satisfies TarotAiResult);
+    message = 'Đã bật AI riêng. Lượt rút tiếp theo sẽ dùng API của bạn.';
   }
-  if (!key) return c.json({ ok: false, message: 'Hãy nhập API key.' });
-  const started = Date.now();
-  try {
-    await askCustomAi(
-      { baseUrl, model: input.model, key },
-      'Bạn là trợ lý kiểm tra kết nối.',
-      'Trả lời đúng một từ: OK',
-      { maxTokens: 256, timeoutMs: 30_000 },
-    );
-    const seconds = ((Date.now() - started) / 1000).toFixed(1);
-    return c.json({ ok: true, message: `Kết nối được. Model trả lời sau ${seconds} giây.` });
-  } catch (error) {
-    return c.json({ ok: false, message: describeFailure(error) });
-  }
+  const next = await store.call<TarotAiView>('tarot_ai_configure', {
+    p_actor: actor,
+    p_room: room,
+    p_enabled: enabled,
+    p_base_url: view.base_url,
+    p_model: view.model,
+    p_cipher: null,
+    p_hint: null,
+    p_clear: false,
+  });
+  return c.json({ ok: true, message, view: next } satisfies TarotAiResult);
+});
+// Forget the saved key; the room goes back to the default AI.
+app.post('/api/v1/rooms/:id/tarot/ai/clear', async (c) => {
+  const actor = c.get('actor'),
+    room = uuid.parse(c.req.param('id'));
+  const store = c.get('services').store;
+  const view = await store.call<TarotAiView>('tarot_ai_view', { p_actor: actor, p_room: room });
+  const next = await store.call<TarotAiView>('tarot_ai_configure', {
+    p_actor: actor,
+    p_room: room,
+    p_enabled: false,
+    p_base_url: view.base_url,
+    p_model: view.model,
+    p_cipher: null,
+    p_hint: null,
+    p_clear: true,
+  });
+  return c.json({ ok: true, message: 'Đã xóa API key.', view: next } satisfies TarotAiResult);
 });
 // The person who drew may ask again when the AI reading failed or was lost.
 app.post('/api/v1/rooms/:id/tarot/:reading/ai', async (c) => {
