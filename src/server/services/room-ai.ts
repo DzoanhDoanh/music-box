@@ -1,8 +1,12 @@
-// A room's own AI for Tarot readings: any OpenAI-compatible API (base URL + key + model).
-// The key is sealed with AES-GCM before it is stored, bound to the room it belongs to.
+// The room's AI, shared by every AI feature in a room (Tarot readings today).
+// A room owner may bring their own OpenAI-compatible API (base URL + key + model); the key is
+// sealed with AES-GCM before it is stored, bound to the room it belongs to. Without one, or when
+// it fails, features fall back to Gemini (Google AI Studio) with the server's key.
 import { AppError } from '../../shared/domain';
+import type { RoomStore } from '../ports';
+import type { Env } from '../repository';
 
-export interface CustomAi {
+export interface RoomAiConfig {
   baseUrl: string;
   model: string;
   key: string;
@@ -39,7 +43,7 @@ export function checkBaseUrl(raw: string) {
   try {
     url = new URL(raw.trim());
   } catch {
-    throw new AppError('TAROT_AI_URL', 400);
+    throw new AppError('ROOM_AI_URL', 400);
   }
   const host = url.hostname.toLowerCase().replace(/\.$/, '');
   if (
@@ -52,7 +56,7 @@ export function checkBaseUrl(raw: string) {
     PRIVATE_SUFFIXES.some((s) => host.endsWith(s)) ||
     privateIpv4(host)
   )
-    throw new AppError('TAROT_AI_URL', 400);
+    throw new AppError('ROOM_AI_URL', 400);
   const path = url.pathname.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
   return `${url.origin}${path}`;
 }
@@ -72,6 +76,7 @@ async function sealingKey(secret: string) {
     {
       name: 'HKDF',
       hash: 'SHA-256',
+      // Named before the setting moved from Tarot to the room; keys sealed then must still open.
       salt: encoder.encode('roomtune:tarot-ai'),
       info: encoder.encode('api-key:v1'),
     },
@@ -111,7 +116,7 @@ export const keyHint = (key: string) => key.slice(-4);
 
 // ---------------------------------------------------------------- calling the API
 
-export class CustomAiError extends Error {
+export class RoomAiError extends Error {
   constructor(
     message: string,
     public status: number | null,
@@ -142,8 +147,8 @@ function providerMessage(body: string) {
 }
 
 /** One chat completion. Never follows redirects, so the checked base URL is the only host called. */
-export async function askCustomAi(
-  ai: CustomAi,
+export async function askRoomAi(
+  ai: RoomAiConfig,
   system: string,
   prompt: string,
   options: { maxTokens: number; timeoutMs: number },
@@ -168,17 +173,17 @@ export async function askCustomAi(
     });
   } catch (error) {
     const timedOut = error instanceof Error && error.name === 'TimeoutError';
-    throw new CustomAiError(timedOut ? 'timeout' : 'network', null);
+    throw new RoomAiError(timedOut ? 'timeout' : 'network', null);
   }
   if (response.status >= 300 && response.status < 400)
-    throw new CustomAiError('redirect', response.status);
+    throw new RoomAiError('redirect', response.status);
   if (!response.ok)
-    throw new CustomAiError('status', response.status, providerMessage(await response.text()));
+    throw new RoomAiError('status', response.status, providerMessage(await response.text()));
   let body: { choices?: { message?: { content?: unknown } }[] };
   try {
     body = await response.json();
   } catch {
-    throw new CustomAiError('format', response.status);
+    throw new RoomAiError('format', response.status);
   }
   const content = body.choices?.[0]?.message?.content;
   const text = (
@@ -194,13 +199,13 @@ export async function askCustomAi(
     .replace(/<think>[\s\S]*?<\/think>/g, '')
     .replace(/\r\n?/g, '\n')
     .trim();
-  if (!text) throw new CustomAiError('empty', response.status);
+  if (!text) throw new RoomAiError('empty', response.status);
   return text;
 }
 
 /** A short Vietnamese explanation of why a connection test failed. */
 export function describeFailure(error: unknown) {
-  if (!(error instanceof CustomAiError)) return 'Không gọi được API.';
+  if (!(error instanceof RoomAiError)) return 'Không gọi được API.';
   const detail = error.detail ? ` (${error.detail})` : '';
   switch (error.message) {
     case 'timeout':
@@ -219,4 +224,130 @@ export function describeFailure(error: unknown) {
       if (error.status === 429) return `Hết hạn mức hoặc bị giới hạn tốc độ${detail}.`;
       return `API báo lỗi ${error.status}${detail}.`;
   }
+}
+
+// ---------------------------------------------------------------- loading and writing
+
+/** The room's own AI, decrypted, when its owner switched it on; null otherwise. */
+export async function loadRoomAi(
+  store: RoomStore,
+  env: Env,
+  room: string,
+): Promise<RoomAiConfig | null> {
+  const saved = await store.call<{
+    enabled: boolean;
+    base_url: string;
+    model: string;
+    key_cipher: string;
+  } | null>('room_ai_secret', { p_room: room });
+  if (!saved?.enabled || !saved.base_url || !saved.model) return null;
+  try {
+    return {
+      baseUrl: saved.base_url,
+      model: saved.model,
+      key: await openKey(env.SUPABASE_SECRET_KEY, room, saved.key_cipher),
+    };
+  } catch {
+    console.error('room ai key could not be opened');
+    return null;
+  }
+}
+
+/** Whether a room has any AI to use: its own, or the server's Gemini key. */
+export const hasAi = (env: Env, room: RoomAiConfig | null) => Boolean(room || env.GEMINI_API_KEY);
+
+// Google retires model versions for new keys, so default to the rolling aliases. Flash-Lite answers
+// in seconds with a large free quota; the bigger Flash only steps in when it is busy (429/5xx/timeout).
+const GEMINI_DEFAULT = 'gemini-flash-lite-latest';
+const GEMINI_FALLBACK = 'gemini-flash-latest';
+const retryable = (status: number) => status === 429 || status >= 500;
+
+async function askGemini(
+  env: Env,
+  model: string,
+  task: AiTask,
+  fetcher: typeof fetch,
+): Promise<string> {
+  const response = await fetcher(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY ?? '' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: task.system }] },
+        contents: [{ role: 'user', parts: [{ text: task.prompt }] }],
+        // Room for the model's own thinking plus the answer.
+        generationConfig: { temperature: 0.9, maxOutputTokens: 8192 },
+      }),
+      signal: AbortSignal.timeout(40_000),
+    },
+  );
+  if (!response.ok)
+    throw Object.assign(
+      new Error(`Gemini ${model} ${response.status}: ${(await response.text()).slice(0, 200)}`),
+      { retry: retryable(response.status) },
+    );
+  const body = (await response.json()) as {
+    candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
+  };
+  const text = (body.candidates?.[0]?.content?.parts ?? [])
+    .filter((p) => !p.thought)
+    .map((p) => p.text ?? '')
+    .join('')
+    .replace(/\r\n?/g, '\n')
+    .trim();
+  if (text.length < task.minLength)
+    throw Object.assign(new Error(`Gemini ${model} returned too little`), { retry: true });
+  return text;
+}
+
+/** One piece of text an AI feature needs written. */
+export interface AiTask {
+  system: string;
+  prompt: string;
+  /** Upper bound on the answer, in tokens, for the room's own API. */
+  maxTokens: number;
+  /** Shorter answers count as failures and move on to the next AI. */
+  minLength: number;
+}
+
+/**
+ * Write text for any AI feature in a room: the room's own AI first, then Gemini with the
+ * server's key. Throws when every option fails or returns too little.
+ */
+export async function writeWithAi(
+  env: Env,
+  room: RoomAiConfig | null,
+  task: AiTask,
+  fetcher: typeof fetch = fetch,
+) {
+  let last: unknown = new Error('no AI configured');
+  if (room) {
+    try {
+      const text = await askRoomAi(
+        room,
+        task.system,
+        task.prompt,
+        { maxTokens: task.maxTokens, timeoutMs: 60_000 },
+        fetcher,
+      );
+      if (text.length >= task.minLength) return text;
+      last = new Error('room AI returned too little');
+    } catch (error) {
+      last = error;
+    }
+    console.error('room ai failed', last instanceof Error ? last.message : last);
+  }
+  if (!env.GEMINI_API_KEY) throw last;
+  const models = [...new Set([env.GEMINI_MODEL?.trim() || GEMINI_DEFAULT, GEMINI_FALLBACK])];
+  for (const model of models) {
+    try {
+      return await askGemini(env, model, task, fetcher);
+    } catch (error) {
+      last = error;
+      const timedOut = error instanceof Error && error.name === 'TimeoutError';
+      if (!timedOut && !(error as { retry?: boolean }).retry) break;
+    }
+  }
+  throw last;
 }

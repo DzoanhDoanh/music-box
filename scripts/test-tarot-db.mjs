@@ -310,12 +310,12 @@ async function tarotChecks({ sql, owner, users, check }) {
   await check("a room owner's own AI is stored sealed and only the worker reads it", async () => {
     const room = await fixture();
     const view = async (actor) =>
-      (await sql`select public.tarot_ai_view(${actor}::uuid,${room}::uuid) r`)[0].r;
+      (await sql`select public.room_ai_view(${actor}::uuid,${room}::uuid) r`)[0].r;
     const configure = async (actor, enabled, url, model, cipher, hint, clear = false) =>
       (
-        await sql`select public.tarot_ai_configure(${actor}::uuid,${room}::uuid,${enabled},${url},${model},${cipher},${hint},${clear}) r`
+        await sql`select public.room_ai_configure(${actor}::uuid,${room}::uuid,${enabled},${url},${model},${cipher},${hint},${clear}) r`
       )[0].r;
-    const secret = async () => (await sql`select public.tarot_ai_secret(${room}::uuid) r`)[0].r;
+    const secret = async () => (await sql`select public.room_ai_secret(${room}::uuid) r`)[0].r;
     const sealed = 'c2VhbGVkLWtleS1ieXRlcy1mb3ItdGVzdA==';
     assert.deepEqual(await view(owner), {
       enabled: false,
@@ -326,11 +326,18 @@ async function tarotChecks({ sql, owner, users, check }) {
       updated_at: null,
     });
     await assert.rejects(view(member), /PERMISSION_DENIED/);
+    // The Tarot-only names from before the room took over are gone.
+    for (const name of ['tarot_ai_view', 'tarot_ai_configure', 'tarot_ai_secret'])
+      assert.equal(
+        (await sql`select count(*)::int n from pg_proc where proname=${name}`)[0].n,
+        0,
+        name,
+      );
     await assert.rejects(configure(member, false, '', '', null, null), /PERMISSION_DENIED/);
     // Switching on needs a base URL, a model and a key.
     await assert.rejects(
       configure(owner, true, 'https://llm.example.com/v1', 'm', null, null),
-      /TAROT_AI_INCOMPLETE/,
+      /ROOM_AI_INCOMPLETE/,
     );
     await assert.rejects(
       configure(owner, false, 'http://llm.example.com', 'm', null, null),
@@ -360,16 +367,16 @@ async function tarotChecks({ sql, owner, users, check }) {
     assert.equal(await secret(), null);
     assert.equal((await view(owner)).has_key, false);
     const audit =
-      await sql`select details::text d from public.audit_logs where room_id=${room}::uuid and action='tarot.ai_settings'`;
+      await sql`select details::text d from public.audit_logs where room_id=${room}::uuid and action='room.ai_settings'`;
     assert.equal(audit.length, 3);
     for (const row of audit) {
       assert.equal(row.d.includes(sealed), false);
       assert.equal(row.d.includes('llm.example.com'), false);
     }
     for (const query of [
-      `select * from private.tarot_ai_settings`,
-      `select public.tarot_ai_secret('${room}')`,
-      `select public.tarot_ai_view('${owner}','${room}')`,
+      `select * from private.room_ai_settings`,
+      `select public.room_ai_secret('${room}')`,
+      `select public.room_ai_view('${owner}','${room}')`,
     ])
       await assert.rejects(
         sql.begin(async (tx) => {

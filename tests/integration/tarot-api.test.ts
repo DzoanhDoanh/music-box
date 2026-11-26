@@ -15,7 +15,7 @@ let calls: { path: string; body: Record<string, unknown> }[], busy: boolean;
 let gemini: { url: string; headers: Headers; body: Record<string, unknown> }[],
   geminiReply: () => Response,
   claimable: boolean;
-// The room's own AI, as tarot_ai_secret returns it (sealed key), and what its API received.
+// The room's own AI, as room_ai_secret returns it (sealed key), and what its API received.
 let roomSecret: Record<string, unknown> | null,
   custom: { url: string; headers: Headers; body: Record<string, unknown>; redirect?: string }[],
   customReply: () => Response;
@@ -81,8 +81,8 @@ beforeEach(() => {
         return Response.json(claimable ? { ...reading, ai: { status: 'pending' } } : null);
       if (path.endsWith('/tarot_ai_save')) return Response.json(true);
       if (path.endsWith('/tarot_configure')) return Response.json({ paid: body.p_paid });
-      if (path.endsWith('/tarot_ai_secret')) return Response.json(roomSecret);
-      if (path.endsWith('/tarot_ai_view'))
+      if (path.endsWith('/room_ai_secret')) return Response.json(roomSecret);
+      if (path.endsWith('/room_ai_view'))
         return Response.json({
           enabled: Boolean(roomSecret?.enabled),
           base_url: roomSecret?.base_url ?? '',
@@ -91,7 +91,7 @@ beforeEach(() => {
           key_hint: roomSecret ? '-123' : null,
           updated_at: null,
         });
-      if (path.endsWith('/tarot_ai_configure'))
+      if (path.endsWith('/room_ai_configure'))
         return Response.json({
           enabled: body.p_enabled,
           base_url: body.p_base_url,
@@ -164,7 +164,7 @@ describe('Tarot AI reading', () => {
     expect((await request(command)).status).toBe(200);
     await new Promise((r) => setTimeout(r, 20));
     await vi.waitFor(() =>
-      expect(calls.map((c) => c.path.split('/').pop())).toEqual(['tarot_draw', 'tarot_ai_secret']),
+      expect(calls.map((c) => c.path.split('/').pop())).toEqual(['tarot_draw', 'room_ai_secret']),
     );
     expect(gemini).toEqual([]);
     const retry = await app.request(
@@ -281,7 +281,7 @@ describe("The room's own AI", () => {
   const ai = { ...env, GEMINI_API_KEY: 'gemini-fixture' };
   const post = (path: string, body: unknown, flags: Record<string, string> = env) =>
     app.request(
-      `/api/v1/rooms/${room}/tarot${path}`,
+      `/api/v1/rooms/${room}${path}`,
       {
         method: 'POST',
         headers: {
@@ -294,7 +294,7 @@ describe("The room's own AI", () => {
       flags,
     );
   async function seal(key: string) {
-    const { sealKey } = await import('../../src/server/services/tarot-ai-custom');
+    const { sealKey } = await import('../../src/server/services/room-ai');
     return sealKey(env.SUPABASE_SECRET_KEY, room, key);
   }
   const saved = () => calls.find((c) => c.path.endsWith('/tarot_ai_save'));
@@ -340,7 +340,7 @@ describe("The room's own AI", () => {
     await vi.waitFor(() => expect(saved()).toBeTruthy());
     expect(custom).toEqual([]);
   });
-  const configured = () => calls.filter((c) => c.path.endsWith('/tarot_ai_configure'));
+  const configured = () => calls.filter((c) => c.path.endsWith('/room_ai_configure'));
   const ok = () => Response.json({ choices: [{ message: { content: 'OK' } }] });
 
   it('tests before saving, seals the key and never sends it back', async () => {
@@ -366,7 +366,7 @@ describe("The room's own AI", () => {
       p_clear: false,
     });
     expect(JSON.stringify(stored)).not.toContain('sk-room-secret');
-    const { openKey } = await import('../../src/server/services/tarot-ai-custom');
+    const { openKey } = await import('../../src/server/services/room-ai');
     expect(await openKey(env.SUPABASE_SECRET_KEY, room, String(stored.p_cipher))).toBe(
       'sk-room-secret-123',
     );
@@ -445,6 +445,15 @@ describe("The room's own AI", () => {
     response = await post('/ai/clear', {});
     expect(await response.json()).toMatchObject({ ok: true });
     expect(configured().at(-1)!.body).toMatchObject({ p_enabled: false, p_clear: true });
+  });
+  it('belongs to the room, so it works even when Tarot is switched off', async () => {
+    customReply = ok;
+    const response = await post(
+      '/ai',
+      { base_url: 'https://llm.example.com/v1', model: 'm', api_key: 'sk-test-12345' },
+      { ...env, ENABLE_TAROT: 'false' },
+    );
+    expect(await response.json()).toMatchObject({ ok: true });
   });
   it('refuses base URLs that point at this machine or a private network', async () => {
     for (const base_url of [

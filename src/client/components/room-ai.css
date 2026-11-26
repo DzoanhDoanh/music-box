@@ -1,0 +1,27 @@
+/* Room settings: the room's AI, shared by every AI feature in the room. */
+.room-ai-setting code {
+  font-size: 0.92em;
+}
+.room-ai-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.room-ai-test {
+  margin: 0;
+  font-size: 14px;
+}
+.room-ai-test.ok {
+  color: inherit;
+}
+.room-ai-test.fail {
+  color: var(--danger);
+}
+.room-ai-steps {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}

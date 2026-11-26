@@ -1,23 +1,23 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { TarotAiResult, TarotAiView } from '../../../shared/tarot/contracts';
-import { api } from '../../lib/api';
-import { Button } from '../ui';
-import './tarot.css';
+import type { RoomAiResult, RoomAiView } from '../../shared/room-ai';
+import { api } from '../lib/api';
+import { Button } from './ui';
+import './room-ai.css';
 
 /**
- * Room-settings section: the owner's own OpenAI-compatible AI for Tarot readings, like Cursor's
- * "Override OpenAI Base URL". Two steps, enforced by the server too:
+ * Room-settings section: the room's AI, used by every AI feature in the room (Tarot readings
+ * today). The owner brings their own OpenAI-compatible API, like Cursor's "Override OpenAI Base URL". Two steps, enforced by the server too:
  *   1. "Kiểm tra & lưu" calls the API once and stores the setup only when it answered;
  *   2. the "Dùng API riêng" switch unlocks after that, and switching on tests again.
  * The key is write-only; the server keeps it encrypted.
  */
-export default function TarotAiSetting({ room, actor }: { room: string; actor: string }) {
+export default function RoomAiSetting({ room, actor }: { room: string; actor: string }) {
   const client = useQueryClient();
-  const key = ['tarot-ai', room, actor];
+  const key = ['room-ai', room, actor];
   const query = useQuery({
     queryKey: key,
-    queryFn: () => api<TarotAiView>(`/rooms/${room}/tarot/ai`, undefined, undefined, actor),
+    queryFn: () => api<RoomAiView>(`/rooms/${room}/ai`, undefined, undefined, actor),
   });
   const saved = query.data;
   const [baseUrl, setBaseUrl] = useState('');
@@ -41,12 +41,7 @@ export default function TarotAiSetting({ room, actor }: { room: string; actor: s
     setBusy(kind);
     setResult(null);
     try {
-      const outcome = await api<TarotAiResult>(
-        `/rooms/${room}/tarot/ai${path}`,
-        body,
-        undefined,
-        actor,
-      );
+      const outcome = await api<RoomAiResult>(`/rooms/${room}/ai${path}`, body, undefined, actor);
       if (outcome.view) client.setQueryData(key, outcome.view);
       if (outcome.ok && kind === 'save') setApiKey('');
       setResult(outcome);
@@ -58,14 +53,15 @@ export default function TarotAiSetting({ room, actor }: { room: string; actor: s
   }
 
   return (
-    <fieldset className="tarot-ai-setting">
-      <legend>AI luận giải Tarot</legend>
+    <fieldset className="room-ai-setting">
+      <legend>AI của phòng</legend>
       <p className="muted">
-        Dùng API của bạn (chuẩn OpenAI <code>/chat/completions</code>: OpenAI, OpenRouter, Groq,
-        DeepSeek, proxy riêng…). Khi tắt, phòng dùng AI mặc định của RoomTune; AI riêng bị lỗi cũng
-        tự quay về AI mặc định.
+        Mọi tính năng AI trong phòng (hiện có: luận giải Bói Tarot) dùng chung cài đặt này. Dùng API
+        của bạn theo chuẩn OpenAI <code>/chat/completions</code>: OpenAI, OpenRouter, Groq,
+        DeepSeek, proxy riêng… Khi tắt, phòng dùng AI mặc định của RoomTune; AI riêng bị lỗi cũng tự
+        quay về AI mặc định.
       </p>
-      <ol className="tarot-ai-steps">
+      <ol className="room-ai-steps">
         <li>
           <b>Bước 1:</b> nhập Base URL, API key và model rồi bấm “Kiểm tra &amp; lưu”.
         </li>
@@ -109,7 +105,7 @@ export default function TarotAiSetting({ room, actor }: { room: string; actor: s
           onChange={(event) => setModel(event.target.value)}
         />
       </label>
-      <div className="tarot-ai-actions">
+      <div className="room-ai-actions">
         <Button
           variant="primary"
           loading={busy === 'save'}
@@ -140,7 +136,7 @@ export default function TarotAiSetting({ room, actor }: { room: string; actor: s
         )}
       </div>
       {result && (
-        <p className={result.ok ? 'tarot-ai-test ok' : 'tarot-ai-test fail'} role="status">
+        <p className={result.ok ? 'room-ai-test ok' : 'room-ai-test fail'} role="status">
           {result.message}
         </p>
       )}
@@ -151,17 +147,17 @@ export default function TarotAiSetting({ room, actor }: { room: string; actor: s
           role="switch"
           checked={saved?.enabled ?? false}
           disabled={!ready || busy !== null}
-          aria-describedby="tarot-ai-switch-help"
+          aria-describedby="room-ai-switch-help"
           onChange={(event) => void send('/enabled', { enabled: event.target.checked }, 'switch')}
         />
       </label>
-      <p className="muted" id="tarot-ai-switch-help">
+      <p className="muted" id="room-ai-switch-help">
         {!ready
           ? 'Chưa bật được: cần kiểm tra & lưu API thành công trước.'
           : busy === 'switch'
             ? 'Đang kiểm tra lại API…'
             : saved?.enabled
-              ? `Đang dùng ${saved.model} (key ••••${saved.key_hint ?? ''}) cho Bói Tarot.`
+              ? `Đang dùng ${saved.model} (key ••••${saved.key_hint ?? ''}) cho mọi tính năng AI trong phòng.`
               : 'Đã lưu API. Bật lên để dùng; máy chủ sẽ kiểm tra lại trước khi bật.'}
         {ready && edited && ' Các thay đổi ở trên chưa được lưu.'}
       </p>

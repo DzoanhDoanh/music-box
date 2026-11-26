@@ -90,9 +90,9 @@ export const errorMessages: Record<string, string> = {
   WHEEL_EMPTY:
     'Cần ít nhất hai lựa chọn hợp lệ để quay. Với thưởng nhạc, chỉ tính người online có bài đang chờ.',
   TAROT_BUSY: 'Bạn vừa rút bài. Chờ vài giây rồi rút tiếp nhé.',
-  TAROT_AI_URL:
+  ROOM_AI_URL:
     'Base URL phải là địa chỉ https công khai, không dùng localhost hay địa chỉ IP nội bộ.',
-  TAROT_AI_INCOMPLETE: 'Cần đủ Base URL, API key và model để bật AI riêng.',
+  ROOM_AI_INCOMPLETE: 'Cần đủ Base URL, API key và model để bật AI riêng.',
   TAROT_INSUFFICIENT_COINS:
     'Bạn chưa đủ xu để rút bài. Nhận thưởng ngày ở Bầu Cua rồi quay lại nhé.',
   WHEEL_BUSY: 'Phòng vừa quay. Hãy chờ vòng quay hiện tại kết thúc.',

@@ -29,23 +29,27 @@ import { wheelCommandSchema, type WheelSnapshot, type WheelResult } from '../sha
 import {
   tarotCommandSchema,
   tarotSettingsSchema,
-  tarotAiSaveSchema,
-  tarotAiEnableSchema,
-  type TarotAiResult,
-  type TarotAiView,
   type TarotReading,
   type TarotSnapshot,
 } from '../shared/tarot/contracts';
-import { roomAi, writeClaimedTarotReading, writeTarotReading } from './services/tarot-ai';
+import { writeClaimedTarotReading, writeTarotReading } from './services/tarot-ai';
 import {
-  askCustomAi,
+  askRoomAi,
   checkBaseUrl,
   describeFailure,
+  hasAi,
   keyHint,
+  loadRoomAi,
   openKey,
   sealKey,
-  type CustomAi,
-} from './services/tarot-ai-custom';
+  type RoomAiConfig,
+} from './services/room-ai';
+import {
+  roomAiEnableSchema,
+  roomAiSaveSchema,
+  type RoomAiResult,
+  type RoomAiView,
+} from '../shared/room-ai';
 import { BauCuaService } from './services/bau-cua';
 import { commandSchema as bauCommandSchema } from '../shared/bau-cua/contracts';
 import { DuckRaceService } from './services/duck-race';
@@ -327,6 +331,128 @@ app.post('/api/v1/rooms/:id/wheel', async (c) =>
     }),
   ),
 );
+// The room's AI, used by every AI feature in the room (Tarot readings today): the owner's own
+// OpenAI-compatible API. The key is sealed here before it is
+// stored and is never sent back: the owner only sees its last four characters.
+// Order is enforced here, not only in the page: a setup is saved only after it answered a test
+// call, and switching it on tests the saved setup again.
+app.get('/api/v1/rooms/:id/ai', async (c) =>
+  c.json(
+    await c.get('services').store.call<RoomAiView>('room_ai_view', {
+      p_actor: c.get('actor'),
+      p_room: uuid.parse(c.req.param('id')),
+    }),
+  ),
+);
+async function testRoomAi(ai: RoomAiConfig) {
+  const started = Date.now();
+  try {
+    await askRoomAi(ai, 'Bạn là trợ lý kiểm tra kết nối.', 'Trả lời đúng một từ: OK', {
+      maxTokens: 256,
+      timeoutMs: 30_000,
+    });
+    return { ok: true as const, seconds: ((Date.now() - started) / 1000).toFixed(1) };
+  } catch (error) {
+    return { ok: false as const, message: describeFailure(error) };
+  }
+}
+async function savedRoomAi(store: RoomStore, secret: string, room: string) {
+  const saved = await store.call<{ base_url: string; model: string; key_cipher: string } | null>(
+    'room_ai_secret',
+    { p_room: room },
+  );
+  return saved
+    ? {
+        baseUrl: saved.base_url,
+        model: saved.model,
+        key: await openKey(secret, room, saved.key_cipher),
+      }
+    : null;
+}
+// Test a base URL, key and model, and store them only when the API answered.
+app.post('/api/v1/rooms/:id/ai', async (c) => {
+  const actor = c.get('actor'),
+    room = uuid.parse(c.req.param('id'));
+  const store = c.get('services').store;
+  const input = roomAiSaveSchema.parse(await c.req.json());
+  // Only the owner gets as far as calling anything.
+  const view = await store.call<RoomAiView>('room_ai_view', { p_actor: actor, p_room: room });
+  const baseUrl = checkBaseUrl(input.base_url);
+  const key =
+    input.api_key ?? (await savedRoomAi(store, c.env.SUPABASE_SECRET_KEY, room))?.key ?? null;
+  if (!key) return c.json({ ok: false, message: 'Hãy nhập API key.' } satisfies RoomAiResult);
+  const test = await testRoomAi({ baseUrl, model: input.model, key });
+  if (!test.ok)
+    return c.json({ ok: false, message: `Chưa lưu: ${test.message}` } satisfies RoomAiResult);
+  const next = await store.call<RoomAiView>('room_ai_configure', {
+    p_actor: actor,
+    p_room: room,
+    p_enabled: view.enabled,
+    p_base_url: baseUrl,
+    p_model: input.model,
+    p_cipher: input.api_key ? await sealKey(c.env.SUPABASE_SECRET_KEY, room, input.api_key) : null,
+    p_hint: input.api_key ? keyHint(input.api_key) : null,
+    p_clear: false,
+  });
+  return c.json({
+    ok: true,
+    message: `Kết nối được và đã lưu. Model trả lời sau ${test.seconds} giây.`,
+    view: next,
+  } satisfies RoomAiResult);
+});
+// Switch the saved setup on (after testing it again) or off.
+app.post('/api/v1/rooms/:id/ai/enabled', async (c) => {
+  const actor = c.get('actor'),
+    room = uuid.parse(c.req.param('id'));
+  const store = c.get('services').store;
+  const { enabled } = roomAiEnableSchema.parse(await c.req.json());
+  const view = await store.call<RoomAiView>('room_ai_view', { p_actor: actor, p_room: room });
+  let message = 'Đã tắt AI riêng. Phòng dùng AI mặc định.';
+  if (enabled) {
+    const saved = await savedRoomAi(store, c.env.SUPABASE_SECRET_KEY, room);
+    if (!saved || !view.base_url || !view.model)
+      return c.json({
+        ok: false,
+        message: 'Hãy kiểm tra & lưu API thành công trước khi bật.',
+      } satisfies RoomAiResult);
+    const test = await testRoomAi(saved);
+    if (!test.ok)
+      return c.json({
+        ok: false,
+        message: `Chưa bật được: ${test.message}`,
+      } satisfies RoomAiResult);
+    message = 'Đã bật AI riêng. Các tính năng AI trong phòng sẽ dùng API của bạn.';
+  }
+  const next = await store.call<RoomAiView>('room_ai_configure', {
+    p_actor: actor,
+    p_room: room,
+    p_enabled: enabled,
+    p_base_url: view.base_url,
+    p_model: view.model,
+    p_cipher: null,
+    p_hint: null,
+    p_clear: false,
+  });
+  return c.json({ ok: true, message, view: next } satisfies RoomAiResult);
+});
+// Forget the saved key; the room goes back to the default AI.
+app.post('/api/v1/rooms/:id/ai/clear', async (c) => {
+  const actor = c.get('actor'),
+    room = uuid.parse(c.req.param('id'));
+  const store = c.get('services').store;
+  const view = await store.call<RoomAiView>('room_ai_view', { p_actor: actor, p_room: room });
+  const next = await store.call<RoomAiView>('room_ai_configure', {
+    p_actor: actor,
+    p_room: room,
+    p_enabled: false,
+    p_base_url: view.base_url,
+    p_model: view.model,
+    p_cipher: null,
+    p_hint: null,
+    p_clear: true,
+  });
+  return c.json({ ok: true, message: 'Đã xóa API key.', view: next } satisfies RoomAiResult);
+});
 app.use('/api/v1/rooms/:id/tarot', async (c, next) => {
   if (c.env.ENABLE_TAROT !== 'true') throw new AppError('NOT_FOUND', 404);
   await next();
@@ -379,142 +505,20 @@ app.post('/api/v1/rooms/:id/tarot/settings', async (c) =>
     }),
   ),
 );
-// The room owner's own AI (any OpenAI-compatible API). The key is sealed here before it is
-// stored and is never sent back: the owner only sees its last four characters.
-// Order is enforced here, not only in the page: a setup is saved only after it answered a test
-// call, and switching it on tests the saved setup again.
-app.get('/api/v1/rooms/:id/tarot/ai', async (c) =>
-  c.json(
-    await c.get('services').store.call<TarotAiView>('tarot_ai_view', {
-      p_actor: c.get('actor'),
-      p_room: uuid.parse(c.req.param('id')),
-    }),
-  ),
-);
-async function testRoomAi(ai: CustomAi) {
-  const started = Date.now();
-  try {
-    await askCustomAi(ai, 'Bạn là trợ lý kiểm tra kết nối.', 'Trả lời đúng một từ: OK', {
-      maxTokens: 256,
-      timeoutMs: 30_000,
-    });
-    return { ok: true as const, seconds: ((Date.now() - started) / 1000).toFixed(1) };
-  } catch (error) {
-    return { ok: false as const, message: describeFailure(error) };
-  }
-}
-async function savedRoomAi(store: RoomStore, secret: string, room: string) {
-  const saved = await store.call<{ base_url: string; model: string; key_cipher: string } | null>(
-    'tarot_ai_secret',
-    { p_room: room },
-  );
-  return saved
-    ? {
-        baseUrl: saved.base_url,
-        model: saved.model,
-        key: await openKey(secret, room, saved.key_cipher),
-      }
-    : null;
-}
-// Test a base URL, key and model, and store them only when the API answered.
-app.post('/api/v1/rooms/:id/tarot/ai', async (c) => {
-  const actor = c.get('actor'),
-    room = uuid.parse(c.req.param('id'));
-  const store = c.get('services').store;
-  const input = tarotAiSaveSchema.parse(await c.req.json());
-  // Only the owner gets as far as calling anything.
-  const view = await store.call<TarotAiView>('tarot_ai_view', { p_actor: actor, p_room: room });
-  const baseUrl = checkBaseUrl(input.base_url);
-  const key =
-    input.api_key ?? (await savedRoomAi(store, c.env.SUPABASE_SECRET_KEY, room))?.key ?? null;
-  if (!key) return c.json({ ok: false, message: 'Hãy nhập API key.' } satisfies TarotAiResult);
-  const test = await testRoomAi({ baseUrl, model: input.model, key });
-  if (!test.ok)
-    return c.json({ ok: false, message: `Chưa lưu: ${test.message}` } satisfies TarotAiResult);
-  const next = await store.call<TarotAiView>('tarot_ai_configure', {
-    p_actor: actor,
-    p_room: room,
-    p_enabled: view.enabled,
-    p_base_url: baseUrl,
-    p_model: input.model,
-    p_cipher: input.api_key ? await sealKey(c.env.SUPABASE_SECRET_KEY, room, input.api_key) : null,
-    p_hint: input.api_key ? keyHint(input.api_key) : null,
-    p_clear: false,
-  });
-  return c.json({
-    ok: true,
-    message: `Kết nối được và đã lưu. Model trả lời sau ${test.seconds} giây.`,
-    view: next,
-  } satisfies TarotAiResult);
-});
-// Switch the saved setup on (after testing it again) or off.
-app.post('/api/v1/rooms/:id/tarot/ai/enabled', async (c) => {
-  const actor = c.get('actor'),
-    room = uuid.parse(c.req.param('id'));
-  const store = c.get('services').store;
-  const { enabled } = tarotAiEnableSchema.parse(await c.req.json());
-  const view = await store.call<TarotAiView>('tarot_ai_view', { p_actor: actor, p_room: room });
-  let message = 'Đã tắt AI riêng. Phòng dùng AI mặc định.';
-  if (enabled) {
-    const saved = await savedRoomAi(store, c.env.SUPABASE_SECRET_KEY, room);
-    if (!saved || !view.base_url || !view.model)
-      return c.json({
-        ok: false,
-        message: 'Hãy kiểm tra & lưu API thành công trước khi bật.',
-      } satisfies TarotAiResult);
-    const test = await testRoomAi(saved);
-    if (!test.ok)
-      return c.json({
-        ok: false,
-        message: `Chưa bật được: ${test.message}`,
-      } satisfies TarotAiResult);
-    message = 'Đã bật AI riêng. Lượt rút tiếp theo sẽ dùng API của bạn.';
-  }
-  const next = await store.call<TarotAiView>('tarot_ai_configure', {
-    p_actor: actor,
-    p_room: room,
-    p_enabled: enabled,
-    p_base_url: view.base_url,
-    p_model: view.model,
-    p_cipher: null,
-    p_hint: null,
-    p_clear: false,
-  });
-  return c.json({ ok: true, message, view: next } satisfies TarotAiResult);
-});
-// Forget the saved key; the room goes back to the default AI.
-app.post('/api/v1/rooms/:id/tarot/ai/clear', async (c) => {
-  const actor = c.get('actor'),
-    room = uuid.parse(c.req.param('id'));
-  const store = c.get('services').store;
-  const view = await store.call<TarotAiView>('tarot_ai_view', { p_actor: actor, p_room: room });
-  const next = await store.call<TarotAiView>('tarot_ai_configure', {
-    p_actor: actor,
-    p_room: room,
-    p_enabled: false,
-    p_base_url: view.base_url,
-    p_model: view.model,
-    p_cipher: null,
-    p_hint: null,
-    p_clear: true,
-  });
-  return c.json({ ok: true, message: 'Đã xóa API key.', view: next } satisfies TarotAiResult);
-});
 // The person who drew may ask again when the AI reading failed or was lost.
 app.post('/api/v1/rooms/:id/tarot/:reading/ai', async (c) => {
   const actor = c.get('actor'),
     room = uuid.parse(c.req.param('id')),
     readingId = uuid.parse(c.req.param('reading'));
   const store = c.get('services').store;
-  const custom = await roomAi(store, c.env, room);
-  if (!custom && !c.env.GEMINI_API_KEY) throw new AppError('NOT_FOUND', 404);
+  const ai = await loadRoomAi(store, c.env, room);
+  if (!hasAi(c.env, ai)) throw new AppError('NOT_FOUND', 404);
   const reading = await store.call<TarotReading | null>('tarot_ai_claim', {
     p_actor: actor,
     p_room: room,
     p_reading: readingId,
   });
-  if (reading)
-    inBackground(c, writeClaimedTarotReading(store, c.env, room, reading, fetch, custom));
+  if (reading) inBackground(c, writeClaimedTarotReading(store, c.env, room, reading, fetch, ai));
   return c.json({ started: Boolean(reading) });
 });
 // Require an explicit runtime flag so targets without the game migration remain safe.

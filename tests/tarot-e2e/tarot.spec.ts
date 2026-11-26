@@ -87,8 +87,8 @@ async function fixture(
   };
   let apiUp = true;
   const answers = (model: string) => apiUp && model.startsWith('good-model');
-  await page.route('**/api/v1/rooms/*/tarot/ai**', async (route) => {
-    const path = new URL(route.request().url()).pathname.split('/tarot/ai')[1];
+  await page.route('**/api/v1/rooms/*/ai**', async (route) => {
+    const path = new URL(route.request().url()).pathname.split('/ai')[1];
     if (route.request().method() === 'GET') return route.fulfill({ json: aiView });
     const body = route.request().postDataJSON() as Record<string, string | boolean>;
     aiCalls.push({ path, body });
@@ -423,7 +423,7 @@ test("the room's own AI is saved only after it answers, and only then can be swi
 }, info) => {
   const f = await fixture(page, { owner: true });
   await chooseRoomTab(page, 'Cài đặt phòng');
-  const section = page.getByRole('group', { name: 'AI luận giải Tarot' });
+  const section = page.getByRole('group', { name: 'AI của phòng' });
   const toggle = section.getByRole('switch', { name: 'Dùng API riêng' });
   const save = section.getByRole('button', { name: 'Kiểm tra & lưu' });
   // Nothing saved: the switch is locked and says why.
@@ -458,7 +458,9 @@ test("the room's own AI is saved only after it answers, and only then can be swi
   f.setApiUp(true);
   await toggle.click();
   await expect(toggle).toBeChecked();
-  await expect(section.getByText(/Đang dùng good-model \(key ••••9876\)/)).toBeVisible();
+  await expect(
+    section.getByText(/Đang dùng good-model \(key ••••9876\) cho mọi tính năng AI trong phòng/),
+  ).toBeVisible();
   await section.screenshot({ path: info.outputPath('tarot-ai-settings.png') });
   // Editing without saving is flagged; a new save keeps the stored key.
   await section.getByLabel('Model').fill('good-model-2');
@@ -470,7 +472,7 @@ test("the room's own AI is saved only after it answers, and only then can be swi
   await expect(toggle).toBeDisabled();
   await expect(toggle).not.toBeChecked();
   const scan = await new AxeBuilder({ page })
-    .include('.tarot-ai-setting')
+    .include('.room-ai-setting')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
     .analyze();
   expect(scan.violations).toEqual([]);

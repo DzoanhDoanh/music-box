@@ -112,31 +112,6 @@ export const TAROT_PRICES = { ONE: 200, THREE: 500, YES_NO: 300 } as const satis
   number
 >;
 export const tarotSettingsSchema = z.object({ paid: z.boolean() }).strict();
-const aiKey = z.string().trim().min(8).max(500);
-/** Test and save the room owner's own OpenAI-compatible AI. An omitted api_key keeps the saved one. */
-export const tarotAiSaveSchema = z
-  .object({
-    base_url: z.string().trim().min(1).max(300),
-    model: z.string().trim().min(1).max(120),
-    api_key: aiKey.optional(),
-  })
-  .strict();
-export const tarotAiEnableSchema = z.object({ enabled: z.boolean() }).strict();
-/** Outcome of saving or switching the room's AI; failures change nothing. */
-export interface TarotAiResult {
-  ok: boolean;
-  message: string;
-  view?: TarotAiView;
-}
-/** What the owner sees of the room's AI: never the key, only its last characters. */
-export interface TarotAiView {
-  enabled: boolean;
-  base_url: string;
-  model: string;
-  has_key: boolean;
-  key_hint: string | null;
-  updated_at: string | null;
-}
 export const formatCoins = (n: number) => `${n.toLocaleString('vi-VN')} xu`;
 
 // ---------------------------------------------------------------- interpretation
