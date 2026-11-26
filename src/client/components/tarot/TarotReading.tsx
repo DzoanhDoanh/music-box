@@ -24,7 +24,7 @@ import { isConnectionError } from '../../../shared/auth-errors';
 import { api, supabase } from '../../lib/api';
 import { RealtimeService } from '../../lib/realtime';
 import { Button, Loading, Modal } from '../ui';
-import { TarotCardBack, TarotCardSvg } from './TarotArt';
+import { TarotCardBack, TarotCardFace } from './TarotArt';
 // The room layout for full-width tools (.wheel-screen) lives with the lucky wheel.
 import '../lucky-wheel.css';
 import './tarot.css';
@@ -83,7 +83,7 @@ function CardZoom({ line, onClose }: { line: TarotLine | null; onClose: () => vo
       {line && (
         <div className="tarot-zoom-body">
           <div className={'tarot-zoom-card' + (line.reversed ? ' reversed' : '')}>
-            <TarotCardSvg card={line.card} />
+            <TarotCardFace card={line.card} />
           </div>
           <div>
             <p>{line.meaning}</p>
@@ -137,7 +137,7 @@ function Spread({ reading, now }: { reading: Reading; now: number }) {
                     <TarotCardBack />
                   </span>
                   <span className="tarot-front">
-                    <TarotCardSvg card={line.card} />
+                    <TarotCardFace card={line.card} />
                   </span>
                 </span>
               </button>
@@ -174,7 +174,7 @@ function Spread({ reading, now }: { reading: Reading; now: number }) {
                   aria-label={`Xem lớn ${line.card.name}`}
                 >
                   <span className={line.reversed ? 'reversed' : ''}>
-                    <TarotCardSvg card={line.card} />
+                    <TarotCardFace card={line.card} />
                   </span>
                 </button>
                 <div>

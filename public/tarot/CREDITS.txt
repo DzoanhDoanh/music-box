@@ -1,0 +1,4 @@
+Card faces 00.jpg–77.jpg: Rider–Waite–Smith tarot, illustrated by Pamela Colman Smith,
+published by William Rider & Son, 1909. Public domain. Scans from Wikimedia Commons
+("RWS Tarot NN Name.jpg", "WandsNN.jpg", "CupsNN.jpg", "SwordsNN.jpg", "PentsNN.jpg"),
+resized to 400 px wide. File numbers follow the deck order in src/shared/tarot/deck.ts.
