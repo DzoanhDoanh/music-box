@@ -44,17 +44,20 @@ test('the picker opens the lobby, a table starts and the first city can be bough
   });
 });
 
-test('a purchase offers up to Nhà 3 and builds in the same stop', async ({ page, context }) => {
+test('a first-lap purchase offers up to Nhà 2 and builds in the same stop', async ({
+  page,
+  context,
+}) => {
   const fixture = await tyPhuFixture(context);
   await openNewTable(page);
   await page.getByRole('button', { name: 'Bắt đầu ván' }).click();
   fixture.nextDice.push(1, 2); // 3 steps → Lạng Sơn (Mốc 60)
   await page.getByRole('button', { name: 'Tung xúc xắc' }).click();
   const buy = page.getByRole('dialog', { name: 'Mua Lạng Sơn?' });
-  await expect(buy.getByRole('button', { name: /^Mua Nhà 3 · 265/ })).toBeVisible();
-  await expect(buy.getByRole('button', { name: /Khách sạn/ })).toHaveCount(0);
-  await buy.getByRole('button', { name: /^Mua Nhà 3 · 265/ }).click();
-  await expect.poll(() => fixture.match!.tiles[3]).toMatchObject({ owner: me, level: 3 });
+  await expect(buy.getByRole('button', { name: /^Mua Nhà 2 · 205/ })).toBeVisible();
+  await expect(buy.getByRole('button', { name: /Nhà 3|Khách sạn/ })).toHaveCount(0);
+  await buy.getByRole('button', { name: /^Mua Nhà 2 · 205/ }).click();
+  await expect.poll(() => fixture.match!.tiles[3]).toMatchObject({ owner: me, level: 2 });
 });
 
 test('attack cards highlight valid targets and lower the chosen city', async ({

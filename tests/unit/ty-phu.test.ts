@@ -175,14 +175,27 @@ describe('Tỷ Phú money formulas', () => {
 });
 
 describe('Tỷ Phú building', () => {
-  it('builds up to Nhà 3 at any lap and needs Nhà 3 before a hotel', () => {
-    expect(buildCap(0)).toBe(3);
-    expect(buildCap(2)).toBe(3);
-    expect(buildCap(3)).toBe(HOTEL);
+  it('lap 1 builds to Nhà 2, lap 2 to Nhà 3, and a hotel needs lap 3 and Nhà 3 first', () => {
+    expect(buildCap({ lap: 1 }, 0)).toBe(2);
+    expect(buildCap({ lap: 1 }, 3)).toBe(2);
+    expect(buildCap({ lap: 2 }, 0)).toBe(3);
+    expect(buildCap({ lap: 2 }, 3)).toBe(3);
+    expect(buildCap({ lap: 3 }, 2)).toBe(3);
+    expect(buildCap({ lap: 3 }, 3)).toBe(HOTEL);
   });
-  it('buys an empty tile straight up to Nhà 3 for that level’s total price', () => {
+  it('on the first lap an empty tile can only be bought up to Nhà 2', () => {
     let s = started();
     const first = s.turn!;
+    s = run(s, first, { action: 'roll' }, scripted([2, 3]));
+    expect(s.phase).toBe('BUY');
+    expect(code(() => run(s, first, { action: 'buy', level: 3 }))).toBe('TYPHU_BUILD_LIMIT');
+    s = run(s, first, { action: 'buy', level: 2 });
+    expect(s.tiles[5]).toEqual({ owner: first, level: 2, blackout: 0 });
+  });
+  it('from lap 2 an empty tile can be bought straight up to Nhà 3', () => {
+    let s = started();
+    const first = s.turn!;
+    who(s, first).lap = 2;
     s = run(s, first, { action: 'roll' }, scripted([2, 3])); // lands on 5 (Sa Pa)
     expect(s.phase).toBe('BUY');
     expect(code(() => run(s, first, { action: 'buy', level: 4 }))).toBe('TYPHU_BUILD_LIMIT');
@@ -194,6 +207,7 @@ describe('Tỷ Phú building', () => {
   it('a stop at Nhà 2 can reach Nhà 3 but not jump to the hotel', () => {
     let s = started();
     const first = s.turn!;
+    who(s, first).lap = 3;
     own(s, 5, first, 2);
     s = run(s, first, { action: 'roll' }, scripted([2, 3]));
     expect(s.phase).toBe('BUILD');
@@ -330,6 +344,16 @@ describe('Tỷ Phú chance cards', () => {
     s = run(s, p, { action: 'card_target', tile: 1, player: other });
     expect(s.tiles[1]!.owner).toBe(other);
   });
+  it('the eviction card wipes the tile out with no refund, leaving it empty', () => {
+    let s = started();
+    const [p, other] = [s.turn!, s.players.find((x) => x.id !== s.turn)!.id];
+    own(s, 1, other, 3);
+    const before = who(s, other).cash;
+    s = draw(s, 'EVICT');
+    s = run(s, p, { action: 'card_target', tile: 1 });
+    expect(s.tiles[1]).toBeNull();
+    expect(who(s, other).cash).toBe(before);
+  });
   it('a targeted card without any valid target has no effect', () => {
     let s = started();
     s = draw(s, 'EVICT');
@@ -338,6 +362,29 @@ describe('Tỷ Phú chance cards', () => {
 });
 
 describe('Tỷ Phú corners, fees, chance reveal and pause', () => {
+  it('stopping on the jail corner puts the player in jail', () => {
+    let s = started();
+    const p = s.turn!;
+    who(s, p).position = 5;
+    s = run(s, p, { action: 'roll' }, scripted([1, 2]));
+    expect(who(s, p).position).toBe(JAIL_INDEX);
+    expect(who(s, p).jailed).toBe(true);
+    expect(s.turn).not.toBe(p);
+  });
+  it('after the flight the player rolls the dice as usual', () => {
+    let s = started();
+    const p = s.turn!;
+    who(s, p).position = 24;
+    who(s, p).flyNext = true;
+    s.phase = 'FLY';
+    s = run(s, p, { action: 'fly', to: 3 });
+    expect(s.phase).toBe('BUY');
+    s = run(s, p, { action: 'skip' });
+    expect(s.turn).toBe(p);
+    expect(s.phase).toBe('ROLL');
+    s = run(s, p, { action: 'roll' }, scripted([1, 2]));
+    expect(who(s, p).position).toBe(6);
+  });
   it('jail, festival and airport end the turn even after a double', () => {
     for (const [from, corner] of [
       [6, 8],
@@ -667,6 +714,7 @@ describe('Tỷ Phú computer seats and rematch', () => {
     s = run(s, A, { action: 'start' });
     const bot = who(s, botIds[0]);
     bot.position = 22;
+    bot.lap = 2;
     s.turn = bot.id;
     s.phase = 'BUY';
     s.pending = { tile: 22 };
@@ -763,7 +811,7 @@ function botCommand(s: TyPhuState, random: () => number): TyPhuCommand {
     case 'BUY': {
       const t = board[s.pending!.tile!];
       if (random() < 0.15) return { action: 'skip' };
-      const levels = t.kind === 'BEACH' ? [0] : [0, 1, 2, 3].filter((l) => l <= buildCap(0));
+      const levels = t.kind === 'BEACH' ? [0] : [0, 1, 2, 3].filter((l) => l <= buildCap(p, 0));
       const affordable = levels.filter((l) => t.price! + buildCost(t.index, 0, l) <= p.cash);
       return { action: 'buy', level: pick(affordable) };
     }
@@ -773,7 +821,7 @@ function botCommand(s: TyPhuState, random: () => number): TyPhuCommand {
       const options = [1, 2, 3, 4].filter(
         (l) =>
           l > level &&
-          l <= buildCap(s.pending!.from ?? level) &&
+          l <= buildCap(p, s.pending!.from ?? level) &&
           buildCost(index, level, l) <= p.cash,
       );
       return options.length && random() < 0.8
@@ -803,7 +851,7 @@ function botCommand(s: TyPhuState, random: () => number): TyPhuCommand {
         const owned = s.tiles[c.index];
         return (
           owned?.owner === p.id &&
-          owned.level < buildCap(owned.level) &&
+          owned.level < buildCap(p, owned.level) &&
           buildCost(c.index, owned.level, owned.level + 1) <= p.cash
         );
       });

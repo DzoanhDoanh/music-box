@@ -291,7 +291,7 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
     else if (state.phase === 'START_BUILD')
       selectable = ownCities.filter((i) => {
         const level = state.tiles[i]!.level;
-        return level < buildCap(level) && buildCost(i, level, level + 1) <= mine.cash;
+        return level < buildCap(mine, level) && buildCost(i, level, level + 1) <= mine.cash;
       });
     else if (state.phase === 'FLY') selectable = flyTargets(engine, mine);
     else if (state.phase === 'DEBT')
@@ -545,7 +545,7 @@ function DecisionPopup({
   let title: string;
   let body: ReactNode;
   if (state.phase === 'BUY') {
-    const maxLevel = t.kind === 'BEACH' ? 0 : buildCap(0);
+    const maxLevel = t.kind === 'BEACH' ? 0 : buildCap(mine, 0);
     title = `Mua ${t.name}?`;
     body = (
       <>
@@ -580,7 +580,7 @@ function DecisionPopup({
     );
   } else if (state.phase === 'BUILD') {
     const level = owned!.level;
-    const cap = buildCap(state.pending?.from ?? level);
+    const cap = buildCap(mine, state.pending?.from ?? level);
     title = `Nâng nhà ở ${t.name}`;
     body = (
       <>
@@ -1251,9 +1251,9 @@ function TileDetail({
           {
             {
               START: 'Đi qua nhận 200 và lên vòng mới. Dừng đúng ô được xây thêm 1 cấp.',
-              JAIL: `Dừng ở đây là hết lượt. Bị giữ tối đa 3 lượt; ra bằng tung đôi, nộp ${JAIL_FINE} hoặc Thẻ VIP.`,
+              JAIL: `Dừng ở đây là vào tù. Bị giữ tối đa 3 lượt; ra bằng tung đôi, nộp ${JAIL_FINE} hoặc Thẻ VIP.`,
               FESTIVAL: `Dừng ở đây là hết lượt. Trả ${FESTIVAL_FEE} để một thành phố của mình tổ chức Đại nhạc hội: tiền thuê ×2.`,
-              AIRPORT: `Dừng ở đây là hết lượt. Lượt sau bay tới ô đất trống hoặc đất của mình (phí ${FLY_FEE}).`,
+              AIRPORT: `Dừng ở đây là hết lượt. Lượt sau bay tới ô đất trống hoặc đất của mình (phí ${FLY_FEE}), rồi tung xúc xắc đi tiếp.`,
               CHANCE: 'Rút một trong 15 phiếu Cơ hội.',
               TAX: 'Nộp 10% tổng giá trị đất và nhà đang sở hữu.',
               CITY: '',

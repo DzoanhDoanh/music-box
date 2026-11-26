@@ -453,3 +453,14 @@ của từng thành phố; tiền khởi đầu vẫn 2.000.
 - Biển: giá 200, bán ngân hàng 200; thuê 50 / 100 / 200 / 400 cho 1 / 2 / 3 / 4 bãi (có đủ 4 bãi
   là thắng ngay, nên mức 400 chỉ ghi cho đủ bảng).
 - Ván đang chơi dở chuyển sang bảng giá mới ngay; cấp nhà đã xây giữ nguyên.
+
+## Cập nhật 2026-11-26: góp ý lần 3
+
+- **Xây theo vòng (khôi phục):** vòng 1 (chưa qua Xuất phát) mua/xây tối đa Nhà 2; vòng 2 tối đa
+  Nhà 3; từ vòng 3 mới lên Khách sạn, và ô phải đã ở Nhà 3 lúc dừng chân. Giá vẫn không tăng
+  theo vòng. Dòng "Không còn giới hạn theo vòng" ở mục bảng giá mới không còn đúng.
+- **Nhà tù:** dừng ở ô Nhà tù (do tung xúc xắc hay bị đưa tới) là vào tù luôn, không còn "ghé thăm".
+- **Sân bay:** lượt sau, người chơi bay tới ô chọn, xử lý ô đó (mua, trả thuê…) rồi tung xúc xắc đi
+  tiếp như một lượt bình thường. Bỏ bay thì tung xúc xắc như thường.
+- **Phiếu Thu hồi mặt bằng:** xóa sổ ô của đối thủ, cả nhà lẫn đất (cọc). Chủ không nhận lại gì,
+  ô trở thành đất trống.

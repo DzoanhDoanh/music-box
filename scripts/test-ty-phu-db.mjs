@@ -293,7 +293,7 @@ export async function testTyPhu({ sql, owner, check }) {
         return { action: 'card_ok' };
       case 'BUY': {
         const t = board[state.pending.tile];
-        const level = t.kind === 'BEACH' ? 0 : Math.min(buildCap(0), 2);
+        const level = t.kind === 'BEACH' ? 0 : Math.min(buildCap({ lap: 1 }, 0), 2);
         for (let l = level; l >= 0; l--)
           if (t.price + buildCost(t.index, 0, l) <= p.cash) return { action: 'buy', level: l };
         return { action: 'skip' };
@@ -301,7 +301,10 @@ export async function testTyPhu({ sql, owner, check }) {
       case 'BUILD': {
         const index = state.pending.tile,
           level = state.tiles[index].level,
-          cap = buildCap(state.pending.from ?? level);
+          cap = buildCap(
+            state.players.find((x) => x.id === state.turn),
+            state.pending.from ?? level,
+          );
         if (cap > level && buildCost(index, level, level + 1) <= p.cash)
           return { action: 'build', level: level + 1 };
         return { action: 'skip' };

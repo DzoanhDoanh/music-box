@@ -43,7 +43,7 @@ export const cards: Record<
     name: 'Thu hồi mặt bằng',
     kind: 'ATTACK',
     target: 'OPPONENT_CITY',
-    text: 'Một thành phố của đối thủ trả về ngân hàng, chủ nhận lại đủ tổng giá hiện tại.',
+    text: 'Xóa sổ một thành phố của đối thủ, cả nhà lẫn đất. Chủ không nhận lại gì, ô thành đất trống.',
   },
   BLACKOUT: {
     name: 'Mất điện toàn khu',

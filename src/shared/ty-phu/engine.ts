@@ -339,8 +339,13 @@ function sellToBank(s: TyPhuState, p: TyPhuPlayer, index: number, now: number) {
 // ---------------------------------------------------------------- building
 
 /** Highest level this player may build to on a tile during the current stop. */
-/** Up to Nhà 3 at any time; a hotel only on a tile that was already at Nhà 3 when the stop began. */
-export function buildCap(levelAtStopStart: number) {
+/**
+ * Lap 1: up to Nhà 2. Lap 2: up to Nhà 3. From lap 3 a hotel, but only on a tile that was
+ * already at Nhà 3 when the stop began.
+ */
+export function buildCap(p: Pick<TyPhuPlayer, 'lap'>, levelAtStopStart: number) {
+  if (p.lap <= 1) return 2;
+  if (p.lap === 2) return 3;
   return levelAtStopStart >= 3 ? HOTEL : 3;
 }
 /** Upgrading costs the difference between the two total prices. */
@@ -352,7 +357,7 @@ function canBuildOn(s: TyPhuState, p: TyPhuPlayer, index: number) {
   return (
     tile(index).kind === 'CITY' &&
     owned?.owner === p.id &&
-    owned.level < buildCap(owned.level) &&
+    owned.level < buildCap(p, owned.level) &&
     p.cash >= buildCost(index, owned.level, owned.level + 1)
   );
 }
@@ -462,8 +467,9 @@ function land(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom): voi
         return setPhase(s, 'START_BUILD', now);
       return settle(s, now);
     // Jail, the festival corner and the airport end the turn, even after a double.
+    // Stopping on the jail corner locks the player up, like the Jail card.
     case 'JAIL':
-      s.extraRoll = false;
+      sendToJail(s, p, now);
       return settle(s, now);
     case 'FESTIVAL':
       s.extraRoll = false;
@@ -604,10 +610,9 @@ function applyCard(
         owned.level = 0;
         log(s, now, 'demolish', `Toàn bộ nhà ở ${t!.name} bị phá dỡ.`, p.id);
       } else if (card === 'EVICT') {
-        const refund = bankSalePrice(s, t!.index);
+        // Wiped out, land deposit included: the owner gets nothing back and the tile is empty.
         releaseTile(s, t!.index);
-        receive(s, victim, refund);
-        log(s, now, 'evict', `${t!.name} bị thu hồi; ${victim.name} nhận lại ${refund}.`, p.id);
+        log(s, now, 'evict', `${t!.name} bị xóa sổ; ${victim.name} mất trắng ô này.`, p.id);
       } else {
         owned.blackout = 2;
         log(s, now, 'blackout', `${t!.name} mất điện trong 2 lượt của ${victim.name}.`, p.id);
@@ -947,7 +952,7 @@ function apply(
       const index = s.pending!.tile!,
         t = tile(index);
       if (t.kind === 'BEACH' && command.level !== 0) fail();
-      if (command.level > buildCap(0)) fail('TYPHU_BUILD_LIMIT');
+      if (command.level > buildCap(p, 0)) fail('TYPHU_BUILD_LIMIT');
       const cost = (t.price ?? 0) + buildCost(index, 0, command.level);
       spend(s, p, cost);
       s.tiles[index] = { owner: p.id, level: command.level, blackout: 0 };
@@ -964,7 +969,10 @@ function apply(
       requireTurn(s, actor, 'BUILD');
       const index = s.pending!.tile!,
         owned = s.tiles[index]!;
-      if (command.level <= owned.level || command.level > buildCap(s.pending!.from ?? owned.level))
+      if (
+        command.level <= owned.level ||
+        command.level > buildCap(p, s.pending!.from ?? owned.level)
+      )
         fail('TYPHU_BUILD_LIMIT');
       const cost = buildCost(index, owned.level, command.level);
       spend(s, p, cost);
@@ -1087,7 +1095,8 @@ function apply(
       p.flyNext = p.freeFly = false;
       log(s, now, 'fly', `${p.name} bay tới ${tile(command.to).name}.`, p.id);
       moveTo(s, p, command.to, now);
-      s.extraRoll = false;
+      // The flight is only the first leg: after the stop is settled the player rolls as usual.
+      s.extraRoll = true;
       return land(s, p, now, rng);
     }
   }
@@ -1223,13 +1232,13 @@ function botAct(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) {
       const price = t.price ?? 0;
       if (t.kind === 'BEACH')
         return run(budget >= price ? { action: 'buy', level: 0 } : { action: 'skip' });
-      for (let level = buildCap(0); level >= 0; level--)
+      for (let level = buildCap(p, 0); level >= 0; level--)
         if (price + buildCost(index!, 0, level) <= budget) return run({ action: 'buy', level });
       return run({ action: 'skip' });
     }
     case 'BUILD': {
       const owned = s.tiles[index!]!;
-      for (let level = buildCap(s.pending!.from ?? owned.level); level > owned.level; level--)
+      for (let level = buildCap(p, s.pending!.from ?? owned.level); level > owned.level; level--)
         if (buildCost(index!, owned.level, level) <= budget) return run({ action: 'build', level });
       return run({ action: 'skip' });
     }
