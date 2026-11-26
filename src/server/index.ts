@@ -30,6 +30,7 @@ import {
   type TarotReading,
   type TarotSnapshot,
 } from '../shared/tarot/contracts';
+import { writeClaimedTarotReading, writeTarotReading } from './services/tarot-ai';
 import { BauCuaService } from './services/bau-cua';
 import { commandSchema as bauCommandSchema } from '../shared/bau-cua/contracts';
 import { DuckRaceService } from './services/duck-race';
@@ -107,6 +108,7 @@ app.get('/api/v1/system/health', (c) =>
     duckRaceEnabled: c.env.ENABLE_DUCK_RACE === 'true',
     tyPhuEnabled: c.env.ENABLE_TY_PHU === 'true',
     tarotEnabled: c.env.ENABLE_TAROT === 'true',
+    tarotAi: c.env.ENABLE_TAROT === 'true' && Boolean(c.env.GEMINI_API_KEY),
     version: '0.1.0',
   }),
 );
@@ -322,16 +324,51 @@ app.get('/api/v1/rooms/:id/tarot', async (c) =>
     }),
   ),
 );
-app.post('/api/v1/rooms/:id/tarot', async (c) =>
-  c.json(
-    await c.get('services').store.call<TarotReading>('tarot_draw', {
-      p_actor: c.get('actor'),
-      p_room: uuid.parse(c.req.param('id')),
-      p_request: requestKey(c.req.header('Idempotency-Key')),
-      p_command: tarotCommandSchema.parse(await c.req.json()),
-    }),
-  ),
-);
+app.use('/api/v1/rooms/:id/tarot/*', async (c, next) => {
+  if (c.env.ENABLE_TAROT !== 'true') throw new AppError('NOT_FOUND', 404);
+  await next();
+});
+// Write the long AI reading after the response, so the cards start flipping right away.
+function inBackground(
+  c: { executionCtx: { waitUntil(promise: Promise<unknown>): void } },
+  task: Promise<unknown>,
+) {
+  const settled = task.catch((error) => console.error('background task failed', error));
+  try {
+    c.executionCtx.waitUntil(settled);
+  } catch {
+    // No execution context outside Workers (tests): the promise still runs to completion.
+  }
+}
+app.post('/api/v1/rooms/:id/tarot', async (c) => {
+  const actor = c.get('actor'),
+    room = uuid.parse(c.req.param('id'));
+  const store = c.get('services').store;
+  const reading = await store.call<TarotReading>('tarot_draw', {
+    p_actor: actor,
+    p_room: room,
+    p_request: requestKey(c.req.header('Idempotency-Key')),
+    p_command: tarotCommandSchema.parse(await c.req.json()),
+  });
+  if (c.env.GEMINI_API_KEY)
+    inBackground(c, writeTarotReading(store, c.env, actor, room, reading.id));
+  return c.json(reading);
+});
+// The person who drew may ask again when the AI reading failed or was lost.
+app.post('/api/v1/rooms/:id/tarot/:reading/ai', async (c) => {
+  if (!c.env.GEMINI_API_KEY) throw new AppError('NOT_FOUND', 404);
+  const actor = c.get('actor'),
+    room = uuid.parse(c.req.param('id')),
+    readingId = uuid.parse(c.req.param('reading'));
+  const store = c.get('services').store;
+  const reading = await store.call<TarotReading | null>('tarot_ai_claim', {
+    p_actor: actor,
+    p_room: room,
+    p_reading: readingId,
+  });
+  if (reading) inBackground(c, writeClaimedTarotReading(store, c.env, room, reading));
+  return c.json({ started: Boolean(reading) });
+});
 // Require an explicit runtime flag so targets without the game migration remain safe.
 app.use('/api/v1/rooms/:id/games', async (c, next) => {
   if (c.env.ENABLE_LUDO !== 'true') throw new AppError('NOT_FOUND', 404);

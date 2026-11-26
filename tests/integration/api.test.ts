@@ -19,6 +19,7 @@ describe('Hono boundary', () => {
       duckRaceEnabled: false,
       tyPhuEnabled: false,
       tarotEnabled: false,
+      tarotAi: false,
       version: '0.1.0',
     });
     expect(response.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');

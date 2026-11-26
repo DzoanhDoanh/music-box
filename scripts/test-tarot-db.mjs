@@ -120,6 +120,72 @@ export async function testTarot({ sql, owner, users, check }) {
     );
   });
 
+  await check('tarot AI readings are claimed by the drawer, stored once and shared', async () => {
+    const room = await fixture();
+    const claim = async (actor, reading) =>
+      (await sql`select public.tarot_ai_claim(${actor}::uuid,${room}::uuid,${reading}::uuid) r`)[0]
+        .r;
+    const save = async (reading, ok, text) =>
+      (await sql`select public.tarot_ai_save(${room}::uuid,${reading}::uuid,${ok},${text}) r`)[0].r;
+    const version = async () =>
+      (await sql`select version from public.rooms where id=${room}::uuid`)[0].version;
+    const reading = await draw(member, room, three);
+    await assert.rejects(claim(owner, reading.id), /PERMISSION_DENIED/);
+    await assert.rejects(claim(member, randomUUID()), /NOT_FOUND/);
+    const before = await version();
+    const claimed = await claim(member, reading.id);
+    assert.equal(claimed.id, reading.id);
+    assert.equal(claimed.ai.status, 'pending');
+    assert.equal(claimed.ai.attempts, 1);
+    assert.ok((await version()) > before);
+    // While one attempt is running nobody can start another.
+    assert.equal(await claim(member, reading.id), null);
+    assert.equal((await read(owner, room)).latest.ai.status, 'pending');
+    await assert.rejects(save(reading.id, true, '   '), /INVALID_INPUT/);
+    await assert.rejects(save(reading.id, true, 'x'.repeat(8001)), /INVALID_INPUT/);
+    assert.equal(await save(reading.id, false, null), true);
+    assert.equal((await read(owner, room)).latest.ai.status, 'failed');
+    assert.equal(await save(reading.id, true, 'late'), false);
+    // A failed reading may be retried, up to three attempts.
+    assert.equal((await claim(member, reading.id)).ai.attempts, 2);
+    assert.equal(
+      await save(reading.id, true, '## Mở đầu' + String.fromCharCode(10) + 'Nội dung dài.'),
+      true,
+    );
+    const seen = (await read(owner, room)).latest;
+    assert.equal(seen.ai.status, 'done');
+    assert.equal(seen.ai.text, '## Mở đầu' + String.fromCharCode(10) + 'Nội dung dài.');
+    assert.equal(seen.ai.attempts, 2);
+    assert.deepEqual(
+      { ...seen, ai: undefined },
+      { ...reading, ai: undefined },
+      'the cards themselves never change',
+    );
+    assert.equal(await claim(member, reading.id), null);
+    // A pending attempt that was lost (worker gone) can be claimed again after 90 seconds.
+    await allowAgain(room);
+    const other = await draw(member, room, three);
+    await claim(member, other.id);
+    assert.equal(await claim(member, other.id), null);
+    await sql`update private.tarot_readings set result=jsonb_set(result,'{ai,at}',to_jsonb(now()-interval '2 minutes')) where id=${other.id}::uuid`;
+    assert.equal((await claim(member, other.id)).ai.attempts, 2);
+    await save(other.id, false, null);
+    assert.equal((await claim(member, other.id)).ai.attempts, 3);
+    await save(other.id, false, null);
+    assert.equal(await claim(member, other.id), null, 'no fourth attempt');
+    for (const query of [
+      `select public.tarot_ai_claim('${member}','${room}','${reading.id}')`,
+      `select public.tarot_ai_save('${room}','${reading.id}',true,'x')`,
+    ])
+      await assert.rejects(
+        sql.begin(async (tx) => {
+          await tx.unsafe('set local role authenticated');
+          await tx.unsafe(query);
+        }),
+        /permission denied/,
+      );
+  });
+
   await check('concurrent tarot requests with one key commit one reading', async () => {
     const room = await fixture(),
       key = randomUUID();

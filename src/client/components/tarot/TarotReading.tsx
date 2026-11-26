@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { History, Moon, Shuffle, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -24,6 +24,7 @@ import { isConnectionError } from '../../../shared/auth-errors';
 import { api, supabase } from '../../lib/api';
 import { RealtimeService } from '../../lib/realtime';
 import { Button, Loading, Modal } from '../ui';
+import { TarotAiText } from './TarotAiText';
 import { TarotCardBack, TarotCardFace } from './TarotArt';
 // The room layout for full-width tools (.wheel-screen) lives with the lucky wheel.
 import '../lucky-wheel.css';
@@ -99,7 +100,16 @@ function CardZoom({ line, onClose }: { line: TarotLine | null; onClose: () => vo
   );
 }
 
-function Spread({ reading, now }: { reading: Reading; now: number }) {
+function Spread({
+  reading,
+  now,
+  ai,
+}: {
+  reading: Reading;
+  now: number;
+  /** The long AI reading, shown once every card is face up. */
+  ai: ReactNode;
+}) {
   const [zoom, setZoom] = useState<number | null>(null);
   const elapsed = now - Date.parse(reading.created_at);
   const gathering = elapsed < TAROT_SHUFFLE_MS;
@@ -163,6 +173,7 @@ function Spread({ reading, now }: { reading: Reading; now: number }) {
             )}
           </div>
         )}
+        {done && ai}
         {result.lines.map(
           (line, i) =>
             elapsed >= flipAt(i) && (
@@ -439,6 +450,15 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
                 key={shown.id}
                 reading={shown}
                 now={shown.id === latest?.id ? serverNow : Number.POSITIVE_INFINITY}
+                ai={
+                  <TarotAiText
+                    reading={shown}
+                    room={room}
+                    me={actor}
+                    now={serverNow}
+                    onChange={() => void client.invalidateQueries({ queryKey: key })}
+                  />
+                }
               />
               {viewing && latest && viewing !== latest.id && (
                 <Button className="tarot-back-latest" onClick={() => setViewing(null)}>

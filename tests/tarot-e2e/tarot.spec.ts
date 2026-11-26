@@ -9,7 +9,7 @@ import type {
   TarotSnapshot,
 } from '../../src/shared/tarot/contracts';
 
-async function fixture(page: Page) {
+async function fixture(page: Page, options: { ai?: boolean } = {}) {
   const music = gameFixture();
   await music.attach(page.context(), 1);
   await fakeMusic(page.context());
@@ -36,7 +36,7 @@ async function fixture(page: Page) {
     const now = Date.now();
     const result: TarotReading = receipts.get(key) ?? {
       id: crypto.randomUUID(),
-      actor: ids[0],
+      actor: ids[1], // the viewer attached below
       actor_name: 'An',
       spread: command.spread,
       topic: command.topic,
@@ -44,6 +44,9 @@ async function fixture(page: Page) {
       cards: next.slice(0, count),
       created_at: new Date(now).toISOString(),
       reveal_at: new Date(now + 1500 + 900 * count).toISOString(),
+      ...(options.ai && {
+        ai: { status: 'pending' as const, at: new Date(now).toISOString(), attempts: 1 },
+      }),
     };
     if (!receipts.has(key)) {
       receipts.set(key, result);
@@ -55,8 +58,30 @@ async function fixture(page: Page) {
       return route.fulfill({ status: 503, json: { error: { code: 'BACKEND_UNAVAILABLE' } } });
     return route.fulfill({ json: result });
   });
+  const retries: string[] = [];
+  await page.route('**/api/v1/rooms/*/tarot/*/ai', async (route) => {
+    const id = route.request().url().split('/').at(-2)!;
+    retries.push(id);
+    const reading = state.recent.find((r) => r.id === id)!;
+    reading.ai = {
+      status: 'pending',
+      at: new Date().toISOString(),
+      attempts: (reading.ai?.attempts ?? 0) + 1,
+    };
+    return route.fulfill({ json: { started: true } });
+  });
   await page.goto(`/room/${room}`);
   return {
+    retries,
+    finishAi(text: string | null) {
+      const reading = state.latest!;
+      reading.ai = {
+        status: text ? 'done' : 'failed',
+        at: new Date().toISOString(),
+        attempts: reading.ai?.attempts ?? 1,
+        ...(text && { text }),
+      };
+    },
     music,
     state,
     requests,
@@ -216,4 +241,48 @@ test('the tarot panel passes accessibility checks in both themes and respects re
     .first()
     .evaluate((node) => parseFloat(getComputedStyle(node).transitionDuration));
   expect(flip).toBeLessThan(0.01);
+});
+
+const aiText = [
+  '## Mở đầu',
+  'Câu hỏi của bạn mở ra một chặng mới. **Năng lượng chung** đang đi lên.',
+  '',
+  '## Kẻ Khờ ở vị trí Quá khứ',
+  'Bạn đã từng dám bắt đầu mà không cần biết trước mọi thứ.',
+  '<script>window.injected = true</script>',
+].join('\n');
+
+test('the long AI reading appears after the flip, and a failed one can be retried', async ({
+  page,
+}) => {
+  const f = await fixture(page, { ai: true });
+  await chooseRoomTab(page, 'Bói Tarot');
+  const panel = page.getByRole('region', { name: 'Bói Tarot', exact: true });
+  await pickCards(panel, 3);
+  await expect(card(panel, 'Tương lai: Mặt Trời')).toBeVisible();
+  await expect(panel.getByRole('status', { name: 'Đang luận giải chi tiết' })).toBeVisible();
+  f.finishAi(null);
+  await expect(
+    panel.getByText('Chưa viết được phần luận giải chi tiết.', { exact: false }),
+  ).toBeVisible({
+    timeout: 10_000,
+  });
+  await panel.getByRole('button', { name: 'Luận giải lại' }).click();
+  await expect(panel.getByRole('status', { name: 'Đang luận giải chi tiết' })).toBeVisible();
+  expect(f.retries).toEqual([f.state.latest!.id]);
+  f.finishAi(aiText);
+  const section = panel.getByRole('region', { name: 'Luận giải chi tiết' });
+  await expect(section).toBeVisible({ timeout: 10_000 });
+  await expect(section.getByRole('heading', { name: 'Kẻ Khờ ở vị trí Quá khứ' })).toBeVisible();
+  await expect(section.locator('strong')).toHaveText('Năng lượng chung');
+  // Model output is text, never markup.
+  await expect(section.getByText('<script>window.injected = true</script>')).toBeVisible();
+  expect(await page.evaluate(() => 'injected' in window)).toBe(false);
+  // The per-card meanings are still there below the long reading.
+  await expect(panel.getByText('Dòng chảy năng lượng')).toBeVisible();
+  const scan = await new AxeBuilder({ page })
+    .include('.tarot-ai')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze();
+  expect(scan.violations).toEqual([]);
 });

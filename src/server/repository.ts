@@ -21,6 +21,9 @@ export interface Env {
   ENABLE_DUCK_RACE?: string;
   ENABLE_TY_PHU?: string;
   ENABLE_TAROT?: string;
+  /** Google AI Studio key; when set, Tarot readings get a long AI-written interpretation. */
+  GEMINI_API_KEY?: string;
+  GEMINI_MODEL?: string;
 }
 export type UpstreamTiming = (stage: 'auth' | 'limits' | 'data', ms: number) => void;
 export function database(env: Env, timing?: UpstreamTiming): SupabaseClient {

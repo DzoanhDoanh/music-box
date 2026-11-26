@@ -78,7 +78,19 @@ export interface TarotReading {
   created_at: string;
   /** All viewers flip the cards together; the last card is face up at this moment. */
   reveal_at: string;
+  /** Long reading written by AI after the draw; absent when AI is not configured. */
+  ai?: TarotAi;
 }
+export interface TarotAi {
+  status: 'pending' | 'done' | 'failed';
+  /** When the current status was set. */
+  at: string;
+  attempts: number;
+  text?: string;
+}
+/** A pending AI reading older than this is treated as lost and may be retried. */
+export const TAROT_AI_STALE_MS = 90_000;
+export const TAROT_AI_MAX_ATTEMPTS = 3;
 export interface TarotSnapshot {
   server_time: string;
   latest: TarotReading | null;

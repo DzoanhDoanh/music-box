@@ -16,3 +16,8 @@ ENABLE_DUCK_RACE=false
 ENABLE_TY_PHU=false
 # Requires 202611260002_tarot.sql and VITE_ENABLE_TAROT=true at build time.
 ENABLE_TAROT=false
+# Optional: Google AI Studio key (https://aistudio.google.com/apikey). When set, every Tarot
+# reading also gets a long AI-written interpretation. Requires 202611260004_tarot_ai.sql.
+GEMINI_API_KEY=
+# Optional model override; defaults to gemini-flash-latest, falling back to gemini-flash-lite-latest when busy.
+GEMINI_MODEL=

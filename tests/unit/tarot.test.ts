@@ -126,3 +126,45 @@ describe('Tarot interpretation', () => {
     expect(reading.flow?.name).toBe('Chuyển hóa tích cực');
   });
 });
+
+describe('Tarot AI text', () => {
+  it('splits headings and paragraphs and keeps only bold as markup', async () => {
+    const { aiBlocks } = await import('../../src/client/components/tarot/TarotAiText');
+    expect(
+      aiBlocks('## Mở đầu\nDòng một\ndòng hai\n\n- Ý **chính**\n### Lá 1: **Kẻ Khờ**\n<b>x</b>'),
+    ).toEqual([
+      { kind: 'h', text: 'Mở đầu' },
+      { kind: 'p', text: 'Dòng một dòng hai' },
+      { kind: 'p', text: 'Ý **chính**' },
+      { kind: 'h', text: 'Lá 1: Kẻ Khờ' },
+      { kind: 'p', text: '<b>x</b>' },
+    ]);
+  });
+  it('builds a prompt with every card, its position and the settled yes/no answer', async () => {
+    const { tarotPrompt } = await import('../../src/server/services/tarot-ai');
+    const prompt = tarotPrompt({
+      id: 'r',
+      actor: 'a',
+      actor_name: 'An',
+      spread: 'YES_NO',
+      topic: 'WORK',
+      question: 'Có nên đổi việc?',
+      cards: [
+        { card: 19, reversed: false },
+        { card: 64, reversed: false },
+        { card: 17, reversed: false },
+      ],
+      created_at: '',
+      reveal_at: '',
+    });
+    for (const text of [
+      'Công việc',
+      '"""Có nên đổi việc?"""',
+      'Vị trí "Câu trả lời"',
+      'XUÔI',
+      'Câu trả lời Có/Không đã xác định: Có, nhưng phải đánh đổi.',
+    ])
+      expect(prompt).toContain(text);
+    expect(prompt).not.toMatch(/\n\n\n/);
+  });
+});
