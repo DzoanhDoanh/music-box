@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AppError } from '../../src/shared/domain';
 import {
+  BEACH_RENTS,
   BOARD_SIZE,
   HOTEL,
   JAIL_INDEX,
@@ -82,7 +83,7 @@ describe('Tỷ Phú board', () => {
     expect(board).toHaveLength(BOARD_SIZE);
     expect(cities).toHaveLength(20);
     expect(beaches).toHaveLength(4);
-    expect(board[29]).toMatchObject({ kind: 'CITY', name: 'Phú Quốc', price: 300 });
+    expect(board[29]).toMatchObject({ kind: 'CITY', name: 'Phú Quốc', price: 210 });
     expect(board.filter((t) => t.kind === 'CHANCE').map((t) => t.index)).toEqual([12, 19, 28]);
     expect(board.filter((t) => t.kind === 'TAX').map((t) => t.index)).toEqual([30]);
     expect([0, 8, 16, 24].map((i) => board[i].kind)).toEqual([
@@ -109,85 +110,111 @@ describe('Tỷ Phú board', () => {
   });
 });
 
+/** The price table of 2026-11-26: totals and rents for Mốc, Nhà 1–3 and the hotel. */
+const priceTable: [number, number[], number[]][] = [
+  [1, [50, 120, 170, 220, 345], [3, 30, 65, 105, 207]],
+  [2, [55, 130, 185, 240, 380], [3, 33, 72, 116, 227]],
+  [3, [60, 145, 205, 265, 415], [4, 36, 78, 126, 248]],
+  [5, [70, 170, 240, 310, 485], [4, 42, 91, 147, 289]],
+  [6, [75, 180, 255, 330, 520], [5, 45, 98, 158, 310]],
+  [7, [85, 205, 290, 375, 585], [5, 51, 111, 179, 351]],
+  [9, [100, 240, 340, 440, 690], [6, 60, 130, 210, 413]],
+  [10, [105, 250, 355, 460, 725], [6, 63, 137, 221, 434]],
+  [11, [110, 265, 375, 485, 760], [7, 66, 143, 231, 454]],
+  [14, [120, 290, 410, 530, 830], [7, 72, 156, 252, 496]],
+  [15, [125, 300, 425, 550, 865], [8, 75, 163, 263, 516]],
+  [17, [140, 335, 475, 615, 965], [8, 84, 182, 294, 578]],
+  [18, [145, 350, 495, 640, 1000], [9, 87, 189, 305, 599]],
+  [21, [160, 385, 545, 705, 1105], [10, 96, 208, 336, 661]],
+  [22, [165, 395, 560, 725, 1140], [10, 99, 215, 347, 681]],
+  [23, [170, 410, 580, 750, 1175], [10, 102, 221, 357, 702]],
+  [26, [185, 445, 630, 815, 1275], [11, 111, 241, 389, 764]],
+  [27, [190, 455, 645, 835, 1310], [11, 114, 247, 399, 785]],
+  [29, [210, 505, 715, 925, 1450], [13, 126, 273, 441, 867]],
+  [31, [220, 530, 750, 970, 1520], [13, 132, 286, 462, 909]],
+];
+
 describe('Tỷ Phú money formulas', () => {
-  it('matches the Đà Lạt worked example in the design', () => {
+  it('matches the price table for every city and level', () => {
+    expect(priceTable.map(([i]) => i)).toEqual(cities.map((c) => c.index));
+    for (const [index, totals, rents] of priceTable) {
+      const s = started();
+      for (let level = 0; level <= HOTEL; level++) {
+        own(s, index, A, level);
+        expect([index, level, currentPrice(s, index)]).toEqual([index, level, totals[level]]);
+        expect([index, level, baseRent(s, index)]).toEqual([index, level, rents[level]]);
+        expect(bankSalePrice(s, index)).toBe(totals[level]);
+        expect(buyoutPrice(s, index)).toBe(2 * totals[level]);
+        if (level)
+          expect(buildCost(index, level - 1, level)).toBe(totals[level] - totals[level - 1]);
+      }
+    }
+  });
+  it('a monopoly raises rent ×1.5 but not the price, and the festival doubles rent', () => {
     const s = started();
     own(s, 22, A, 3);
-    expect(baseRent(s, 22)).toBe(550);
-    expect(buyoutPrice(s, 22)).toBe(825);
-    expect(bankSalePrice(s, 22)).toBe(275);
     own(s, 21, A);
     own(s, 23, A);
-    expect(currentPrice(s, 22)).toBe(825);
-    expect(baseRent(s, 22)).toBe(825);
-    expect(buyoutPrice(s, 22)).toBe(1238);
-    expect(bankSalePrice(s, 22)).toBe(413);
+    expect(currentPrice(s, 22)).toBe(725);
+    expect(baseRent(s, 22)).toBe(Math.round(347 * 1.5));
     s.festival = 22;
-    expect(baseRent(s, 22)).toBe(1650);
-    s.festival = null;
-    s.tiles[22]!.level = HOTEL;
-    expect(baseRent(s, 22)).toBe(1320);
+    expect(baseRent(s, 22)).toBe(Math.round(347 * 1.5 * 2));
   });
-  it('beach rent is 25 / 50 / 200 for 1 / 2 / 3 beaches and ignores level and festival', () => {
+  it('beach rent is 50 / 100 / 200 / 400 by beaches owned and ignores the festival', () => {
     const s = started();
     own(s, 4, A);
-    expect(baseRent(s, 4)).toBe(25);
-    own(s, 13, A);
     expect(baseRent(s, 4)).toBe(50);
+    own(s, 13, A);
+    expect(baseRent(s, 4)).toBe(100);
     own(s, 20, A);
     s.festival = 20;
     expect(baseRent(s, 20)).toBe(200);
+    expect(BEACH_RENTS[4]).toBe(400);
     expect(board[4].price).toBe(200);
-  });
-  it('building costs 0.5 G per level and G for the hotel', () => {
-    expect(buildCost(22, 0, 3)).toBe(330);
-    expect(buildCost(22, 3, 4)).toBe(220);
   });
 });
 
-describe('Tỷ Phú building by lap', () => {
-  it('caps lap 1 at level 2, lap 2 at level 3 and needs level 3 before a hotel', () => {
-    const p = { lap: 1 } as TyPhuState['players'][number];
-    expect(buildCap(p, 0)).toBe(2);
-    expect(buildCap({ ...p, lap: 2 }, 0)).toBe(3);
-    expect(buildCap({ ...p, lap: 3 }, 2)).toBe(3);
-    expect(buildCap({ ...p, lap: 3 }, 3)).toBe(HOTEL);
+describe('Tỷ Phú building', () => {
+  it('builds up to Nhà 3 at any lap and needs Nhà 3 before a hotel', () => {
+    expect(buildCap(0)).toBe(3);
+    expect(buildCap(2)).toBe(3);
+    expect(buildCap(3)).toBe(HOTEL);
   });
-  it('buys land and builds in the same stop within the lap limit', () => {
+  it('buys an empty tile straight up to Nhà 3 for that level’s total price', () => {
     let s = started();
     const first = s.turn!;
     s = run(s, first, { action: 'roll' }, scripted([2, 3])); // lands on 5 (Sa Pa)
     expect(s.phase).toBe('BUY');
-    expect(code(() => run(s, first, { action: 'buy', level: 3 }))).toBe('TYPHU_BUILD_LIMIT');
-    s = run(s, first, { action: 'buy', level: 2 });
-    expect(s.tiles[5]).toEqual({ owner: first, level: 2, blackout: 0 });
-    expect(who(s, first).cash).toBe(2000 - 80 - 80);
+    expect(code(() => run(s, first, { action: 'buy', level: 4 }))).toBe('TYPHU_BUILD_LIMIT');
+    s = run(s, first, { action: 'buy', level: 3 });
+    expect(s.tiles[5]).toEqual({ owner: first, level: 3, blackout: 0 });
+    expect(who(s, first).cash).toBe(2000 - 310);
     expect(moneyInvariant(s)).toBe(4000);
   });
-  it('a stop at level 2 on lap 3 can reach level 3 but not jump to the hotel', () => {
+  it('a stop at Nhà 2 can reach Nhà 3 but not jump to the hotel', () => {
     let s = started();
     const first = s.turn!;
     own(s, 5, first, 2);
-    who(s, first).lap = 3;
     s = run(s, first, { action: 'roll' }, scripted([2, 3]));
     expect(s.phase).toBe('BUILD');
     expect(code(() => run(s, first, { action: 'build', level: 4 }))).toBe('TYPHU_BUILD_LIMIT');
     s = run(s, first, { action: 'build', level: 3 });
     expect(s.tiles[5]!.level).toBe(3);
+    expect(who(s, first).cash).toBe(2000 - 70);
   });
 });
 
 describe('Tỷ Phú rent, buyout and hotels', () => {
-  it('pays rent automatically, then offers a 1.5× buyout that the owner cannot refuse', () => {
+  it('pays rent automatically, then offers a 2× buyout that the owner cannot refuse', () => {
     let s = started();
     const [mover, owner] = [s.turn!, s.players.find((p) => p.id !== s.turn)!.id];
     own(s, 5, owner, 1);
     s = run(s, mover, { action: 'roll' }, scripted([2, 3]));
-    expect(who(s, mover).cash).toBe(2000 - 32);
+    expect(who(s, mover).cash).toBe(2000 - 42);
     expect(s.phase).toBe('BUYOUT');
     s = run(s, mover, { action: 'buyout' });
     expect(s.tiles[5]!.owner).toBe(mover);
-    expect(who(s, owner).cash).toBe(2000 + 32 + 180);
+    expect(who(s, owner).cash).toBe(2000 + 42 + 340);
     expect(moneyInvariant(s)).toBe(4000);
   });
   it('hotels cannot be bought out or targeted by any card', () => {
@@ -256,14 +283,14 @@ describe('Tỷ Phú chance cards', () => {
   it('double fine and half price modify the next rent and cancel each other', () => {
     let s = started();
     const [p, owner] = [s.turn!, s.players.find((x) => x.id !== s.turn)!.id];
-    own(s, 14, owner, 1); // Vinh: rent 64
+    own(s, 14, owner, 1); // Vinh Nhà 1: rent 72
     s = draw(s, 'DOUBLE_FINE');
     expect(who(s, p).fine).toBe(true);
     s.turn = p;
     s.phase = 'ROLL';
     s.extraRoll = false;
     s = run(s, p, { action: 'roll' }, scripted([1, 1])); // 12 → 14
-    expect(who(s, p).cash).toBe(2000 - 128);
+    expect(who(s, p).cash).toBe(2000 - 144);
     expect(who(s, p).fine).toBe(false);
     who(s, p).fine = true;
     who(s, p).half = true;
@@ -271,7 +298,7 @@ describe('Tỷ Phú chance cards', () => {
     s.turn = p;
     s.phase = 'ROLL';
     s = run(s, p, { action: 'roll' }, scripted([1, 1]));
-    expect(who(s, p).cash).toBe(2000 - 128 - 64);
+    expect(who(s, p).cash).toBe(2000 - 144 - 72);
   });
   it('the shield blocks the first attack card aimed at its holder', () => {
     let s = started();
@@ -402,12 +429,12 @@ describe('Tỷ Phú corners, fees, chance reveal and pause', () => {
       expect(s.phase).toBe('FLY');
     }
   });
-  it('a beach sells back to the bank for its full price', () => {
+  it('beaches and cities, hotels included, sell back for their full total price', () => {
     const s = started();
     own(s, 4, A);
     expect(bankSalePrice(s, 4)).toBe(200);
-    own(s, 1, A);
-    expect(bankSalePrice(s, 1)).toBe(Math.round(0.5 * currentPrice(s, 1)));
+    own(s, 1, A, HOTEL);
+    expect(bankSalePrice(s, 1)).toBe(345);
   });
   it('a drawn card waits for everyone to see it, even for automatic seats', () => {
     let s = started();
@@ -452,23 +479,23 @@ describe('Tỷ Phú corners, fees, chance reveal and pause', () => {
 });
 
 describe('Tỷ Phú debts: the player chooses what to sell', () => {
-  /** Mover lands on Sa Pa (owner's Cấp 3, rent 200) holding 100 cash and two cities. */
+  /** Mover lands on Sa Pa (owner's Nhà 3, rent 147) holding 40 cash and two cities. */
   function inDebt() {
     let s = started();
     const [p, owner] = [s.turn!, s.players.find((x) => x.id !== s.turn)!.id];
     own(s, 5, owner, 3);
-    own(s, 1, p); // Hà Giang: bank pays 30
-    own(s, 22, p, 2); // Đà Lạt Cấp 2: bank pays 220
-    who(s, p).cash = 100;
-    s.bank += 1900;
+    own(s, 1, p); // Hà Giang Mốc: bank pays 50
+    own(s, 22, p, 2); // Đà Lạt Nhà 2: bank pays 560
+    who(s, p).cash = 40;
+    s.bank += 1960;
     s = run(s, p, { action: 'roll' }, scripted([2, 3]));
     return { s, p, owner };
   }
   it('enters DEBT instead of selling automatically, and skip is not allowed', () => {
     const { s, p } = inDebt();
     expect(s.phase).toBe('DEBT');
-    expect(s.debt).toMatchObject({ amount: 200, reason: 'RENT', tile: 5 });
-    expect(who(s, p).cash).toBe(100);
+    expect(s.debt).toMatchObject({ amount: 147, reason: 'RENT', tile: 5 });
+    expect(who(s, p).cash).toBe(40);
     expect(code(() => run(s, p, { action: 'skip' }))).toBe('TYPHU_ACTION_INVALID');
   });
   it('sells only the chosen tiles and pays once the cash covers the debt', () => {
@@ -480,8 +507,8 @@ describe('Tỷ Phú debts: the player chooses what to sell', () => {
     expect(s.tiles[22]).toMatchObject({ owner: p });
     s = run(s, p, { action: 'sell', tile: 22 });
     expect(s.debt).toBeNull();
-    expect(who(s, p).cash).toBe(100 + 30 + 220 - 200);
-    expect(who(s, owner).cash).toBe(2000 + 200);
+    expect(who(s, p).cash).toBe(40 + 50 + 560 - 147);
+    expect(who(s, owner).cash).toBe(2000 + 147);
     expect(moneyInvariant(s)).toBe(4000);
   });
   it('cannot sell someone else’s tile', () => {
@@ -494,7 +521,7 @@ describe('Tỷ Phú debts: the player chooses what to sell', () => {
     const { p, owner } = debt;
     s = run(s, p, { action: 'declare_bankrupt' });
     expect(who(s, p).status).toBe('BANKRUPT');
-    expect(who(s, owner).cash).toBe(2100);
+    expect(who(s, owner).cash).toBe(2040);
     expect(s.winner).toBe(owner);
   });
   it('a timeout sells the cheapest tiles first, like before', () => {
@@ -502,7 +529,7 @@ describe('Tỷ Phú debts: the player chooses what to sell', () => {
     const after = reconcile({ ...s, deadline: 0 }, 10, scripted());
     expect(after.tiles[1]).toBeNull();
     expect(after.tiles[22]).toBeNull();
-    expect(who(after, p).cash).toBe(150);
+    expect(who(after, p).cash).toBe(40 + 50 + 560 - 147);
     expect(after.phase).not.toBe('DEBT');
   });
   it('a debt that selling everything cannot cover is immediate bankruptcy', () => {
@@ -519,39 +546,37 @@ describe('Tỷ Phú debts: the player chooses what to sell', () => {
   it('tax and the third failed jail roll use the same choice', () => {
     let s = started();
     const p = s.turn!;
-    own(s, 31, p, 3); // V = 1000 → tax 100
+    own(s, 31, p, HOTEL); // total 1520 → tax 152
     who(s, p).cash = 50;
     who(s, p).position = 28;
     s.bank += 1950;
     s = run(s, p, { action: 'roll' }, scripted([1, 1])); // 28 → 30 (Thuế nhà)
-    expect(s.debt).toMatchObject({ reason: 'TAX', amount: 100 });
+    expect(s.debt).toMatchObject({ reason: 'TAX', amount: 152 });
     s = run(s, p, { action: 'sell', tile: 31 });
-    expect(who(s, p).cash).toBe(50 + 500 - 100);
+    expect(who(s, p).cash).toBe(50 + 1520 - 152);
     let j = started();
     const q = j.turn!;
-    own(j, 22, q, 2); // bank pays 220
+    own(j, 22, q, 2); // bank pays 560
     Object.assign(who(j, q), { jailed: true, jailTries: 2, position: JAIL_INDEX, cash: 40 });
     j.bank += 1960;
     j = run(j, q, { action: 'roll' }, scripted([1, 2]));
     expect(j.debt).toMatchObject({ reason: 'JAIL', amount: 100 });
     j = run(j, q, { action: 'sell', tile: 22 });
-    expect(who(j, q).cash).toBe(40 + 220 - 100);
+    expect(who(j, q).cash).toBe(40 + 560 - 100);
     expect(who(j, q).position).toBe(JAIL_INDEX + 3);
   });
-  it('selling into a broken monopoly that can no longer cover the debt is bankruptcy', () => {
+  it('a hotel sells for its full total and can cover a monopoly rent', () => {
     let s = started();
     const [p, owner] = [s.turn!, s.players.find((x) => x.id !== s.turn)!.id];
-    own(s, 5, owner, 3); // rent 200
-    for (const i of [21, 22, 23]) own(s, i, p); // monopoly: bank pays 150 + 165 + 165
-    who(s, p).cash = 0;
-    s.bank += 2000;
-    s.tiles[5]!.level = HOTEL;
-    own(s, 6, owner);
-    own(s, 7, owner); // owner's monopoly: rent 320 × 1.5 = 480 = everything p could sell
+    for (const i of [5, 6, 7]) own(s, i, owner);
+    s.tiles[5]!.level = HOTEL; // Sa Pa hotel in a monopoly: 289 × 1.5 = 434
+    own(s, 1, p, HOTEL); // Hà Giang hotel: bank pays 345
+    who(s, p).cash = 100;
+    s.bank += 1900;
     s = run(s, p, { action: 'roll' }, scripted([2, 3]));
-    expect(s.phase).toBe('DEBT');
-    s = run(s, p, { action: 'sell', tile: 21 }); // 150; the rest drops to 110 + 110 → 370 < 480
-    expect(who(s, p).status).toBe('BANKRUPT');
+    expect(s.debt).toMatchObject({ amount: 434 });
+    s = run(s, p, { action: 'sell', tile: 1 });
+    expect(who(s, p).cash).toBe(100 + 345 - 434);
     expect(moneyInvariant(s)).toBe(4000);
   });
 });
@@ -636,7 +661,7 @@ describe('Tỷ Phú computer seats and rematch', () => {
     expect(who(s, bot.id).position).toBe(3);
     expect(who(s, bot.id).misses).toBe(0);
   });
-  it('a bot buys and builds within the lap limit but keeps a cash reserve', () => {
+  it('a bot buys up to Nhà 3 but keeps a cash reserve', () => {
     let s = lobby();
     s = run(s, A, { action: 'add_bot' });
     s = run(s, A, { action: 'start' });
@@ -647,7 +672,7 @@ describe('Tỷ Phú computer seats and rematch', () => {
     s.pending = { tile: 22 };
     s.deadline = 0;
     s = reconcile(s, 10, scripted());
-    expect(s.tiles[22]).toMatchObject({ owner: bot.id, level: 2 });
+    expect(s.tiles[22]).toMatchObject({ owner: bot.id, level: 3 });
     let poor = run(lobby(), A, { action: 'add_bot' });
     poor = run(poor, A, { action: 'start' });
     who(poor, botIds[0]).cash = 300;
@@ -738,7 +763,7 @@ function botCommand(s: TyPhuState, random: () => number): TyPhuCommand {
     case 'BUY': {
       const t = board[s.pending!.tile!];
       if (random() < 0.15) return { action: 'skip' };
-      const levels = t.kind === 'BEACH' ? [0] : [0, 1, 2, 3].filter((l) => l <= buildCap(p, 0));
+      const levels = t.kind === 'BEACH' ? [0] : [0, 1, 2, 3].filter((l) => l <= buildCap(0));
       const affordable = levels.filter((l) => t.price! + buildCost(t.index, 0, l) <= p.cash);
       return { action: 'buy', level: pick(affordable) };
     }
@@ -748,7 +773,7 @@ function botCommand(s: TyPhuState, random: () => number): TyPhuCommand {
       const options = [1, 2, 3, 4].filter(
         (l) =>
           l > level &&
-          l <= buildCap(p, s.pending!.from ?? level) &&
+          l <= buildCap(s.pending!.from ?? level) &&
           buildCost(index, level, l) <= p.cash,
       );
       return options.length && random() < 0.8
@@ -778,7 +803,7 @@ function botCommand(s: TyPhuState, random: () => number): TyPhuCommand {
         const owned = s.tiles[c.index];
         return (
           owned?.owner === p.id &&
-          owned.level < buildCap(p, owned.level) &&
+          owned.level < buildCap(owned.level) &&
           buildCost(c.index, owned.level, owned.level + 1) <= p.cash
         );
       });

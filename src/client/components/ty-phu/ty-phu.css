@@ -1533,13 +1533,27 @@
   font-size: 12px;
   border-collapse: collapse;
 }
+.typhu-detail th,
 .typhu-detail td {
   padding: 4px 0;
   border-bottom: 1px solid var(--line);
 }
-.typhu-detail td:last-child {
+.typhu-detail th {
+  text-align: left;
+  font-weight: 600;
+}
+.typhu-detail thead th {
+  color: var(--muted);
+  font-size: 11px;
+}
+.typhu-detail thead th + th {
   text-align: right;
 }
+.typhu-detail td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.typhu-detail tr.current th,
 .typhu-detail tr.current td {
   color: #ef9f27;
   font-weight: 700;

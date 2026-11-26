@@ -13,6 +13,7 @@ import {
   groupTiles,
   HOTEL,
   levelNames,
+  levelRent,
   type Tile,
 } from '../../../shared/ty-phu/board';
 import type { TyPhuPlayer, TyPhuPublicState } from '../../../shared/ty-phu/contracts';
@@ -70,7 +71,7 @@ export function tileRent(state: TyPhuPublicState, index: number) {
   const t = board[index];
   if (!t.price) return null;
   if (state.tiles[index]) return baseRent(asEngineState(state), index);
-  return t.kind === 'BEACH' ? BEACH_RENTS[1] : Math.round(0.1 * t.price);
+  return t.kind === 'BEACH' ? BEACH_RENTS[1] : levelRent(index, 0);
 }
 
 /**

@@ -24,6 +24,7 @@ import {
   cities,
   levelNames,
   levelRent,
+  levelTotal,
   tile as tileAt,
 } from '../../../shared/ty-phu/board';
 import { cards } from '../../../shared/ty-phu/cards';
@@ -41,7 +42,6 @@ import {
   buyoutPrice,
   liquidationValue,
   cardTargets,
-  currentPrice,
   flyTargets,
   winProgress,
 } from '../../../shared/ty-phu/engine';
@@ -175,7 +175,7 @@ function TyPhuLobby({ snapshot }: { snapshot: Snapshot }) {
               checked={rules.buyout}
               onChange={(e) => setRules({ ...rules, buyout: e.target.checked })}
             />
-            Cho phép mua lại thành phố của đối thủ (×1,5 giá hiện tại)
+            Cho phép mua lại thành phố của đối thủ (×2 tổng giá, trừ Khách sạn)
           </label>
           <AsyncButton
             variant="primary"
@@ -291,7 +291,7 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
     else if (state.phase === 'START_BUILD')
       selectable = ownCities.filter((i) => {
         const level = state.tiles[i]!.level;
-        return level < buildCap(mine, level) && buildCost(i, level, level + 1) <= mine.cash;
+        return level < buildCap(level) && buildCost(i, level, level + 1) <= mine.cash;
       });
     else if (state.phase === 'FLY') selectable = flyTargets(engine, mine);
     else if (state.phase === 'DEBT')
@@ -545,18 +545,18 @@ function DecisionPopup({
   let title: string;
   let body: ReactNode;
   if (state.phase === 'BUY') {
-    const maxLevel = t.kind === 'BEACH' ? 0 : buildCap(mine, 0);
+    const maxLevel = t.kind === 'BEACH' ? 0 : buildCap(0);
     title = `Mua ${t.name}?`;
     body = (
       <>
         <p>
-          Giá đất {money(t.price!)} · bạn có {money(mine.cash)}
+          {t.kind === 'BEACH' ? 'Giá' : 'Giá Mốc'} {money(t.price!)} · bạn có {money(mine.cash)}
+          {t.kind === 'CITY' ? '. Mua ô trống được xây luôn tới Nhà 3.' : ''}
         </p>
         <div className="typhu-levels">
           {Array.from({ length: maxLevel + 1 }, (_, level) => {
-            const cost = t.price! + buildCost(index, 0, level);
-            const rent =
-              t.kind === 'BEACH' ? BEACH_RENTS[1] : Math.round(0.1 * t.price! * levelRent[level]);
+            const cost = t.kind === 'BEACH' ? t.price! : levelTotal(index, level);
+            const rent = t.kind === 'BEACH' ? BEACH_RENTS[1] : levelRent(index, level);
             return (
               <AsyncButton
                 key={level}
@@ -564,7 +564,12 @@ function DecisionPopup({
                 disabled={pending || cost > mine.cash}
                 onClick={() => send({ action: 'buy', level })}
               >
-                {level === 0 ? 'Mua đất' : `Mua + ${levelNames[level]}`} · {money(cost)}
+                {level === 0
+                  ? t.kind === 'BEACH'
+                    ? 'Mua biển'
+                    : 'Mua Mốc'
+                  : `Mua ${levelNames[level]}`}{' '}
+                · {money(cost)}
                 <small>thuê {money(rent)}</small>
               </AsyncButton>
             );
@@ -575,13 +580,13 @@ function DecisionPopup({
     );
   } else if (state.phase === 'BUILD') {
     const level = owned!.level;
-    const cap = buildCap(mine, state.pending?.from ?? level);
+    const cap = buildCap(state.pending?.from ?? level);
     title = `Nâng nhà ở ${t.name}`;
     body = (
       <>
         <p>
           Đang {levelNames[level]} · thuê {money(baseRent(engine, index))}
-          {cap < HOTEL && level === 3 ? '. Khách sạn mở từ vòng 3 khi ô đã ở Cấp 3.' : ''}
+          {cap < HOTEL && level === 3 ? '. Khách sạn chỉ nâng được khi ô đã ở Nhà 3 từ trước.' : ''}
         </p>
         <div className="typhu-levels">
           {Array.from({ length: cap - level }, (_, i) => level + 1 + i).map((to) => {
@@ -592,8 +597,8 @@ function DecisionPopup({
                 disabled={pending || cost > mine.cash}
                 onClick={() => send({ action: 'build', level: to })}
               >
-                {levelNames[to]} · {money(cost)}
-                <small>thuê {money(Math.round(0.1 * t.price! * levelRent[to]))}+</small>
+                {levelNames[to]} · +{money(cost)}
+                <small>thuê {money(levelRent(index, to))}+</small>
               </AsyncButton>
             );
           })}
@@ -758,7 +763,7 @@ function DebtPopup({
       <p>
         Phải trả <strong>{money(debt.amount)}</strong> {reason}, đang có {money(mine.cash)}.{' '}
         <b className="typhu-debt-missing">Còn thiếu {money(debt.amount - mine.cash)}</b>. Bán hết
-        được {money(liquidationValue(engine, me))}: đất được 50% giá, Biển được đủ giá.
+        được {money(liquidationValue(engine, me))}. Ngân hàng trả đủ tổng giá của ô.
       </p>
       <div className="typhu-levels">
         {owned.map(({ t, price }) => {
@@ -1210,27 +1215,36 @@ function TileDetail({
       ) : null}
       {t.kind === 'CITY' ? (
         <>
-          <p className="muted">
-            Giá đất {money(t.price!)} · {t.group ? `nhóm ${t.group}` : 'không thuộc nhóm'}
-            {owner ? ` · chủ: ${owner.name}` : ' · chưa có chủ'}
-          </p>
           <table>
+            <thead>
+              <tr>
+                <th scope="col">Cấp</th>
+                <th scope="col">Tổng giá</th>
+                <th scope="col">Thuê</th>
+                <th scope="col">Mua lại</th>
+              </tr>
+            </thead>
             <tbody>
               {levelNames.map((name, level) => (
                 <tr key={name} className={owned?.level === level ? 'current' : ''}>
-                  <td>{name}</td>
-                  <td>{money(Math.round(0.1 * t.price! * levelRent[level]))}</td>
+                  <th scope="row">{name}</th>
+                  <td>{money(levelTotal(index, level))}</td>
+                  <td>{money(levelRent(index, level))}</td>
+                  <td>{level === HOTEL ? 'Khóa' : money(2 * levelTotal(index, level))}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {owned && <p className="muted">Giá trị hiện tại {money(currentPrice(engine, index))}.</p>}
+          <p className="muted">
+            {t.group ? `Nhóm ${t.group}: đủ nhóm thì thuê ×1,5. ` : 'Không thuộc nhóm. '}
+            Bán cho ngân hàng được đủ tổng giá. Đại nhạc hội: thuê ×2.
+          </p>
         </>
       ) : t.kind === 'BEACH' ? (
         <p className="muted">
-          Giá {money(t.price!)} · tiền thuê theo số bãi chủ đang có: 1 bãi {BEACH_RENTS[1]}, 2 bãi{' '}
-          {BEACH_RENTS[2]}, 3 bãi {BEACH_RENTS[3]}
-          {owner ? ` · chủ: ${owner.name}` : ''}. Sở hữu đủ 4 bãi là thắng.
+          Giá {money(t.price!)}, bán ngân hàng {money(t.price!)}. Tiền thuê theo số bãi chủ đang có:
+          1 bãi {BEACH_RENTS[1]}, 2 bãi {BEACH_RENTS[2]}, 3 bãi {BEACH_RENTS[3]}, 4 bãi{' '}
+          {BEACH_RENTS[4]}. Sở hữu đủ 4 bãi là thắng.
         </p>
       ) : (
         <p className="muted">

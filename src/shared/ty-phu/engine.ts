@@ -18,10 +18,9 @@ import {
   cities,
   groupTiles,
   groups,
-  levelCost,
   levelNames,
   levelRent,
-  levelValue,
+  levelTotal,
   sideCities,
   tile,
 } from './board';
@@ -146,31 +145,22 @@ export const ownedBy = (s: TyPhuState, id: string) =>
 export function hasMonopoly(s: TyPhuState, owner: string, group: number) {
   return groupTiles(group).every((t) => s.tiles[t.index]?.owner === owner);
 }
-/** Total value V of a tile at its current level. */
+/** Total price of a tile at its current level (beaches: their price). Never rises with laps. */
 export function tileValue(s: TyPhuState, index: number) {
   const t = tile(index),
     owned = s.tiles[index];
   if (!t.price) return 0;
   if (t.kind === 'BEACH') return t.price;
-  return Math.round(t.price * levelValue[owned?.level ?? 0]);
+  return levelTotal(index, owned?.level ?? 0);
 }
-/** Current price P = V × monopoly bonus. */
-export function currentPrice(s: TyPhuState, index: number) {
-  const t = tile(index),
-    owned = s.tiles[index];
-  const bonus =
-    t.kind === 'CITY' && owned && t.group !== undefined && hasMonopoly(s, owned.owner, t.group)
-      ? 1.5
-      : 1;
-  return Math.round(tileValue(s, index) * bonus);
-}
-export const buyoutPrice = (s: TyPhuState, index: number) =>
-  Math.round(1.5 * currentPrice(s, index));
-/** What the bank pays: half the current price for cities, the full price for beaches. */
-export const bankSalePrice = (s: TyPhuState, index: number) =>
-  tile(index).kind === 'BEACH' ? currentPrice(s, index) : Math.round(0.5 * currentPrice(s, index));
+/** Current price: the total price of the level built (monopolies raise rent, not price). */
+export const currentPrice = tileValue;
+/** Buying out another player's tile costs twice its total price; hotels cannot be bought out. */
+export const buyoutPrice = (s: TyPhuState, index: number) => 2 * currentPrice(s, index);
+/** The bank pays the full total price back, hotels and beaches included. */
+export const bankSalePrice = currentPrice;
 
-/** Rent before the payer's card modifier: 10% × G × M × K × H (beaches: 25 / 50 / 200 by count). */
+/** Rent before the payer's card modifier: table rent × monopoly 1.5 × festival 2 (beaches by count). */
 export function baseRent(s: TyPhuState, index: number) {
   const t = tile(index),
     owned = s.tiles[index];
@@ -179,7 +169,7 @@ export function baseRent(s: TyPhuState, index: number) {
     return BEACH_RENTS[beaches.filter((b) => s.tiles[b.index]?.owner === owned.owner).length] ?? 0;
   const monopoly = t.group !== undefined && hasMonopoly(s, owned.owner, t.group) ? 1.5 : 1;
   const festival = s.festival === index ? 2 : 1;
-  return Math.round(0.1 * t.price * levelRent[owned.level] * monopoly * festival);
+  return Math.round(levelRent(index, owned.level) * monopoly * festival);
 }
 export function netWorth(s: TyPhuState, id: string) {
   const p = player(s, id);
@@ -349,23 +339,20 @@ function sellToBank(s: TyPhuState, p: TyPhuPlayer, index: number, now: number) {
 // ---------------------------------------------------------------- building
 
 /** Highest level this player may build to on a tile during the current stop. */
-export function buildCap(p: TyPhuPlayer, levelAtStopStart: number) {
-  if (p.lap <= 1) return 2;
-  if (p.lap === 2) return 3;
+/** Up to Nhà 3 at any time; a hotel only on a tile that was already at Nhà 3 when the stop began. */
+export function buildCap(levelAtStopStart: number) {
   return levelAtStopStart >= 3 ? HOTEL : 3;
 }
+/** Upgrading costs the difference between the two total prices. */
 export function buildCost(index: number, from: number, to: number) {
-  const price = tile(index).price ?? 0;
-  let cost = 0;
-  for (let level = from + 1; level <= to; level++) cost += price * levelCost[level];
-  return Math.round(cost);
+  return levelTotal(index, to) - levelTotal(index, from);
 }
 function canBuildOn(s: TyPhuState, p: TyPhuPlayer, index: number) {
   const owned = s.tiles[index];
   return (
     tile(index).kind === 'CITY' &&
     owned?.owner === p.id &&
-    owned.level < buildCap(p, owned.level) &&
+    owned.level < buildCap(owned.level) &&
     p.cash >= buildCost(index, owned.level, owned.level + 1)
   );
 }
@@ -960,7 +947,7 @@ function apply(
       const index = s.pending!.tile!,
         t = tile(index);
       if (t.kind === 'BEACH' && command.level !== 0) fail();
-      if (command.level > buildCap(p, 0)) fail('TYPHU_BUILD_LIMIT');
+      if (command.level > buildCap(0)) fail('TYPHU_BUILD_LIMIT');
       const cost = (t.price ?? 0) + buildCost(index, 0, command.level);
       spend(s, p, cost);
       s.tiles[index] = { owner: p.id, level: command.level, blackout: 0 };
@@ -977,10 +964,7 @@ function apply(
       requireTurn(s, actor, 'BUILD');
       const index = s.pending!.tile!,
         owned = s.tiles[index]!;
-      if (
-        command.level <= owned.level ||
-        command.level > buildCap(p, s.pending!.from ?? owned.level)
-      )
+      if (command.level <= owned.level || command.level > buildCap(s.pending!.from ?? owned.level))
         fail('TYPHU_BUILD_LIMIT');
       const cost = buildCost(index, owned.level, command.level);
       spend(s, p, cost);
@@ -1239,13 +1223,13 @@ function botAct(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) {
       const price = t.price ?? 0;
       if (t.kind === 'BEACH')
         return run(budget >= price ? { action: 'buy', level: 0 } : { action: 'skip' });
-      for (let level = buildCap(p, 0); level >= 0; level--)
+      for (let level = buildCap(0); level >= 0; level--)
         if (price + buildCost(index!, 0, level) <= budget) return run({ action: 'buy', level });
       return run({ action: 'skip' });
     }
     case 'BUILD': {
       const owned = s.tiles[index!]!;
-      for (let level = buildCap(p, s.pending!.from ?? owned.level); level > owned.level; level--)
+      for (let level = buildCap(s.pending!.from ?? owned.level); level > owned.level; level--)
         if (buildCost(index!, owned.level, level) <= budget) return run({ action: 'build', level });
       return run({ action: 'skip' });
     }

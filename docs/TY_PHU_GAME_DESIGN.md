@@ -232,7 +232,7 @@ lại. Phiếu loại "giữ lại" nằm trong tay người rút và chỉ tr�
 | --- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
 | 1   | Bão quét qua sân khấu       | Hạ cấp   | Chọn một thành phố của đối thủ: **hạ 1 cấp** (3 nhà → 2 nhà; 1 nhà → đất trống).                 |
 | 2   | Phá dỡ công trình trái phép | Xóa nhà  | Chọn một thành phố của đối thủ: **xóa sạch toàn bộ nhà**, chỉ còn đất. Chủ vẫn giữ đất.          |
-| 3   | Thu hồi mặt bằng            | Ép bán   | Chọn một thành phố của đối thủ: ô **trả về ngân hàng**, chủ nhận lại 50% giá trị.                |
+| 3   | Thu hồi mặt bằng            | Ép bán   | Chọn một thành phố của đối thủ: ô **trả về ngân hàng**, chủ nhận lại đủ tổng giá.                |
 | 4   | Mất điện toàn khu           | Cúp điện | Chọn một thành phố của đối thủ: ô đó **không thu tiền thuê** cho đến hết 2 lượt kế tiếp của chủ. |
 
 **Xui cho người rút:**
@@ -427,3 +427,29 @@ Bước 3 đã xong (25/11/2026):
 - **Biển:** bán cho ngân hàng (kể cả khi bị thu hồi) được đủ giá 200, không giảm 50%.
 - **Sân bay:** tự đi vào hay bốc phiếu "Vé máy bay giá rẻ" đều chỉ đặt quân ở Sân bay và hết lượt;
   lượt sau mới bay. Góc người chơi hiện "✈️ Lượt sau bay".
+
+## Cập nhật 2026-11-26: bảng giá mới
+
+Thay toàn bộ công thức giá cũ (G × hệ số, thuê 10% × G × M, giới hạn xây theo vòng). B là giá Mốc
+của từng thành phố; tiền khởi đầu vẫn 2.000.
+
+| Cấp       | Phí nâng | Tổng giá | Tiền thuê | Mua lại      | Bán ngân hàng |
+| --------- | -------- | -------- | --------- | ------------ | ------------- |
+| Mốc       | –        | 1,0 × B  | 0,06 × B  | 2 × Tổng giá | = Tổng giá    |
+| Nhà 1     | 1,4 × B  | 2,4 × B  | 0,6 × B   | 2 × Tổng giá | = Tổng giá    |
+| Nhà 2     | 1,0 × B  | 3,4 × B  | 1,3 × B   | 2 × Tổng giá | = Tổng giá    |
+| Nhà 3     | 1,0 × B  | 4,4 × B  | 2,1 × B   | 2 × Tổng giá | = Tổng giá    |
+| Khách sạn | 2,5 × B  | 6,9 × B  | 4,13 × B  | Khóa         | = Tổng giá    |
+
+- Tổng giá làm tròn tới bội số 5, tiền thuê làm tròn tới số nguyên; phí nâng = hiệu hai tổng giá.
+- Giá Mốc: Hà Giang 50, Cao Bằng 55, Lạng Sơn 60, Sa Pa 70, Điện Biên 75, Mộc Châu 85, Hải Phòng
+  100, Hà Nội 105, Ninh Bình 110, Vinh 120, Đồng Hới 125, Huế 140, Đà Nẵng 145, Nha Trang 160,
+  Đà Lạt 165, Buôn Ma Thuột 170, Vũng Tàu 185, Cần Thơ 190, Phú Quốc 210, TP. Hồ Chí Minh 220.
+- Mua ô trống được xây luôn tới Nhà 3, trả tổng giá cấp đó. Khách sạn chỉ nâng được khi ô đã ở
+  Nhà 3 lúc dừng chân. Không còn giới hạn theo vòng và giá không tăng theo vòng.
+- Mua lại = 2 × tổng giá cấp hiện tại; Khách sạn và Biển không bị mua lại.
+- Bán cho ngân hàng (trả nợ, máy bán thay, phiếu Thu hồi) nhận đủ tổng giá, kể cả Khách sạn.
+- Monopoly không còn tăng giá ô, chỉ tăng tiền thuê ×1,5; Đại nhạc hội vẫn nhân đôi tiền thuê.
+- Biển: giá 200, bán ngân hàng 200; thuê 50 / 100 / 200 / 400 cho 1 / 2 / 3 / 4 bãi (có đủ 4 bãi
+  là thắng ngay, nên mức 400 chỉ ghi cho đủ bảng).
+- Ván đang chơi dở chuyển sang bảng giá mới ngay; cấp nhà đã xây giữ nguyên.

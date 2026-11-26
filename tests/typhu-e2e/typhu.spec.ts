@@ -31,12 +31,12 @@ test('the picker opens the lobby, a table starts and the first city can be bough
 
   fixture.nextDice.push(2, 3); // 5 steps → Sa Pa (80)
   await page.getByRole('button', { name: 'Tung xúc xắc' }).click();
-  await page.getByRole('button', { name: 'Mua đất · 80' }).click();
-  await expect(page.getByRole('button', { name: /^Sa Pa · An · Đất/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Mua Mốc · 70' }).click();
+  await expect(page.getByRole('button', { name: /^Sa Pa · An · Mốc/ })).toBeVisible();
   expect(fixture.match!.tiles[5]).toMatchObject({ owner: me, level: 0 });
   // The opponent moves automatically and the turn comes back.
   await expect(page.getByRole('heading', { name: 'Lượt của bạn' })).toBeVisible();
-  await expect(players).toContainText('1.920');
+  await expect(players).toContainText('1.930');
   await noHorizontalScroll(page);
   await page.screenshot({
     path: `test-results/typhu/match-${test.info().project.name}.png`,
@@ -44,19 +44,17 @@ test('the picker opens the lobby, a table starts and the first city can be bough
   });
 });
 
-test('a lap-1 purchase offers up to level 2 and builds in the same stop', async ({
-  page,
-  context,
-}) => {
+test('a purchase offers up to Nhà 3 and builds in the same stop', async ({ page, context }) => {
   const fixture = await tyPhuFixture(context);
   await openNewTable(page);
   await page.getByRole('button', { name: 'Bắt đầu ván' }).click();
-  fixture.nextDice.push(1, 2); // 3 steps → Lạng Sơn (70)
+  fixture.nextDice.push(1, 2); // 3 steps → Lạng Sơn (Mốc 60)
   await page.getByRole('button', { name: 'Tung xúc xắc' }).click();
-  await expect(page.getByRole('button', { name: 'Mua + Cấp 2 · 140' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Cấp 3/ })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Mua + Cấp 2 · 140' }).click();
-  expect(fixture.match!.tiles[3]).toMatchObject({ owner: me, level: 2 });
+  const buy = page.getByRole('dialog', { name: 'Mua Lạng Sơn?' });
+  await expect(buy.getByRole('button', { name: /^Mua Nhà 3 · 265/ })).toBeVisible();
+  await expect(buy.getByRole('button', { name: /Khách sạn/ })).toHaveCount(0);
+  await buy.getByRole('button', { name: /^Mua Nhà 3 · 265/ }).click();
+  await expect.poll(() => fixture.match!.tiles[3]).toMatchObject({ owner: me, level: 3 });
 });
 
 test('attack cards highlight valid targets and lower the chosen city', async ({
@@ -81,7 +79,7 @@ test('attack cards highlight valid targets and lower the chosen city', async ({
   await card.getByRole('button', { name: /Thực hiện phiếu/ }).click();
   await expect(card).toBeHidden();
   await expect(page.getByText('Bão quét qua sân khấu', { exact: true })).toBeVisible();
-  const target = page.getByRole('button', { name: /^Nha Trang · Bình · Cấp 2 · có thể chọn/ });
+  const target = page.getByRole('button', { name: /^Nha Trang · Bình · Nhà 2 · có thể chọn/ });
   await expect(target).toBeVisible();
   await target.click();
   await expect.poll(() => fixture.match!.tiles[21]?.level).toBe(1);
@@ -96,24 +94,24 @@ test('a short player picks which city to sell and the rent is then paid', async 
   await page.getByRole('button', { name: 'Bắt đầu ván' }).click();
   await expect(page.getByRole('heading', { name: 'Lượt của bạn' })).toBeVisible();
   fixture.edit((s) => {
-    s.tiles[5] = { owner: bot, level: 3, blackout: 0 }; // rent 200
-    s.tiles[1] = { owner: me, level: 0, blackout: 0 }; // bank pays 30
-    s.tiles[22] = { owner: me, level: 2, blackout: 0 }; // bank pays 220
+    s.tiles[5] = { owner: bot, level: 3, blackout: 0 }; // Sa Pa Nhà 3: rent 147
+    s.tiles[1] = { owner: me, level: 0, blackout: 0 }; // bank pays 50
+    s.tiles[22] = { owner: me, level: 2, blackout: 0 }; // bank pays 560
     const p = s.players.find((x) => x.id === me)!;
-    s.bank += p.cash - 100;
-    p.cash = 100;
+    s.bank += p.cash - 40;
+    p.cash = 40;
   });
   await page.reload();
   fixture.nextDice.push(2, 3); // → Sa Pa
   await page.getByRole('button', { name: 'Tung xúc xắc' }).click();
-  await expect(page.getByText('Còn thiếu 100')).toBeVisible();
+  await expect(page.getByText('Còn thiếu 107')).toBeVisible();
   const sell = page.getByRole('dialog', { name: 'Bán ô để trả nợ' });
-  await expect(sell.getByRole('button', { name: /^Bán Hà Giang · \+30/ })).toBeVisible();
-  await sell.getByRole('button', { name: /^Bán Đà Lạt · \+220/ }).click();
+  await expect(sell.getByRole('button', { name: /^Bán Hà Giang · \+50/ })).toBeVisible();
+  await sell.getByRole('button', { name: /^Bán Đà Lạt · \+560/ }).click();
   await expect.poll(() => fixture.match!.tiles[22]).toBeNull();
   expect(fixture.match!.tiles[1]).toMatchObject({ owner: me });
-  expect(fixture.match!.players.find((p) => p.id === me)!.cash).toBe(120);
-  expect(fixture.match!.players.find((p) => p.id === bot)!.cash).toBe(2200);
+  expect(fixture.match!.players.find((p) => p.id === me)!.cash).toBe(40 + 560 - 147);
+  expect(fixture.match!.players.find((p) => p.id === bot)!.cash).toBe(2147);
 });
 
 test('tile details explain rent per level and the board stays accessible', async ({
@@ -125,7 +123,7 @@ test('tile details explain rent per level and the board stays accessible', async
   await page.getByRole('button', { name: /^TP\. Hồ Chí Minh/ }).click();
   const detail = page.getByRole('dialog', { name: 'Thông tin TP. Hồ Chí Minh' });
   await expect(detail).toContainText('Khách sạn');
-  await expect(detail).toContainText('1.600');
+  await expect(detail).toContainText('1.520');
   await expect(detail).toContainText('Cấp nhà');
   await expect(detail).toContainText('Giá mua');
   await noHorizontalScroll(page);
@@ -223,8 +221,8 @@ test('the 2.5D table seats players in the corners and pauses for everyone', asyn
   await expect(seats).toHaveCount(2);
   const mySeat = seats.filter({ hasText: 'An (bạn)' });
   await expect(mySeat).toContainText('2.000');
-  // Tiles show rent, not the land price: Sa Pa (80) rents for 8.
-  await expect(page.getByRole('button', { name: /^Sa Pa · thuê 8$/ })).toBeVisible();
+  // Tiles show rent, not the land price: Sa Pa (Mốc 70) rents for 4.
+  await expect(page.getByRole('button', { name: /^Sa Pa · thuê 4$/ })).toBeVisible();
   // Keyboard: every tile is a button that opens its details.
   const table = page.getByRole('group', { name: 'Bàn cờ Tỷ Phú Phố Nhạc' });
   await expect(table.getByRole('button')).toHaveCount(32);
@@ -249,8 +247,8 @@ test('the 2.5D table seats players in the corners and pauses for everyone', asyn
   fixture.nextDice.push(2, 3);
   await page.getByRole('button', { name: 'Tung xúc xắc' }).click();
   await expect(page.getByRole('dialog', { name: 'Mua Sa Pa?' })).toBeVisible();
-  await page.getByRole('button', { name: 'Mua đất · 80' }).click();
-  await expect(mySeat).toContainText('1.920');
+  await page.getByRole('button', { name: 'Mua Mốc · 70' }).click();
+  await expect(mySeat).toContainText('1.930');
   await noHorizontalScroll(page);
   await page.screenshot({
     path: `test-results/typhu/table-${test.info().project.name}.png`,
