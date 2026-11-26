@@ -6,9 +6,24 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { BEACH_RENTS, board, HOTEL, levelNames, type Tile } from '../../../shared/ty-phu/board';
+import {
+  BEACH_RENTS,
+  board,
+  groups,
+  groupTiles,
+  HOTEL,
+  levelNames,
+  type Tile,
+} from '../../../shared/ty-phu/board';
 import type { TyPhuPlayer, TyPhuPublicState } from '../../../shared/ty-phu/contracts';
-import { baseRent, DICE_MS, STEP_MS, winProgress } from '../../../shared/ty-phu/engine';
+import {
+  baseRent,
+  DICE_MS,
+  hasMonopoly,
+  LAND_MS,
+  STEP_MS,
+  winProgress,
+} from '../../../shared/ty-phu/engine';
 import { asEngineState } from '../../lib/ty-phu';
 import { centerMapUrl } from './board-art';
 import { colorNames, playerColors, stripColor, tilePosition } from './tile-layout';
@@ -136,7 +151,30 @@ function usePlayback(players: TyPhuPlayer[], rollKey: string) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   const walking = players.some((p) => (shown[p.id] ?? p.position) !== p.position);
-  return { shown, rolling, busy: rolling || walking };
+  // After a walk the pawn rests on its tile a moment before money and dialogs appear.
+  const [landing, setLanding] = useState(false);
+  const wasWalking = useRef(false);
+  useEffect(() => {
+    if (wasWalking.current && !walking && !reducedMotion()) {
+      setLanding(true);
+      const timer = setTimeout(() => setLanding(false), LAND_MS);
+      wasWalking.current = walking;
+      return () => clearTimeout(timer);
+    }
+    wasWalking.current = walking;
+  }, [walking]);
+  return { shown, rolling, busy: rolling || walking || landing };
+}
+
+/** Every colour group someone owns whole, as `group:owner`. */
+function monopolies(state: TyPhuPublicState) {
+  const engine = asEngineState(state);
+  const found: { group: number; owner: string }[] = [];
+  for (const g of groups) {
+    const owner = state.tiles[groupTiles(g)[0].index]?.owner;
+    if (owner && hasMonopoly(engine, owner, g)) found.push({ group: g, owner });
+  }
+  return found;
 }
 
 type Flight = { key: number; amount: number; from: Point; to: Point; delay: number };
@@ -252,6 +290,8 @@ const tileLabel = (state: TyPhuPublicState, t: Tile, pick: boolean) => {
 // ---------------------------------------------------------------- seats
 
 const SEAT_CORNERS = ['tl', 'tr', 'br', 'bl'] as const;
+/** How long coins take from a seat to the bank (and again from the bank to a seat). */
+const COIN_MS = 1300;
 
 function nearWin(progress: ReturnType<typeof winProgress>) {
   const hints: string[] = [];
@@ -324,6 +364,7 @@ function Seat({
         </span>
         <small>
           {player.jailed ? '🚔 Trong tù · ' : ''}
+          {player.flyNext && state.status === 'PLAYING' ? '✈️ Lượt sau bay · ' : ''}
           {state.status === 'WAITING'
             ? player.bot || player.ready || player.id === state.host
               ? 'Sẵn sàng'
@@ -358,6 +399,8 @@ export type TableControls = {
   popup?: ReactNode;
   /** Full overlay, e.g. a chance card everyone is looking at. */
   overlay?: ReactNode;
+  /** Closes an informational popup when the dimmed table around it is clicked. */
+  onDismiss?: () => void;
 };
 
 export default function TyPhuBoard({
@@ -428,11 +471,11 @@ export default function TyPhuBoard({
       amount: c.amount,
       from: c.amount < 0 ? seatPoint(c.id) : bank,
       to: c.amount < 0 ? bank : seatPoint(c.id),
-      delay: c.amount > 0 && losses ? 650 : 0,
+      delay: c.amount > 0 && losses ? COIN_MS : 0,
     }));
     setFlights((f) => [...f, ...made]);
     const keys = new Set(made.map((m) => m.key));
-    setTimeout(() => setFlights((f) => f.filter((m) => !keys.has(m.key))), 1800);
+    setTimeout(() => setFlights((f) => f.filter((m) => !keys.has(m.key))), 2 * COIN_MS + 400);
     // `cash` is the shown money; only arrivals of new state should trigger flights.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, cashKey]);
@@ -458,6 +501,25 @@ export default function TyPhuBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, tilesKey]);
 
+  // A newly completed colour group gets a moment of its own once the pawn has arrived.
+  const groupsOwned = monopolies(state);
+  const monopolyKey = groupsOwned.map((m) => `${m.group}:${m.owner}`).join();
+  const [monopolySeen, setMonopolySeen] = useState(monopolyKey);
+  const [cheer, setCheer] = useState<{ key: number; group: number; owner: string } | null>(null);
+  useEffect(() => {
+    if (busy || monopolyKey === monopolySeen) return;
+    const before = new Set(monopolySeen.split(','));
+    setMonopolySeen(monopolyKey);
+    const fresh = groupsOwned.find((m) => !before.has(`${m.group}:${m.owner}`));
+    if (!fresh) return;
+    setCheer({ key: ++counter.current, ...fresh });
+    const timer = setTimeout(() => setCheer(null), 3200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, monopolyKey]);
+  const inMonopoly = new Set(groupsOwned.flatMap((m) => groupTiles(m.group).map((t) => t.index)));
+  const cheering = new Set(cheer ? groupTiles(cheer.group).map((t) => t.index) : []);
+
   const ctl = controls(busy);
   const dice = state.dice;
   const festival = state.festival;
@@ -478,6 +540,23 @@ export default function TyPhuBoard({
         </span>,
       );
       continue;
+    }
+    if (festival === t.index) {
+      const p = tilePoint(t.index, 0.03);
+      sprites.push(
+        <span
+          key={'f' + t.index}
+          className="typhu-sprite typhu-festival-stage"
+          style={place(view, p.fx, p.fy)}
+        >
+          <i className="typhu-beam left" />
+          <i className="typhu-beam right" />
+          <b>🎤</b>
+          <em>🎵</em>
+          <em>🎶</em>
+          <strong>×2</strong>
+        </span>,
+      );
     }
     if (owned) {
       const p = tilePoint(t.index, 0.012);
@@ -501,7 +580,8 @@ export default function TyPhuBoard({
             'typhu-rent' +
             (owned ? ' owned' : '') +
             (owned && owned.blackout > 0 ? ' blackout' : '') +
-            (festival === t.index ? ' festival' : '')
+            (festival === t.index ? ' festival' : '') +
+            (inMonopoly.has(t.index) ? ' monopoly' : '')
           }
           style={
             {
@@ -511,7 +591,13 @@ export default function TyPhuBoard({
           }
           aria-hidden="true"
         >
-          {owned && owned.blackout > 0 ? '⚡' : festival === t.index ? '🎤' : ''}
+          {owned && owned.blackout > 0
+            ? '⚡'
+            : festival === t.index
+              ? '🎤'
+              : inMonopoly.has(t.index)
+                ? '★'
+                : ''}
           {rent.toLocaleString('vi-VN')}
         </span>,
       );
@@ -595,6 +681,8 @@ export default function TyPhuBoard({
                       (selectable.length && !pick ? ' locked' : '') +
                       (owned?.owner === me ? ' mine' : '') +
                       (festival === t.index ? ' festival' : '') +
+                      (inMonopoly.has(t.index) ? ' monopoly' : '') +
+                      (cheering.has(t.index) ? ' cheer' : '') +
                       (corner ? ' corner' : '')
                     }
                     style={style}
@@ -653,7 +741,34 @@ export default function TyPhuBoard({
             💰 {Math.abs(f.amount).toLocaleString('vi-VN')}
           </span>
         ))}
-        {ctl.popup && <div className="typhu-popup-layer">{ctl.popup}</div>}
+        {cheer && (
+          <div
+            key={cheer.key}
+            className="typhu-monopoly-banner"
+            role="status"
+            style={{ '--owner': colorOf(cheer.owner) } as CSSProperties}
+          >
+            <span aria-hidden="true">🏆</span>
+            <strong>MONOPOLY!</strong>
+            <small>
+              {state.players.find((p) => p.id === cheer.owner)?.name} sở hữu trọn nhóm{' '}
+              {groupTiles(cheer.group)
+                .map((t) => shortName(t))
+                .join(' · ')}{' '}
+              · thuê ×1,5
+            </small>
+          </div>
+        )}
+        {ctl.popup && (
+          <div
+            className="typhu-popup-layer"
+            onPointerDown={(e) => {
+              if (e.target === e.currentTarget) ctl.onDismiss?.();
+            }}
+          >
+            {ctl.popup}
+          </div>
+        )}
         {ctl.overlay}
       </div>
     </div>
@@ -718,6 +833,12 @@ export function Dice3D({
           </span>
         </span>
       ))}
+      {dice && (
+        <b key={roll} className="typhu-dice-total">
+          {dice[0] === dice[1] ? `Đôi ${dice[0]} · ` : ''}
+          {dice[0] + dice[1]}
+        </b>
+      )}
     </div>
   );
 }

@@ -53,6 +53,7 @@ import TyPhuBoard, {
   saveView,
   savedView,
   stripColor,
+  tileRent,
   type BoardView,
   type TableControls,
 } from './TyPhuBoard';
@@ -259,6 +260,9 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
     saveView(next);
   };
   const state = query.data?.state;
+  // Tile info closes when the turn passes, so it never hides the next player's choices.
+  const turnKey = `${state?.turn}|${state?.phase}`;
+  useEffect(() => setDetail(null), [turnKey]);
   const engine = useMemo(() => (state ? asEngineState(state) : null), [state]);
   if (!state || !engine) {
     return query.error ? (
@@ -364,9 +368,14 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
           <small>Chờ chủ bàn bắt đầu</small>
         </div>
       );
+    const decision = ready && (popupPhases.includes(state.phase) || state.phase === 'DEBT');
     const popup =
       ready && popupPhases.includes(state.phase) ? (
         <DecisionPopup state={state} me={me} send={send} pending={pending} />
+      ) : ready && state.phase === 'DEBT' && state.debt ? (
+        <DebtPopup state={state} me={me} send={send} pending={pending} />
+      ) : detail !== null ? (
+        <TileDetail state={state} index={detail} onClose={() => setDetail(null)} />
       ) : null;
     let overlay: ReactNode = null;
     if (paused)
@@ -398,7 +407,13 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
         />
       );
     else if (state.status === 'FINISHED') overlay = <Confetti />;
-    return { status, center, popup, overlay };
+    return {
+      status,
+      center,
+      popup,
+      overlay,
+      onDismiss: !decision && detail !== null ? () => setDetail(null) : undefined,
+    };
   };
 
   return (
@@ -448,9 +463,6 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
         />
         <aside className="typhu-side">
           <ActionPanel state={state} me={me} send={send} pending={pending} />
-          {detail !== null && (
-            <TileDetail state={state} index={detail} onClose={() => setDetail(null)} />
-          )}
           <Players state={state} me={me} send={send} pending={pending} />
           <section className="typhu-card typhu-log" aria-label="Diễn biến ván">
             <h2>Diễn biến</h2>
@@ -636,7 +648,6 @@ function TurnPrompt({
   giftTile: number | null;
   clearGift: () => void;
 }) {
-  const engine = asEngineState(state);
   const mine = state.players.find((p) => p.id === me)!;
   switch (state.phase) {
     case 'FLY':
@@ -703,52 +714,78 @@ function TurnPrompt({
           <SkipButton send={send} pending={pending} label="Không xây" />
         </div>
       );
-    case 'DEBT': {
-      const debt = state.debt!;
-      const creditor = state.players.find((p) => p.id === debt.creditor);
-      const owned = board
-        .filter((t) => state.tiles[t.index]?.owner === me)
-        .map((t) => ({ t, price: bankSalePrice(engine, t.index) }))
-        .sort((a, b) => a.price - b.price || a.t.index - b.t.index);
-      const reason =
-        debt.reason === 'RENT'
-          ? `tiền thuê ${tileAt(debt.tile!).name} cho ${creditor?.name ?? 'chủ ô'}`
-          : debt.reason === 'TAX'
-            ? 'thuế nhà'
-            : 'tiền phạt ra tù';
+    case 'DEBT':
       return (
         <div className="typhu-prompt typhu-debt">
-          <span>
-            Phải trả <strong>{money(debt.amount)}</strong> {reason}, đang có {money(mine.cash)}.{' '}
-            <b className="typhu-debt-missing">Còn thiếu {money(debt.amount - mine.cash)}</b> · bán
-            hết được {money(liquidationValue(engine, me))}. Chọn ô để bán (50% giá).
-          </span>
-          <div className="typhu-options">
-            {owned.map(({ t, price }) => (
-              <AsyncButton
-                key={t.index}
-                disabled={pending}
-                onClick={() => send({ action: 'sell', tile: t.index })}
-              >
-                Bán {t.name} · +{money(price)}
-              </AsyncButton>
-            ))}
-          </div>
-          <Confirm
-            title="Tuyên bố phá sản?"
-            description={`Toàn bộ ${money(mine.cash)} tiền mặt chuyển cho ${creditor?.name ?? 'ngân hàng'}, đất trả về ngân hàng và bạn rời ván.`}
-            onConfirm={() => send({ action: 'declare_bankrupt' })}
-          >
-            <Button variant="ghost" disabled={pending}>
-              Tuyên bố phá sản
-            </Button>
-          </Confirm>
+          <span>💸 Thiếu tiền trả nợ: chọn ô để bán trong bảng hoặc bấm ô của bạn.</span>
         </div>
       );
-    }
     default:
       return null;
   }
+}
+
+/** Selling to pay a debt: what is owed, and every property with what the bank pays for it. */
+function DebtPopup({
+  state,
+  me,
+  send,
+  pending,
+}: {
+  state: TyPhuPublicState;
+  me: string;
+  send: Send;
+  pending: boolean;
+}) {
+  const engine = asEngineState(state);
+  const mine = state.players.find((p) => p.id === me)!;
+  const debt = state.debt!;
+  const creditor = state.players.find((p) => p.id === debt.creditor);
+  const owned = board
+    .filter((t) => state.tiles[t.index]?.owner === me)
+    .map((t) => ({ t, price: bankSalePrice(engine, t.index) }))
+    .sort((a, b) => a.price - b.price || a.t.index - b.t.index);
+  const reason =
+    debt.reason === 'RENT'
+      ? `tiền thuê ${tileAt(debt.tile!).name} cho ${creditor?.name ?? 'chủ ô'}`
+      : debt.reason === 'TAX'
+        ? 'thuế nhà'
+        : 'tiền phạt ra tù';
+  return (
+    <section className="typhu-popup typhu-debt-popup" role="dialog" aria-label="Bán ô để trả nợ">
+      <i className="typhu-strip" style={{ background: '#e2574c' }} />
+      <h2>💸 Bán ô để trả nợ</h2>
+      <p>
+        Phải trả <strong>{money(debt.amount)}</strong> {reason}, đang có {money(mine.cash)}.{' '}
+        <b className="typhu-debt-missing">Còn thiếu {money(debt.amount - mine.cash)}</b>. Bán hết
+        được {money(liquidationValue(engine, me))}: đất được 50% giá, Biển được đủ giá.
+      </p>
+      <div className="typhu-levels">
+        {owned.map(({ t, price }) => {
+          const level = state.tiles[t.index]!.level;
+          return (
+            <AsyncButton
+              key={t.index}
+              disabled={pending}
+              onClick={() => send({ action: 'sell', tile: t.index })}
+            >
+              Bán {t.name} · +{money(price)}
+              <small>{t.kind === 'BEACH' ? 'Biển' : levelNames[level]}</small>
+            </AsyncButton>
+          );
+        })}
+      </div>
+      <Confirm
+        title="Tuyên bố phá sản?"
+        description={`Toàn bộ ${money(mine.cash)} tiền mặt chuyển cho ${creditor?.name ?? 'ngân hàng'}, đất trả về ngân hàng và bạn rời ván.`}
+        onConfirm={() => send({ action: 'declare_bankrupt' })}
+      >
+        <Button variant="ghost" disabled={pending}>
+          Tuyên bố phá sản
+        </Button>
+      </Confirm>
+    </section>
+  );
 }
 
 /** The drawn chance card, shown to everyone before it takes effect. */
@@ -1120,15 +1157,57 @@ function TileDetail({
   const t = tileAt(index);
   const owned = state.tiles[index];
   const owner = state.players.find((p) => p.id === owned?.owner);
+  const ownerColor = owner ? playerColors[owner.color] : undefined;
+  useEffect(() => {
+    const close = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [onClose]);
+  const buyout =
+    !owned || !t.price
+      ? null
+      : t.kind === 'BEACH'
+        ? 'Biển không mua lại được'
+        : owned.level === HOTEL
+          ? 'Khách sạn không mua lại được'
+          : money(buyoutPrice(engine, index));
   return (
-    <section className="typhu-card typhu-detail" aria-label={`Thông tin ${t.name}`}>
+    <section className="typhu-popup typhu-detail" role="dialog" aria-label={`Thông tin ${t.name}`}>
       <i className="typhu-strip" style={{ background: stripColor(t) }} />
       <header>
         <h2>{t.name}</h2>
         <Button variant="ghost" size="icon" aria-label="Đóng thông tin ô" onClick={onClose}>
-          ×
+          <X size={18} />
         </Button>
       </header>
+      {t.price ? (
+        <dl className="typhu-facts">
+          <div>
+            <dt>Chủ</dt>
+            <dd style={ownerColor ? { color: ownerColor } : undefined}>
+              {owner?.name ?? 'Chưa có chủ'}
+            </dd>
+          </div>
+          <div>
+            <dt>Cấp nhà</dt>
+            <dd>{t.kind === 'BEACH' ? 'Biển' : owned ? levelNames[owned.level] : '—'}</dd>
+          </div>
+          <div>
+            <dt>Thuê hiện tại</dt>
+            <dd>{money(tileRent(state, index) ?? 0)}</dd>
+          </div>
+          <div>
+            <dt>{owned ? 'Giá mua lại' : 'Giá mua'}</dt>
+            <dd>{owned ? buyout : money(t.price)}</dd>
+          </div>
+          {owned && (
+            <div>
+              <dt>Bán cho ngân hàng</dt>
+              <dd>{money(bankSalePrice(engine, index))}</dd>
+            </div>
+          )}
+        </dl>
+      ) : null}
       {t.kind === 'CITY' ? (
         <>
           <p className="muted">
@@ -1145,13 +1224,7 @@ function TileDetail({
               ))}
             </tbody>
           </table>
-          {owned && (
-            <p className="muted">
-              Tiền thuê hiện tại {money(baseRent(engine, index))} · giá hiện tại{' '}
-              {money(currentPrice(engine, index))}
-              {owned.level < HOTEL ? ` · mua lại ${money(buyoutPrice(engine, index))}` : ''}
-            </p>
-          )}
+          {owned && <p className="muted">Giá trị hiện tại {money(currentPrice(engine, index))}.</p>}
         </>
       ) : t.kind === 'BEACH' ? (
         <p className="muted">

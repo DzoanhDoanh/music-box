@@ -23,10 +23,13 @@ import {
   cardTargets,
   createTyPhuState,
   currentPrice,
+  DICE_MS,
   flyTargets,
+  LAND_MS,
   moneyInvariant,
   publicTyPhuState,
   reconcile,
+  STEP_MS,
   transition,
   winProgress,
   type TyPhuRandom,
@@ -378,6 +381,34 @@ describe('Tỷ Phú corners, fees, chance reveal and pause', () => {
     expect(poor.phase).toBe('ROLL');
     expect(who(poor, q).flyNext).toBe(false);
   });
+  it('the airport, by card or on foot, only lets the player fly on their next turn', () => {
+    for (const byCard of [true, false]) {
+      let s = started();
+      const [p, other] = [s.turn!, s.players.find((x) => x.id !== s.turn)!.id];
+      s.deck = ['GO_AIRPORT'];
+      who(s, p).position = byCard ? 7 : 19;
+      s = run(s, p, { action: 'roll' }, scripted([2, 3]));
+      if (byCard) {
+        expect(s.phase).toBe('REVEAL');
+        s = run(s, p, { action: 'card_ok' });
+      }
+      expect(who(s, p).position).toBe(24);
+      expect(who(s, p).flyNext).toBe(true);
+      expect(s.turn).toBe(other);
+      expect(s.phase).toBe('ROLL');
+      s = run(s, other, { action: 'roll' }, scripted([1, 2]));
+      if (s.turn === other) s = run(s, other, { action: 'skip' });
+      expect(s.turn).toBe(p);
+      expect(s.phase).toBe('FLY');
+    }
+  });
+  it('a beach sells back to the bank for its full price', () => {
+    const s = started();
+    own(s, 4, A);
+    expect(bankSalePrice(s, 4)).toBe(200);
+    own(s, 1, A);
+    expect(bankSalePrice(s, 1)).toBe(Math.round(0.5 * currentPrice(s, 1)));
+  });
   it('a drawn card waits for everyone to see it, even for automatic seats', () => {
     let s = started();
     const p = s.turn!;
@@ -388,7 +419,7 @@ describe('Tỷ Phú corners, fees, chance reveal and pause', () => {
     expect(who(s, p).cash).toBe(2000);
     expect(code(() => run(s, p, { action: 'skip' }))).toBe('TYPHU_ACTION_INVALID');
     // The deadline also covers the dice and the 5-step walk on screen.
-    expect(s.deadline).toBe(1000 + 4000 + 1100 + 5 * 200);
+    expect(s.deadline).toBe(1000 + 4000 + DICE_MS + 5 * STEP_MS + LAND_MS);
     const early = reconcile(s, s.deadline! - 1, scripted());
     expect(early.phase).toBe('REVEAL');
     const later = reconcile(s, s.deadline!, scripted());

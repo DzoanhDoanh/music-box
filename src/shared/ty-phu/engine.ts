@@ -49,9 +49,13 @@ export const AUTO_MS = 1500;
 export const CARD_TARGET_MS = 20_000;
 /** Everyone sees a drawn chance card this long before it takes effect. */
 export const REVEAL_MS = 4000;
-/** Client animation budget after a roll: dice fall, then the pawn walks tile by tile. */
-export const DICE_MS = 1100;
-export const STEP_MS = 200;
+/**
+ * Client animation budget after a roll: the dice fall and rest (DICE_MS), the pawn walks
+ * tile by tile (STEP_MS each), then pauses on the tile it reached (LAND_MS).
+ */
+export const DICE_MS = 1800;
+export const STEP_MS = 380;
+export const LAND_MS = 500;
 /** Shortest turn time left after a pause ends. */
 const RESUME_MS = 10_000;
 const LOG_LIMIT = 40;
@@ -162,8 +166,9 @@ export function currentPrice(s: TyPhuState, index: number) {
 }
 export const buyoutPrice = (s: TyPhuState, index: number) =>
   Math.round(1.5 * currentPrice(s, index));
+/** What the bank pays: half the current price for cities, the full price for beaches. */
 export const bankSalePrice = (s: TyPhuState, index: number) =>
-  Math.round(0.5 * currentPrice(s, index));
+  tile(index).kind === 'BEACH' ? currentPrice(s, index) : Math.round(0.5 * currentPrice(s, index));
 
 /** Rent before the payer's card modifier: 10% × G × M × K × H (beaches: 25 / 50 / 200 by count). */
 export function baseRent(s: TyPhuState, index: number) {
@@ -745,8 +750,9 @@ function rollDice(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) 
   const steps = (p.position - from + BOARD_SIZE) % BOARD_SIZE;
   const walk = steps > 0 && steps <= 12 ? steps * STEP_MS : 0;
   if (s.status !== 'PLAYING') return;
-  if (s.deadline !== null) s.deadline += DICE_MS + walk;
-  else if (s.paused?.left != null) s.paused.left += DICE_MS + walk;
+  const extra = DICE_MS + walk + LAND_MS;
+  if (s.deadline !== null) s.deadline += extra;
+  else if (s.paused?.left != null) s.paused.left += extra;
 }
 function rollAndMove(s: TyPhuState, p: TyPhuPlayer, now: number, rng: TyPhuRandom) {
   const d1 = rng.die(),

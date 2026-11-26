@@ -410,3 +410,20 @@ Bước 3 đã xong (25/11/2026):
 - **Bay:** chỉ được tới ô đất còn trống hoặc đất của mình; ô của người khác, ô Cơ hội, Thuế và các
   góc bị khóa.
 - **Biển:** giá 200; thuê 25 / 50 / 200 khi chủ có 1 / 2 / 3 bãi.
+
+## Cập nhật 2026-11-26: góp ý lần 2
+
+- **Xúc xắc:** mỗi viên có điểm nhìn riêng ngay phía trước, nên khi dừng mặt có điểm nằm thẳng, hướng
+  về người xem; dưới xúc xắc hiện tổng điểm (và "Đôi" khi tung đôi).
+- **Nhịp hoạt cảnh:** xúc xắc rơi rồi nghỉ (`DICE_MS` 1800), quân đi từng ô `STEP_MS` 380, đứng lại
+  trên ô `LAND_MS` 500 rồi mới tới tiền và hộp thoại. Tiền bay 1,3 giây mỗi chặng, số +/− ở góc
+  người chơi hiện 3,2 giây. Hạn lượt cộng thêm đúng khoảng này.
+- **Thông tin ô:** bấm ô mở popup giữa bàn: chủ, cấp nhà, tiền thuê hiện tại, giá mua lại (hoặc giá
+  mua khi chưa có chủ), giá bán cho ngân hàng. Đóng bằng ×, Esc hoặc bấm ra ngoài.
+- **Bán trả nợ:** hiện thành popup giữa bàn với danh sách ô và số tiền nhận được.
+- **Monopoly:** ô thuộc nhóm trọn bộ có nền vàng, viền vàng, đế vàng bên dưới và dấu ★ trên tiền
+  thuê; khi vừa đủ nhóm có băng "MONOPOLY!" và các ô trong nhóm nhấp nháy.
+- **Đại nhạc hội:** ô tổ chức có sân khấu nhỏ với micro, hai đèn quét, nốt nhạc bay và biển ×2.
+- **Biển:** bán cho ngân hàng (kể cả khi bị thu hồi) được đủ giá 200, không giảm 50%.
+- **Sân bay:** tự đi vào hay bốc phiếu "Vé máy bay giá rẻ" đều chỉ đặt quân ở Sân bay và hết lượt;
+  lượt sau mới bay. Góc người chơi hiện "✈️ Lượt sau bay".

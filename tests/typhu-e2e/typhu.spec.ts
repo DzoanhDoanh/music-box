@@ -107,8 +107,9 @@ test('a short player picks which city to sell and the rent is then paid', async 
   fixture.nextDice.push(2, 3); // → Sa Pa
   await page.getByRole('button', { name: 'Tung xúc xắc' }).click();
   await expect(page.getByText('Còn thiếu 100')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Bán Hà Giang · +30' })).toBeVisible();
-  await page.getByRole('button', { name: /^Đà Lạt · An · Cấp 2 · có thể chọn/ }).click();
+  const sell = page.getByRole('dialog', { name: 'Bán ô để trả nợ' });
+  await expect(sell.getByRole('button', { name: /^Bán Hà Giang · \+30/ })).toBeVisible();
+  await sell.getByRole('button', { name: /^Bán Đà Lạt · \+220/ }).click();
   await expect.poll(() => fixture.match!.tiles[22]).toBeNull();
   expect(fixture.match!.tiles[1]).toMatchObject({ owner: me });
   expect(fixture.match!.players.find((p) => p.id === me)!.cash).toBe(120);
@@ -122,9 +123,11 @@ test('tile details explain rent per level and the board stays accessible', async
   await tyPhuFixture(context);
   await openNewTable(page);
   await page.getByRole('button', { name: /^TP\. Hồ Chí Minh/ }).click();
-  const detail = page.getByRole('region', { name: 'Thông tin TP. Hồ Chí Minh' });
+  const detail = page.getByRole('dialog', { name: 'Thông tin TP. Hồ Chí Minh' });
   await expect(detail).toContainText('Khách sạn');
   await expect(detail).toContainText('1.600');
+  await expect(detail).toContainText('Cấp nhà');
+  await expect(detail).toContainText('Giá mua');
   await noHorizontalScroll(page);
   if (info.project.name !== 'desktop') return;
   const report = await new AxeBuilder({ page })
@@ -227,7 +230,11 @@ test('the 2.5D table seats players in the corners and pauses for everyone', asyn
   await expect(table.getByRole('button')).toHaveCount(32);
   await table.getByRole('button', { name: /^Sa Pa/ }).focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: 'Sa Pa' })).toBeVisible();
+  const info = page.getByRole('dialog', { name: 'Thông tin Sa Pa' });
+  await expect(info).toContainText('Cấp nhà');
+  await expect(info).toContainText('Giá mua');
+  await page.keyboard.press('Escape');
+  await expect(info).toHaveCount(0);
   // Pausing stops the clock and blocks the roll until someone resumes.
   await page.getByRole('button', { name: 'Tạm dừng' }).click();
   await expect(page.getByRole('dialog', { name: 'Ván đang tạm dừng' })).toBeVisible();
