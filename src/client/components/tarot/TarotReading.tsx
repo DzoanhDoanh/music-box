@@ -10,6 +10,8 @@ import {
   spreads,
   spreadSize,
   TAROT_FLIP_MS,
+  TAROT_PRICES,
+  formatCoins,
   TAROT_SHUFFLE_MS,
   tarotCommandSchema,
   topics,
@@ -393,7 +395,13 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
       // Let the last chosen card lift before the cards are revealed.
       setTimeout(() => void draw({ key: crypto.randomUUID(), command: valid.data }), 450);
   }
-  const canStart = !query.error && valid.success && cooldown === 0 && !drawing && !pending;
+  // Charging is on unless the room's owner switched it off in the room settings.
+  const paid = data?.paid !== false;
+  const price = paid ? TAROT_PRICES[draft.spread] : 0;
+  const coins = data?.my_coins;
+  const affordable = !paid || coins === undefined || coins >= price;
+  const canStart =
+    !query.error && valid.success && affordable && cooldown === 0 && !drawing && !pending;
   if (query.isPending) return <Loading>Đang trải bài…</Loading>;
   const locked = busy || !!pending || mode !== 'view';
   return (
@@ -493,6 +501,9 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
               >
                 <b>{spreads[id].label}</b>
                 <small>{spreads[id].hint}</small>
+                <small className="tarot-price">
+                  {paid ? formatCoins(TAROT_PRICES[id]) : 'Miễn phí'}
+                </small>
               </Button>
             ))}
           </div>
@@ -570,12 +581,22 @@ export default function TarotReading({ snapshot }: { snapshot: Snapshot }) {
                     ? 'Đang lật bài…'
                     : cooldown
                       ? `Rút tiếp sau ${cooldown}s`
-                      : 'Xào bài'}
+                      : !affordable
+                        ? 'Chưa đủ xu'
+                        : `Xào bài · ${paid ? formatCoins(price) : 'Miễn phí'}`}
             </Button>
           )}
+          {paid && coins !== undefined && (
+            <p className={'tarot-wallet' + (affordable ? '' : ' short')} role="status">
+              Ví của bạn: <b>{formatCoins(coins)}</b>
+              {!affordable &&
+                ` · cần ${formatCoins(price)}. Nhận thưởng ngày ở Bầu Cua rồi quay lại nhé.`}
+            </p>
+          )}
           <small>
-            Lá bài do máy chủ trộn và mở, ai trong phòng cũng thấy cùng một kết quả. Mỗi người rút
-            một lượt / 20 giây.
+            Lá bài do máy chủ trộn và mở, ai trong phòng cũng thấy cùng một kết quả.{' '}
+            {paid ? 'Người rút trả xu, cả phòng xem miễn phí.' : 'Rút bài đang miễn phí.'} Mỗi người
+            rút một lượt / 20 giây.
           </small>
         </div>
       </div>

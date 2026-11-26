@@ -9,15 +9,23 @@ import type {
   TarotSnapshot,
 } from '../../src/shared/tarot/contracts';
 
-async function fixture(page: Page, options: { ai?: boolean } = {}) {
+async function fixture(
+  page: Page,
+  options: { ai?: boolean; coins?: number; owner?: boolean } = {},
+) {
   const music = gameFixture();
-  await music.attach(page.context(), 1);
+  // Member 0 owns the room; everyone else is a plain member.
+  const viewer = options.owner ? 0 : 1;
+  await music.attach(page.context(), viewer);
   await fakeMusic(page.context());
   const state: TarotSnapshot = {
     server_time: new Date().toISOString(),
     latest: null,
     recent: [],
     my_next_at: null,
+    my_coins: options.coins ?? 10_000,
+    paid: true,
+    can_configure: options.owner ?? false,
   };
   const requests: { key: string; command: TarotCommand }[] = [];
   const receipts = new Map<string, TarotReading>();
@@ -36,7 +44,7 @@ async function fixture(page: Page, options: { ai?: boolean } = {}) {
     const now = Date.now();
     const result: TarotReading = receipts.get(key) ?? {
       id: crypto.randomUUID(),
-      actor: ids[1], // the viewer attached below
+      actor: ids[viewer],
       actor_name: 'An',
       spread: command.spread,
       topic: command.topic,
@@ -53,10 +61,18 @@ async function fixture(page: Page, options: { ai?: boolean } = {}) {
       state.latest = result;
       state.recent.unshift(result);
       state.my_next_at = new Date(now + 20_000).toISOString();
+      if (state.paid) state.my_coins! -= { ONE: 200, THREE: 500, YES_NO: 300 }[command.spread];
     }
     if (loseResponse)
       return route.fulfill({ status: 503, json: { error: { code: 'BACKEND_UNAVAILABLE' } } });
     return route.fulfill({ json: result });
+  });
+  const settings: boolean[] = [];
+  await page.route('**/api/v1/rooms/*/tarot/settings', async (route) => {
+    const { paid } = route.request().postDataJSON() as { paid: boolean };
+    settings.push(paid);
+    state.paid = paid;
+    return route.fulfill({ json: { paid } });
   });
   const retries: string[] = [];
   await page.route('**/api/v1/rooms/*/tarot/*/ai', async (route) => {
@@ -72,6 +88,7 @@ async function fixture(page: Page, options: { ai?: boolean } = {}) {
   });
   await page.goto(`/room/${room}`);
   return {
+    settings,
     retries,
     finishAi(text: string | null) {
       const reading = state.latest!;
@@ -99,7 +116,7 @@ async function fixture(page: Page, options: { ai?: boolean } = {}) {
 
 /** Shuffle, then pick `count` cards from the fan by intuition. */
 async function pickCards(panel: Locator, count: number) {
-  await panel.getByRole('button', { name: 'Xào bài', exact: true }).click();
+  await panel.getByRole('button', { name: /^Xào bài/ }).click();
   await expect(panel.getByRole('group', { name: 'Bộ bài đã trải' })).toBeVisible();
   for (let i = 0; i < count; i++)
     await panel.getByRole('button', { name: `Lá úp thứ ${5 + i * 4}`, exact: true }).press('Enter');
@@ -115,7 +132,7 @@ test('a three-card reading: shuffle, pick from the fan, flip for the room and su
   await expect(panel.getByText('Bộ bài 78 lá đang chờ.')).toBeVisible();
   await panel.getByRole('button', { name: 'Tình cảm', exact: true }).click();
   await panel.getByRole('textbox', { name: 'Câu hỏi' }).fill('  Sắp tới thế nào?  ');
-  await panel.getByRole('button', { name: 'Xào bài', exact: true }).click();
+  await panel.getByRole('button', { name: /^Xào bài/ }).click();
   await expect(panel.getByRole('status', { name: 'Đang xào bài' })).toBeVisible();
   await expect(panel.getByRole('group', { name: 'Bộ bài đã trải' })).toBeVisible();
   await expect(panel.getByRole('button', { name: /^Lá úp thứ/ })).toHaveCount(78);
@@ -183,7 +200,7 @@ test('a yes/no reading needs a question and answers from the centre card', async
   await chooseRoomTab(page, 'Bói Tarot');
   const panel = page.getByRole('region', { name: 'Bói Tarot', exact: true });
   await panel.getByRole('button', { name: /Có \/ Không/ }).click();
-  await expect(panel.getByRole('button', { name: 'Xào bài', exact: true })).toBeDisabled();
+  await expect(panel.getByRole('button', { name: /^Xào bài/ })).toBeDisabled();
   await panel.getByRole('textbox', { name: 'Câu hỏi' }).fill('Có nên đổi việc?');
   await pickCards(panel, 3);
   await expect(card(panel, 'Câu trả lời: 5 Cốc (ngược)')).toBeVisible();
@@ -211,7 +228,7 @@ test('picking can be cancelled, and a lost acknowledgement retries the same draw
   const f = await fixture(page);
   await chooseRoomTab(page, 'Bói Tarot');
   const panel = page.getByRole('region', { name: 'Bói Tarot', exact: true });
-  await panel.getByRole('button', { name: 'Xào bài', exact: true }).click();
+  await panel.getByRole('button', { name: /^Xào bài/ }).click();
   await panel.getByRole('button', { name: 'Lá úp thứ 2', exact: true }).press('Enter');
   await panel.getByRole('button', { name: 'Thôi, không rút nữa' }).click();
   await expect(panel.getByText('Bộ bài 78 lá đang chờ.')).toBeVisible();
@@ -303,4 +320,46 @@ test('the long AI reading appears after the flip, and a failed one can be retrie
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
     .analyze();
   expect(scan.violations).toEqual([]);
+});
+
+test('drawing costs coins from the shared wallet and is blocked when the wallet is short', async ({
+  page,
+}) => {
+  const f = await fixture(page, { coins: 700 });
+  await chooseRoomTab(page, 'Bói Tarot');
+  const panel = page.getByRole('region', { name: 'Bói Tarot', exact: true });
+  await expect(panel.getByText('Ví của bạn: 700 xu')).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Xào bài · 500 xu' })).toBeEnabled();
+  await pickCards(panel, 3);
+  await expect(card(panel, 'Tương lai: Mặt Trời')).toBeVisible();
+  await expect(panel.getByText('Ví của bạn: 200 xu')).toBeVisible({ timeout: 8_000 });
+  f.cooldownOver();
+  // 200 coins left: the three-card spread is out of reach, a single card is not.
+  await expect(panel.getByRole('button', { name: 'Chưa đủ xu' })).toBeDisabled();
+  await expect(panel.getByText(/cần 500 xu/)).toBeVisible();
+  await panel.getByRole('button', { name: /^1 lá/ }).click();
+  await expect(panel.getByRole('button', { name: 'Xào bài · 200 xu' })).toBeEnabled();
+  expect(f.requests).toHaveLength(1);
+});
+
+test('the room owner makes Tarot free in the room settings', async ({ page }) => {
+  const f = await fixture(page, { owner: true, coins: 0 });
+  await chooseRoomTab(page, 'Bói Tarot');
+  const panel = page.getByRole('region', { name: 'Bói Tarot', exact: true });
+  await expect(panel.getByRole('button', { name: 'Chưa đủ xu' })).toBeDisabled();
+  await expect(panel.getByRole('switch', { name: /Tính xu/ })).toHaveCount(0);
+  await chooseRoomTab(page, 'Cài đặt phòng');
+  const toggle = page.getByRole('switch', { name: 'Tính xu khi rút bài' });
+  await expect(toggle).toBeChecked();
+  await expect(page.getByText(/3 lá 500 xu/)).toBeVisible();
+  await toggle.uncheck();
+  await expect(toggle).not.toBeChecked();
+  expect(f.settings).toEqual([false]);
+  await expect(page.getByText(/rút bài miễn phí/)).toBeVisible();
+  await chooseRoomTab(page, 'Bói Tarot');
+  await expect(panel.getByRole('button', { name: 'Xào bài · Miễn phí' })).toBeEnabled();
+  await expect(panel.getByText('Ví của bạn:')).toHaveCount(0);
+  await pickCards(panel, 3);
+  await expect(card(panel, 'Tương lai: Mặt Trời')).toBeVisible();
+  expect(f.state.my_coins).toBe(0);
 });

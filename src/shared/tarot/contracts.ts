@@ -78,6 +78,8 @@ export interface TarotReading {
   created_at: string;
   /** All viewers flip the cards together; the last card is face up at this moment. */
   reveal_at: string;
+  /** Coins the drawer paid; absent on readings made before Tarot cost coins. */
+  cost?: number;
   /** Long reading written by AI after the draw; absent when AI is not configured. */
   ai?: TarotAi;
 }
@@ -97,7 +99,20 @@ export interface TarotSnapshot {
   recent: TarotReading[];
   /** When the viewer may draw again; null when they can draw now. */
   my_next_at: string | null;
+  /** The viewer's spendable coins (shared wallet with Bầu Cua and Đua Vịt). */
+  my_coins?: number;
+  /** Whether drawing costs coins in this room; the room's owner decides in the room settings. */
+  paid?: boolean;
+  /** True for the room's owner, who may switch charging on or off. */
+  can_configure?: boolean;
 }
+/** Coins the person who draws pays per reading; everyone else watches for free. */
+export const TAROT_PRICES = { ONE: 200, THREE: 500, YES_NO: 300 } as const satisfies Record<
+  keyof typeof spreads,
+  number
+>;
+export const tarotSettingsSchema = z.object({ paid: z.boolean() }).strict();
+export const formatCoins = (n: number) => `${n.toLocaleString('vi-VN')} xu`;
 
 // ---------------------------------------------------------------- interpretation
 

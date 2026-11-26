@@ -2,6 +2,27 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 export async function testTarot({ sql, owner, users, check }) {
+  // These checks top up wallets; put the shared test users' coins back for the suites that follow.
+  const people = [owner, users[0]];
+  const saved =
+    await sql`select user_id,available,reserved from public.coin_wallets where user_id = any(${people}::uuid[])`;
+  try {
+    await tarotChecks({ sql, owner, users, check });
+  } finally {
+    for (const id of people) {
+      const before = saved.find((w) => w.user_id === id);
+      if (before)
+        await sql`update public.coin_wallets set available=${before.available},reserved=${before.reserved} where user_id=${id}::uuid`;
+      else {
+        await sql`delete from public.coin_ledger where user_id=${id}::uuid`;
+        await sql`delete from private.coin_grants where user_id=${id}::uuid`;
+        await sql`delete from public.coin_wallets where user_id=${id}::uuid`;
+      }
+    }
+  }
+}
+
+async function tarotChecks({ sql, owner, users, check }) {
   const member = users[0],
     outsider = users[1];
   const read = async (actor, room) =>
@@ -15,6 +36,13 @@ export async function testTarot({ sql, owner, users, check }) {
   const three = { action: 'draw', spread: 'THREE', topic: 'LOVE', question: 'Sắp tới thế nào?' };
   const allowAgain = (room) =>
     sql`update private.tarot_readings set created_at=created_at-interval '1 minute' where room_id=${room}::uuid`;
+  const coins = async (actor) =>
+    (await sql`select available from public.coin_wallets where user_id=${actor}::uuid`)[0]
+      ?.available;
+  async function fund(actor, amount = 1_000_000) {
+    await sql`select private.bau_wallet(${actor}::uuid)`;
+    await sql`update public.coin_wallets set available=${amount} where user_id=${actor}::uuid`;
+  }
   async function fixture() {
     const room = (
       await sql`select public.create_room(${owner}::uuid,'Tarot thử','','',${randomUUID()}::uuid) r`
@@ -22,6 +50,8 @@ export async function testTarot({ sql, owner, users, check }) {
     await sql`select public.join_room(${member}::uuid,${room.code},'Bạn thử','')`;
     await presence(owner, room.id);
     await presence(member, room.id);
+    await fund(owner);
+    await fund(member);
     return room.id;
   }
 
@@ -184,6 +214,97 @@ export async function testTarot({ sql, owner, users, check }) {
         }),
         /permission denied/,
       );
+  });
+
+  await check('tarot charges the drawer once per reading and refuses a short wallet', async () => {
+    const room = await fixture();
+    await fund(member, 1000);
+    assert.equal((await read(member, room)).my_coins, 1000);
+    const key = randomUUID();
+    const first = await draw(member, room, three, key);
+    assert.equal(first.cost, 500);
+    assert.equal(Number(await coins(member)), 500);
+    // A replay of the same request is not charged again; the others in the room pay nothing.
+    await draw(member, room, three, key);
+    assert.equal(Number(await coins(member)), 500);
+    assert.equal(Number(await coins(owner)), 1_000_000);
+    const ledger = await sql`select reason,reference,available_delta from public.coin_ledger
+      where user_id=${member}::uuid and reason='TAROT_READING' and reference=${'tarot:' + first.id}`;
+    assert.deepEqual(
+      ledger.map((l) => [l.reference, Number(l.available_delta)]),
+      [['tarot:' + first.id, -500]],
+    );
+    await allowAgain(room);
+    const yes = await draw(member, room, { ...three, spread: 'YES_NO', question: 'Đi không?' });
+    assert.equal(yes.cost, 300);
+    assert.equal(Number(await coins(member)), 200);
+    await allowAgain(room);
+    // 200 left: three cards are refused without drawing anything, one card is fine.
+    const before = (await read(owner, room)).recent.length;
+    await assert.rejects(draw(member, room, three), /TAROT_INSUFFICIENT_COINS/);
+    assert.equal((await read(owner, room)).recent.length, before);
+    assert.equal((await draw(member, room, { ...three, spread: 'ONE' })).cost, 200);
+    assert.equal(Number(await coins(member)), 0);
+    assert.equal((await read(member, room)).my_coins, 0);
+    // Someone who never had a wallet sees the welcome grant and receives it on first draw.
+    const fresh = randomUUID();
+    await sql`insert into auth.users(id,is_anonymous) values(${fresh},true)`;
+    await sql`select public.join_room(${fresh}::uuid,(select code from public.rooms where id=${room}::uuid),'Mới','')`;
+    await presence(fresh, room);
+    const initial = (await sql`select (settings->>'initial')::bigint n from private.bau_economy`)[0]
+      .n;
+    assert.equal(Number((await read(fresh, room)).my_coins), Number(initial));
+    await draw(fresh, room, { ...three, spread: 'ONE' });
+    assert.equal(Number(await coins(fresh)), Number(initial) - 200);
+  });
+
+  await check('the room owner makes Tarot free or paid for that room only', async () => {
+    const room = await fixture(),
+      other = await fixture();
+    const configure = async (actor, paid, target = room) =>
+      (await sql`select public.tarot_configure(${actor}::uuid,${target}::uuid,${paid}) r`)[0].r;
+    const view = await read(owner, room);
+    assert.equal(view.paid, true);
+    assert.equal(view.can_configure, true);
+    assert.equal((await read(member, room)).can_configure, false);
+    await assert.rejects(configure(member, false), /PERMISSION_DENIED/);
+    await assert.rejects(configure(outsider, false), /PERMISSION_DENIED/);
+    await assert.rejects(configure(owner, false, randomUUID()), /ROOM_NOT_FOUND/);
+    const before = (await sql`select version from public.rooms where id=${room}::uuid`)[0].version;
+    assert.deepEqual(await configure(owner, false), { paid: false });
+    assert.ok(
+      (await sql`select version from public.rooms where id=${room}::uuid`)[0].version > before,
+    );
+    assert.equal((await read(member, room)).paid, false);
+    assert.equal((await read(member, other)).paid, true, 'other rooms keep charging');
+    await fund(member, 0);
+    const free = await draw(member, room, three);
+    assert.equal(free.cost, 0);
+    assert.equal(Number(await coins(member)), 0);
+    assert.equal(
+      (
+        await sql`select count(*)::int n from public.coin_ledger where reference=${'tarot:' + free.id}`
+      )[0].n,
+      0,
+    );
+    await assert.rejects(draw(member, other, three), /TAROT_INSUFFICIENT_COINS/);
+    const audit =
+      await sql`select details from public.audit_logs where room_id=${room}::uuid and action='tarot.settings'`;
+    assert.deepEqual(
+      audit.map((a) => a.details),
+      [{ paid: false }],
+    );
+    // Switching back on charges again.
+    await configure(owner, true);
+    await allowAgain(room);
+    await assert.rejects(draw(member, room, three), /TAROT_INSUFFICIENT_COINS/);
+    await assert.rejects(
+      sql.begin(async (tx) => {
+        await tx.unsafe('set local role authenticated');
+        await tx.unsafe(`select public.tarot_configure('${owner}','${room}',false)`);
+      }),
+      /permission denied/,
+    );
   });
 
   await check('concurrent tarot requests with one key commit one reading', async () => {

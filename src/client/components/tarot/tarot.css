@@ -246,6 +246,16 @@
   font-family: var(--tarot-serif);
   font-style: italic;
 }
+.tarot-price {
+  font-weight: 700;
+}
+.tarot-wallet {
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+.tarot-wallet.short {
+  color: var(--danger);
+}
 .tarot-fan-wrap {
   /* The fan sizes its cards and its own height from this width. */
   container-type: inline-size;

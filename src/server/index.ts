@@ -27,6 +27,7 @@ import { RecommendationService } from './services/recommendations';
 import { wheelCommandSchema, type WheelSnapshot, type WheelResult } from '../shared/wheel';
 import {
   tarotCommandSchema,
+  tarotSettingsSchema,
   type TarotReading,
   type TarotSnapshot,
 } from '../shared/tarot/contracts';
@@ -354,6 +355,16 @@ app.post('/api/v1/rooms/:id/tarot', async (c) => {
     inBackground(c, writeTarotReading(store, c.env, actor, room, reading.id));
   return c.json(reading);
 });
+// The room's owner decides whether drawing costs coins in that room.
+app.post('/api/v1/rooms/:id/tarot/settings', async (c) =>
+  c.json(
+    await c.get('services').store.call<{ paid: boolean }>('tarot_configure', {
+      p_actor: c.get('actor'),
+      p_room: uuid.parse(c.req.param('id')),
+      p_paid: tarotSettingsSchema.parse(await c.req.json()).paid,
+    }),
+  ),
+);
 // The person who drew may ask again when the AI reading failed or was lost.
 app.post('/api/v1/rooms/:id/tarot/:reading/ai', async (c) => {
   if (!c.env.GEMINI_API_KEY) throw new AppError('NOT_FOUND', 404);

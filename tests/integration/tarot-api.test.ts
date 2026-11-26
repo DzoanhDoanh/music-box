@@ -64,6 +64,7 @@ beforeEach(() => {
       if (path.endsWith('/tarot_ai_claim'))
         return Response.json(claimable ? { ...reading, ai: { status: 'pending' } } : null);
       if (path.endsWith('/tarot_ai_save')) return Response.json(true);
+      if (path.endsWith('/tarot_configure')) return Response.json({ paid: body.p_paid });
       throw new Error('Unexpected RPC ' + path);
     }),
   );
@@ -203,5 +204,38 @@ describe('Tarot AI reading', () => {
     gemini = [];
     expect(await (await retry(id)).json()).toEqual({ started: false });
     expect(gemini).toEqual([]);
+  });
+});
+
+describe('Tarot pricing settings', () => {
+  const post = (body: unknown, flags: Record<string, string> = env) =>
+    app.request(
+      `/api/v1/rooms/${room}/tarot/settings`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer fixture',
+          'Content-Type': 'application/json',
+          'Idempotency-Key': crypto.randomUUID(),
+        },
+        body: JSON.stringify(body),
+      },
+      flags,
+    );
+  it('forwards a strict on/off switch to the database, which checks the room owner', async () => {
+    const response = await post({ paid: false });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ paid: false });
+    expect(calls.find((c) => c.path.endsWith('/tarot_configure'))!.body).toEqual({
+      p_actor: actor,
+      p_room: room,
+      p_paid: false,
+    });
+  });
+  it('rejects anything but a boolean and is hidden when Tarot is off', async () => {
+    for (const body of [{ paid: 'no' }, { paid: false, prices: { ONE: 1 } }, {}])
+      expect((await post(body)).status).toBe(400);
+    expect((await post({ paid: true }, { ...env, ENABLE_TAROT: 'false' })).status).toBe(404);
+    expect(calls).toEqual([]);
   });
 });
