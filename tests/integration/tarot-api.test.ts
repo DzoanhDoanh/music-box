@@ -15,6 +15,10 @@ let calls: { path: string; body: Record<string, unknown> }[], busy: boolean;
 let gemini: { url: string; headers: Headers; body: Record<string, unknown> }[],
   geminiReply: () => Response,
   claimable: boolean;
+// The room's own AI, as tarot_ai_secret returns it (sealed key), and what its API received.
+let roomSecret: Record<string, unknown> | null,
+  custom: { url: string; headers: Headers; body: Record<string, unknown>; redirect?: string }[],
+  customReply: () => Response;
 const reading = {
   id: 'r1',
   actor,
@@ -37,6 +41,9 @@ beforeEach(() => {
   busy = false;
   gemini = [];
   claimable = true;
+  roomSecret = null;
+  custom = [];
+  customReply = () => Response.json({ choices: [{ message: { content: longText } }] });
   geminiReply = () => Response.json({ candidates: [{ content: { parts: [{ text: longText }] } }] });
   vi.stubGlobal(
     'fetch',
@@ -50,6 +57,15 @@ beforeEach(() => {
           body: JSON.parse(String(init?.body)),
         });
         return geminiReply();
+      }
+      if (url.hostname === 'llm.example.com') {
+        custom.push({
+          url: String(input),
+          headers: new Headers(init?.headers),
+          body: JSON.parse(String(init?.body)),
+          redirect: init?.redirect,
+        });
+        return customReply();
       }
       if (path === '/auth/v1/user') return Response.json({ id: actor });
       if (path.endsWith('/consume_rate_limit')) return Response.json(true);
@@ -65,6 +81,25 @@ beforeEach(() => {
         return Response.json(claimable ? { ...reading, ai: { status: 'pending' } } : null);
       if (path.endsWith('/tarot_ai_save')) return Response.json(true);
       if (path.endsWith('/tarot_configure')) return Response.json({ paid: body.p_paid });
+      if (path.endsWith('/tarot_ai_secret')) return Response.json(roomSecret);
+      if (path.endsWith('/tarot_ai_view'))
+        return Response.json({
+          enabled: false,
+          base_url: '',
+          model: '',
+          has_key: false,
+          key_hint: null,
+          updated_at: null,
+        });
+      if (path.endsWith('/tarot_ai_configure'))
+        return Response.json({
+          enabled: body.p_enabled,
+          base_url: body.p_base_url,
+          model: body.p_model,
+          has_key: body.p_cipher !== null,
+          key_hint: body.p_hint,
+          updated_at: '',
+        });
       throw new Error('Unexpected RPC ' + path);
     }),
   );
@@ -128,7 +163,9 @@ describe('Tarot AI reading', () => {
   it('is off without a key: the draw never claims or calls Gemini', async () => {
     expect((await request(command)).status).toBe(200);
     await new Promise((r) => setTimeout(r, 20));
-    expect(calls.map((c) => c.path.split('/').pop())).toEqual(['tarot_draw']);
+    await vi.waitFor(() =>
+      expect(calls.map((c) => c.path.split('/').pop())).toEqual(['tarot_draw', 'tarot_ai_secret']),
+    );
     expect(gemini).toEqual([]);
     const retry = await app.request(
       `/api/v1/rooms/${room}/tarot/30000000-0000-4000-8000-000000000001/ai`,
@@ -156,13 +193,13 @@ describe('Tarot AI reading', () => {
     // The key travels in a header, never in the URL; the prompt carries the cards and question.
     expect(gemini).toHaveLength(1);
     expect(gemini[0].url).not.toContain('gemini-fixture');
-    expect(gemini[0].url).toContain('/models/gemini-flash-latest:generateContent');
+    expect(gemini[0].url).toContain('/models/gemini-flash-lite-latest:generateContent');
     expect(gemini[0].headers.get('x-goog-api-key')).toBe('gemini-fixture');
     const prompt = JSON.stringify(gemini[0].body);
     for (const text of ['Kẻ Khờ', '2 Gậy', 'NGƯỢC', 'Mặt Trời', 'Hỏi gì?', 'Tình cảm'])
       expect(prompt).toContain(text);
   });
-  it('falls back to the lighter model when the main one is busy', async () => {
+  it('falls back to the bigger Flash when Flash-Lite is busy', async () => {
     let first = true;
     geminiReply = () => {
       if (!first)
@@ -175,8 +212,8 @@ describe('Tarot AI reading', () => {
     await vi.waitFor(() => expect(saved()).toBeTruthy());
     expect(saved()!.body).toMatchObject({ p_ok: true });
     expect(gemini.map((g) => g.url.split('/models/')[1])).toEqual([
-      'gemini-flash-latest:generateContent',
       'gemini-flash-lite-latest:generateContent',
+      'gemini-flash-latest:generateContent',
     ]);
   });
   it('records a failure when Gemini errors, and only the drawer may retry', async () => {
@@ -237,5 +274,147 @@ describe('Tarot pricing settings', () => {
       expect((await post(body)).status).toBe(400);
     expect((await post({ paid: true }, { ...env, ENABLE_TAROT: 'false' })).status).toBe(404);
     expect(calls).toEqual([]);
+  });
+});
+
+describe("The room's own AI", () => {
+  const ai = { ...env, GEMINI_API_KEY: 'gemini-fixture' };
+  const post = (path: string, body: unknown, flags: Record<string, string> = env) =>
+    app.request(
+      `/api/v1/rooms/${room}/tarot${path}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer fixture',
+          'Content-Type': 'application/json',
+          'Idempotency-Key': crypto.randomUUID(),
+        },
+        body: JSON.stringify(body),
+      },
+      flags,
+    );
+  async function seal(key: string) {
+    const { sealKey } = await import('../../src/server/services/tarot-ai-custom');
+    return sealKey(env.SUPABASE_SECRET_KEY, room, key);
+  }
+  const saved = () => calls.find((c) => c.path.endsWith('/tarot_ai_save'));
+
+  it('writes readings with the room API, even without a server Gemini key', async () => {
+    roomSecret = {
+      enabled: true,
+      base_url: 'https://llm.example.com/v1',
+      model: 'my-model',
+      key_cipher: await seal('sk-room-secret-123'),
+    };
+    customReply = () =>
+      Response.json({ choices: [{ message: { content: '<think>plan</think>' + longText } }] });
+    expect((await request(command)).status).toBe(200);
+    await vi.waitFor(() => expect(saved()).toBeTruthy());
+    expect(saved()!.body).toMatchObject({ p_ok: true, p_text: longText.trim() });
+    expect(custom).toHaveLength(1);
+    expect(custom[0].url).toBe('https://llm.example.com/v1/chat/completions');
+    expect(custom[0].headers.get('authorization')).toBe('Bearer sk-room-secret-123');
+    expect(custom[0].redirect).toBe('manual');
+    expect(custom[0].body).toMatchObject({ model: 'my-model' });
+    expect(JSON.stringify(custom[0].body)).toContain('Kẻ Khờ');
+    expect(gemini).toEqual([]);
+  });
+  it('falls back to Gemini when the room API fails, and ignores a switched-off setup', async () => {
+    roomSecret = {
+      enabled: true,
+      base_url: 'https://llm.example.com/v1',
+      model: 'm',
+      key_cipher: await seal('sk-room-secret-123'),
+    };
+    customReply = () => Response.json({ error: { message: 'bad key' } }, { status: 401 });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await request(command, ai)).status).toBe(200);
+    await vi.waitFor(() => expect(saved()).toBeTruthy());
+    expect(saved()!.body).toMatchObject({ p_ok: true });
+    expect(custom).toHaveLength(1);
+    expect(gemini).toHaveLength(1);
+    calls = [];
+    custom = [];
+    roomSecret = { ...roomSecret, enabled: false };
+    expect((await request(command, ai)).status).toBe(200);
+    await vi.waitFor(() => expect(saved()).toBeTruthy());
+    expect(custom).toEqual([]);
+  });
+  it('seals the key before it reaches the database and never sends it back', async () => {
+    const response = await post('/ai', {
+      enabled: true,
+      base_url: 'https://llm.example.com/v1/chat/completions/',
+      model: ' my-model ',
+      api_key: ' sk-room-secret-123 ',
+    });
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(text).not.toContain('sk-room-secret');
+    const stored = calls.find((c) => c.path.endsWith('/tarot_ai_configure'))!.body;
+    expect(stored).toMatchObject({
+      p_actor: actor,
+      p_enabled: true,
+      p_base_url: 'https://llm.example.com/v1',
+      p_model: 'my-model',
+      p_hint: '-123',
+      p_clear: false,
+    });
+    expect(JSON.stringify(stored)).not.toContain('sk-room-secret');
+    const { openKey } = await import('../../src/server/services/tarot-ai-custom');
+    expect(await openKey(env.SUPABASE_SECRET_KEY, room, String(stored.p_cipher))).toBe(
+      'sk-room-secret-123',
+    );
+    // Sealed for this room only.
+    await expect(
+      openKey(
+        env.SUPABASE_SECRET_KEY,
+        '20000000-0000-4000-8000-000000000002',
+        String(stored.p_cipher),
+      ),
+    ).rejects.toThrow();
+  });
+  it('refuses base URLs that point at this machine or a private network', async () => {
+    for (const base_url of [
+      'http://llm.example.com/v1',
+      'https://localhost:8080/v1',
+      'https://127.0.0.1/v1',
+      'https://2130706433/v1',
+      'https://192.168.1.10/v1',
+      'https://[::1]/v1',
+      'https://printer.local/v1',
+      'https://user:pass@llm.example.com/v1',
+    ]) {
+      const response = await post('/ai', { enabled: false, base_url, model: 'm' });
+      expect(response.status, base_url).toBe(400);
+      expect(JSON.stringify(await response.json())).toMatch(/https công khai/);
+    }
+    expect(calls.filter((c) => c.path.endsWith('/tarot_ai_configure'))).toEqual([]);
+  });
+  it('tests a connection without saving, and explains failures', async () => {
+    customReply = () => Response.json({ choices: [{ message: { content: 'OK' } }] });
+    let response = await post('/ai/test', {
+      base_url: 'https://llm.example.com/v1',
+      model: 'm',
+      api_key: 'sk-test-12345',
+    });
+    expect(await response.json()).toMatchObject({ ok: true });
+    customReply = () => Response.json({ error: { message: 'model not found' } }, { status: 404 });
+    response = await post('/ai/test', {
+      base_url: 'https://llm.example.com/v1',
+      model: 'nope',
+      api_key: 'sk-test-12345',
+    });
+    expect(await response.json()).toEqual({
+      ok: false,
+      message: 'Sai Base URL hoặc model không tồn tại (model not found).',
+    });
+    customReply = () => new Response(null, { status: 302, headers: { Location: 'https://x' } });
+    response = await post('/ai/test', {
+      base_url: 'https://llm.example.com/v1',
+      model: 'm',
+      api_key: 'sk-test-12345',
+    });
+    expect((await response.json()).message).toMatch(/chuyển hướng/);
+    expect(calls.filter((c) => c.path.endsWith('/tarot_ai_configure'))).toEqual([]);
   });
 });

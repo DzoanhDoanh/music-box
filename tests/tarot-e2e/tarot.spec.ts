@@ -74,6 +74,42 @@ async function fixture(
     state.paid = paid;
     return route.fulfill({ json: { paid } });
   });
+  // The owner's own AI in the room settings; the key is write-only.
+  const aiSaves: Record<string, unknown>[] = [],
+    aiTests: Record<string, unknown>[] = [];
+  let aiView = {
+    enabled: false,
+    base_url: '',
+    model: '',
+    has_key: false,
+    key_hint: null as string | null,
+    updated_at: null as string | null,
+  };
+  await page.route('**/api/v1/rooms/*/tarot/ai', async (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: aiView });
+    const body = route.request().postDataJSON() as Record<string, string | boolean>;
+    aiSaves.push(body);
+    const key = typeof body.api_key === 'string' ? body.api_key : null;
+    aiView = {
+      enabled: Boolean(body.enabled),
+      base_url: String(body.base_url),
+      model: String(body.model),
+      has_key: body.clear_key ? false : key ? true : aiView.has_key,
+      key_hint: body.clear_key ? null : key ? key.slice(-4) : aiView.key_hint,
+      updated_at: new Date().toISOString(),
+    };
+    return route.fulfill({ json: aiView });
+  });
+  await page.route('**/api/v1/rooms/*/tarot/ai/test', async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    aiTests.push(body);
+    return route.fulfill({
+      json:
+        body.model === 'good-model'
+          ? { ok: true, message: 'Kết nối được. Model trả lời sau 1.2 giây.' }
+          : { ok: false, message: 'Sai Base URL hoặc model không tồn tại (model not found).' },
+    });
+  });
   const retries: string[] = [];
   await page.route('**/api/v1/rooms/*/tarot/*/ai', async (route) => {
     const id = route.request().url().split('/').at(-2)!;
@@ -88,6 +124,8 @@ async function fixture(
   });
   await page.goto(`/room/${room}`);
   return {
+    aiSaves,
+    aiTests,
     settings,
     retries,
     finishAi(text: string | null) {
@@ -362,4 +400,53 @@ test('the room owner makes Tarot free in the room settings', async ({ page }) =>
   await pickCards(panel, 3);
   await expect(card(panel, 'Tương lai: Mặt Trời')).toBeVisible();
   expect(f.state.my_coins).toBe(0);
+});
+
+test("the room owner connects the room's own OpenAI-compatible AI in the room settings", async ({
+  page,
+}, info) => {
+  const f = await fixture(page, { owner: true });
+  await chooseRoomTab(page, 'Cài đặt phòng');
+  const section = page.getByRole('group', { name: 'AI luận giải Tarot' });
+  await expect(section.getByRole('button', { name: 'Thử kết nối' })).toBeDisabled();
+  await section.getByLabel('Base URL').fill('https://rqjec9w.abc-tunnel.example/v1');
+  await section.getByLabel('API key').fill('sk-my-own-key-9876');
+  await section.getByLabel('Model').fill('bad-model');
+  await section.getByRole('button', { name: 'Thử kết nối' }).click();
+  await expect(section.getByRole('status')).toHaveText(/model không tồn tại/);
+  await section.getByLabel('Model').fill('good-model');
+  await section.getByRole('button', { name: 'Thử kết nối' }).click();
+  await expect(section.getByRole('status')).toHaveText(/Kết nối được/);
+  expect(f.aiTests.at(-1)).toEqual({
+    base_url: 'https://rqjec9w.abc-tunnel.example/v1',
+    model: 'good-model',
+    api_key: 'sk-my-own-key-9876',
+  });
+  await section.getByRole('switch', { name: 'Dùng API riêng' }).check();
+  await section.screenshot({ path: info.outputPath('tarot-ai-settings.png') });
+  await section.getByRole('button', { name: 'Lưu AI riêng' }).click();
+  await expect(section.getByLabel('API key')).toHaveValue('');
+  await expect(section.getByLabel('API key')).toHaveAttribute('placeholder', /Đã lưu ••••9876/);
+  expect(f.aiSaves).toEqual([
+    {
+      enabled: true,
+      base_url: 'https://rqjec9w.abc-tunnel.example/v1',
+      model: 'good-model',
+      api_key: 'sk-my-own-key-9876',
+    },
+  ]);
+  // The saved key is kept when only the model changes, and can be removed.
+  await section.getByLabel('Model').fill('good-model-2');
+  await section.getByRole('button', { name: 'Lưu AI riêng' }).click();
+  await expect.poll(() => f.aiSaves.length).toBe(2);
+  expect(f.aiSaves[1]).not.toHaveProperty('api_key');
+  await section.getByRole('button', { name: 'Xóa key' }).click();
+  await expect.poll(() => f.aiSaves.length).toBe(3);
+  expect(f.aiSaves[2]).toMatchObject({ enabled: false, clear_key: true });
+  await expect(section.getByRole('button', { name: 'Xóa key' })).toHaveCount(0);
+  const scan = await new AxeBuilder({ page })
+    .include('.tarot-ai-setting')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze();
+  expect(scan.violations).toEqual([]);
 });

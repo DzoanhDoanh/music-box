@@ -6,6 +6,7 @@ import type { RoomCommand, Settings, Snapshot } from '../../shared/contracts';
 import { settingsSchema } from '../../shared/contracts';
 import { Button, Confirm } from './ui';
 import DeleteResource from './DeleteResource';
+import TarotAiSetting from './tarot/TarotAiSetting';
 import TarotRoomSetting from './tarot/TarotRoomSetting';
 
 const tarotEnabled = import.meta.env.VITE_ENABLE_TAROT === 'true';
@@ -217,7 +218,10 @@ export default function RoomSettings({
         {pending ? 'Đang lưu…' : 'Lưu cài đặt'}
       </Button>
       {tarotEnabled && snapshot.role === 'owner' && (
-        <TarotRoomSetting room={snapshot.room.id} actor={snapshot.me} />
+        <>
+          <TarotRoomSetting room={snapshot.room.id} actor={snapshot.me} />
+          <TarotAiSetting room={snapshot.room.id} actor={snapshot.me} />
+        </>
       )}
       {snapshot.role === 'owner' && (
         <fieldset className="delete-zone">

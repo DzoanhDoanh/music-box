@@ -307,6 +307,79 @@ async function tarotChecks({ sql, owner, users, check }) {
     );
   });
 
+  await check("a room owner's own AI is stored sealed and only the worker reads it", async () => {
+    const room = await fixture();
+    const view = async (actor) =>
+      (await sql`select public.tarot_ai_view(${actor}::uuid,${room}::uuid) r`)[0].r;
+    const configure = async (actor, enabled, url, model, cipher, hint, clear = false) =>
+      (
+        await sql`select public.tarot_ai_configure(${actor}::uuid,${room}::uuid,${enabled},${url},${model},${cipher},${hint},${clear}) r`
+      )[0].r;
+    const secret = async () => (await sql`select public.tarot_ai_secret(${room}::uuid) r`)[0].r;
+    const sealed = 'c2VhbGVkLWtleS1ieXRlcy1mb3ItdGVzdA==';
+    assert.deepEqual(await view(owner), {
+      enabled: false,
+      base_url: '',
+      model: '',
+      has_key: false,
+      key_hint: null,
+      updated_at: null,
+    });
+    await assert.rejects(view(member), /PERMISSION_DENIED/);
+    await assert.rejects(configure(member, false, '', '', null, null), /PERMISSION_DENIED/);
+    // Switching on needs a base URL, a model and a key.
+    await assert.rejects(
+      configure(owner, true, 'https://llm.example.com/v1', 'm', null, null),
+      /TAROT_AI_INCOMPLETE/,
+    );
+    await assert.rejects(
+      configure(owner, false, 'http://llm.example.com', 'm', null, null),
+      /check/,
+    );
+    const saved = await configure(owner, true, 'https://llm.example.com/v1', ' m ', sealed, 'ab12');
+    assert.equal(saved.enabled, true);
+    assert.equal(saved.model, 'm');
+    assert.equal(saved.has_key, true);
+    assert.equal(saved.key_hint, 'ab12');
+    assert.equal(
+      JSON.stringify(saved).includes(sealed),
+      false,
+      'the owner never gets the key back',
+    );
+    assert.deepEqual(await secret(), {
+      enabled: true,
+      base_url: 'https://llm.example.com/v1',
+      model: 'm',
+      key_cipher: sealed,
+    });
+    // A null key keeps the saved one; switching off keeps it too.
+    await configure(owner, false, 'https://llm.example.com/v1', 'm2', null, null);
+    assert.equal((await secret()).key_cipher, sealed);
+    assert.equal((await secret()).enabled, false);
+    await configure(owner, false, 'https://llm.example.com/v1', 'm2', null, null, true);
+    assert.equal(await secret(), null);
+    assert.equal((await view(owner)).has_key, false);
+    const audit =
+      await sql`select details::text d from public.audit_logs where room_id=${room}::uuid and action='tarot.ai_settings'`;
+    assert.equal(audit.length, 3);
+    for (const row of audit) {
+      assert.equal(row.d.includes(sealed), false);
+      assert.equal(row.d.includes('llm.example.com'), false);
+    }
+    for (const query of [
+      `select * from private.tarot_ai_settings`,
+      `select public.tarot_ai_secret('${room}')`,
+      `select public.tarot_ai_view('${owner}','${room}')`,
+    ])
+      await assert.rejects(
+        sql.begin(async (tx) => {
+          await tx.unsafe('set local role authenticated');
+          await tx.unsafe(query);
+        }),
+        /permission denied/,
+      );
+  });
+
   await check('concurrent tarot requests with one key commit one reading', async () => {
     const room = await fixture(),
       key = randomUUID();

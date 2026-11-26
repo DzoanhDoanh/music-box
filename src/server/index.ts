@@ -28,10 +28,21 @@ import { wheelCommandSchema, type WheelSnapshot, type WheelResult } from '../sha
 import {
   tarotCommandSchema,
   tarotSettingsSchema,
+  tarotAiSettingsSchema,
+  tarotAiTestSchema,
+  type TarotAiView,
   type TarotReading,
   type TarotSnapshot,
 } from '../shared/tarot/contracts';
-import { writeClaimedTarotReading, writeTarotReading } from './services/tarot-ai';
+import { roomAi, writeClaimedTarotReading, writeTarotReading } from './services/tarot-ai';
+import {
+  askCustomAi,
+  checkBaseUrl,
+  describeFailure,
+  keyHint,
+  openKey,
+  sealKey,
+} from './services/tarot-ai-custom';
 import { BauCuaService } from './services/bau-cua';
 import { commandSchema as bauCommandSchema } from '../shared/bau-cua/contracts';
 import { DuckRaceService } from './services/duck-race';
@@ -351,8 +362,8 @@ app.post('/api/v1/rooms/:id/tarot', async (c) => {
     p_request: requestKey(c.req.header('Idempotency-Key')),
     p_command: tarotCommandSchema.parse(await c.req.json()),
   });
-  if (c.env.GEMINI_API_KEY)
-    inBackground(c, writeTarotReading(store, c.env, actor, room, reading.id));
+  // The room's own AI or the server's Gemini key; without either nothing is claimed.
+  inBackground(c, writeTarotReading(store, c.env, actor, room, reading.id));
   return c.json(reading);
 });
 // The room's owner decides whether drawing costs coins in that room.
@@ -365,19 +376,83 @@ app.post('/api/v1/rooms/:id/tarot/settings', async (c) =>
     }),
   ),
 );
+// The room owner's own AI (any OpenAI-compatible API). The key is sealed here before it is
+// stored and is never sent back: the owner only sees its last four characters.
+app.get('/api/v1/rooms/:id/tarot/ai', async (c) =>
+  c.json(
+    await c.get('services').store.call<TarotAiView>('tarot_ai_view', {
+      p_actor: c.get('actor'),
+      p_room: uuid.parse(c.req.param('id')),
+    }),
+  ),
+);
+app.post('/api/v1/rooms/:id/tarot/ai', async (c) => {
+  const actor = c.get('actor'),
+    room = uuid.parse(c.req.param('id'));
+  const store = c.get('services').store;
+  const input = tarotAiSettingsSchema.parse(await c.req.json());
+  // Only the owner gets as far as encrypting anything.
+  await store.call<TarotAiView>('tarot_ai_view', { p_actor: actor, p_room: room });
+  const baseUrl = input.base_url ? checkBaseUrl(input.base_url) : '';
+  const key = input.api_key && !input.clear_key ? input.api_key : null;
+  return c.json(
+    await store.call<TarotAiView>('tarot_ai_configure', {
+      p_actor: actor,
+      p_room: room,
+      p_enabled: input.enabled,
+      p_base_url: baseUrl,
+      p_model: input.model,
+      p_cipher: key ? await sealKey(c.env.SUPABASE_SECRET_KEY, room, key) : null,
+      p_hint: key ? keyHint(key) : null,
+      p_clear: Boolean(input.clear_key),
+    }),
+  );
+});
+// Try a base URL, key and model with one short request before saving them.
+app.post('/api/v1/rooms/:id/tarot/ai/test', async (c) => {
+  const actor = c.get('actor'),
+    room = uuid.parse(c.req.param('id'));
+  const store = c.get('services').store;
+  const input = tarotAiTestSchema.parse(await c.req.json());
+  await store.call<TarotAiView>('tarot_ai_view', { p_actor: actor, p_room: room });
+  const baseUrl = checkBaseUrl(input.base_url);
+  let key = input.api_key ?? null;
+  if (!key) {
+    const saved = await store.call<{ key_cipher: string } | null>('tarot_ai_secret', {
+      p_room: room,
+    });
+    if (saved) key = await openKey(c.env.SUPABASE_SECRET_KEY, room, saved.key_cipher);
+  }
+  if (!key) return c.json({ ok: false, message: 'Hãy nhập API key.' });
+  const started = Date.now();
+  try {
+    await askCustomAi(
+      { baseUrl, model: input.model, key },
+      'Bạn là trợ lý kiểm tra kết nối.',
+      'Trả lời đúng một từ: OK',
+      { maxTokens: 256, timeoutMs: 30_000 },
+    );
+    const seconds = ((Date.now() - started) / 1000).toFixed(1);
+    return c.json({ ok: true, message: `Kết nối được. Model trả lời sau ${seconds} giây.` });
+  } catch (error) {
+    return c.json({ ok: false, message: describeFailure(error) });
+  }
+});
 // The person who drew may ask again when the AI reading failed or was lost.
 app.post('/api/v1/rooms/:id/tarot/:reading/ai', async (c) => {
-  if (!c.env.GEMINI_API_KEY) throw new AppError('NOT_FOUND', 404);
   const actor = c.get('actor'),
     room = uuid.parse(c.req.param('id')),
     readingId = uuid.parse(c.req.param('reading'));
   const store = c.get('services').store;
+  const custom = await roomAi(store, c.env, room);
+  if (!custom && !c.env.GEMINI_API_KEY) throw new AppError('NOT_FOUND', 404);
   const reading = await store.call<TarotReading | null>('tarot_ai_claim', {
     p_actor: actor,
     p_room: room,
     p_reading: readingId,
   });
-  if (reading) inBackground(c, writeClaimedTarotReading(store, c.env, room, reading));
+  if (reading)
+    inBackground(c, writeClaimedTarotReading(store, c.env, room, reading, fetch, custom));
   return c.json({ started: Boolean(reading) });
 });
 // Require an explicit runtime flag so targets without the game migration remain safe.

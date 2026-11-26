@@ -1,14 +1,16 @@
-// Long Tarot readings written by Gemini (Google AI Studio). The text is generated once per
+// Long Tarot readings written by AI: the room's own OpenAI-compatible API when its owner set one up,
+// otherwise Gemini (Google AI Studio) with the server's key. The text is generated once per
 // reading on the server and stored with it, so everyone in the room reads the same words.
 import { suits } from '../../shared/tarot/deck';
 import { interpret, spreads, topics, type TarotReading } from '../../shared/tarot/contracts';
 import type { RoomStore } from '../ports';
 import type { Env } from '../repository';
+import { askCustomAi, openKey, type CustomAi } from './tarot-ai-custom';
 
-const DEFAULT_MODEL = 'gemini-flash-latest';
+const DEFAULT_MODEL = 'gemini-flash-lite-latest';
 const MAX_TEXT = 8000;
 
-const SYSTEM = `Bạn là một người đọc bài Tarot giàu kinh nghiệm, viết bằng tiếng Việt, giọng ấm áp, sâu sắc và gần gũi (xưng "mình", gọi người hỏi là "bạn").
+export const TAROT_SYSTEM = `Bạn là một người đọc bài Tarot giàu kinh nghiệm, viết bằng tiếng Việt, giọng ấm áp, sâu sắc và gần gũi (xưng "mình", gọi người hỏi là "bạn").
 Nhiệm vụ: viết một bài luận giải dài, liền mạch cho trải bài được cung cấp.
 Yêu cầu:
 - Độ dài khoảng 450–700 chữ.
@@ -50,9 +52,9 @@ export function tarotPrompt(reading: TarotReading) {
     .join('\n');
 }
 
-// Google retires model versions for new keys, so default to the rolling aliases. When the main
-// model is busy (429/5xx/timeout) the reading falls back to the lighter one.
-const FALLBACK_MODEL = 'gemini-flash-lite-latest';
+// Google retires model versions for new keys, so default to the rolling aliases. Flash-Lite answers
+// in seconds with a large free quota; the bigger Flash only steps in when it is busy (429/5xx/timeout).
+const FALLBACK_MODEL = 'gemini-flash-latest';
 const retryable = (status: number) => status === 429 || status >= 500;
 
 async function askGemini(env: Env, model: string, reading: TarotReading, fetcher: typeof fetch) {
@@ -62,7 +64,7 @@ async function askGemini(env: Env, model: string, reading: TarotReading, fetcher
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY ?? '' },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM }] },
+        systemInstruction: { parts: [{ text: TAROT_SYSTEM }] },
         contents: [{ role: 'user', parts: [{ text: tarotPrompt(reading) }] }],
         // Room for the model's own thinking plus a 700-word answer.
         generationConfig: { temperature: 0.9, maxOutputTokens: 8192 },
@@ -86,13 +88,41 @@ async function askGemini(env: Env, model: string, reading: TarotReading, fetcher
     .trim();
   if (text.length < 80)
     throw Object.assign(new Error(`Gemini ${model} returned no reading`), { retry: true });
-  return text.length > MAX_TEXT ? text.slice(0, text.lastIndexOf('\n', MAX_TEXT)).trim() : text;
+  return clip(text);
 }
 
-/** Ask Gemini for the reading text. Throws when every model fails or returns nothing usable. */
-export async function generateTarotText(env: Env, reading: TarotReading, fetcher = fetch) {
-  const models = [...new Set([env.GEMINI_MODEL?.trim() || DEFAULT_MODEL, FALLBACK_MODEL])];
+const clip = (text: string) =>
+  text.length > MAX_TEXT ? text.slice(0, text.lastIndexOf('\n', MAX_TEXT)).trim() : text;
+
+/**
+ * Write the reading text: the room's own AI first, then Gemini with the server's key.
+ * Throws when every option fails or returns nothing usable.
+ */
+export async function generateTarotText(
+  env: Env,
+  reading: TarotReading,
+  fetcher = fetch,
+  custom: CustomAi | null = null,
+) {
   let last: unknown;
+  if (custom) {
+    try {
+      const text = await askCustomAi(
+        custom,
+        TAROT_SYSTEM,
+        tarotPrompt(reading),
+        { maxTokens: 4096, timeoutMs: 60_000 },
+        fetcher,
+      );
+      if (text.length >= 80) return clip(text);
+      last = new Error('room AI returned no reading');
+    } catch (error) {
+      last = error;
+    }
+    console.error('room tarot ai failed', last instanceof Error ? last.message : last);
+    if (!env.GEMINI_API_KEY) throw last;
+  }
+  const models = [...new Set([env.GEMINI_MODEL?.trim() || DEFAULT_MODEL, FALLBACK_MODEL])];
   for (const model of models) {
     try {
       return await askGemini(env, model, reading, fetcher);
@@ -105,6 +135,27 @@ export async function generateTarotText(env: Env, reading: TarotReading, fetcher
   throw last;
 }
 
+/** The room's own AI, decrypted, when its owner switched it on; null otherwise. */
+export async function roomAi(store: RoomStore, env: Env, room: string): Promise<CustomAi | null> {
+  const saved = await store.call<{
+    enabled: boolean;
+    base_url: string;
+    model: string;
+    key_cipher: string;
+  } | null>('tarot_ai_secret', { p_room: room });
+  if (!saved?.enabled || !saved.base_url || !saved.model) return null;
+  try {
+    return {
+      baseUrl: saved.base_url,
+      model: saved.model,
+      key: await openKey(env.SUPABASE_SECRET_KEY, room, saved.key_cipher),
+    };
+  } catch {
+    console.error('room tarot ai key could not be opened');
+    return null;
+  }
+}
+
 /** Write a reading already claimed with tarot_ai_claim and store the outcome. */
 export async function writeClaimedTarotReading(
   store: RoomStore,
@@ -112,10 +163,11 @@ export async function writeClaimedTarotReading(
   room: string,
   reading: TarotReading,
   fetcher = fetch,
+  custom: CustomAi | null = null,
 ) {
   let text: string | null = null;
   try {
-    text = await generateTarotText(env, reading, fetcher);
+    text = await generateTarotText(env, reading, fetcher, custom);
   } catch (error) {
     console.error('tarot ai failed', error instanceof Error ? error.message : error);
   }
@@ -137,11 +189,12 @@ export async function writeTarotReading(
   readingId: string,
   fetcher = fetch,
 ) {
-  if (!env.GEMINI_API_KEY) return false;
+  const custom = await roomAi(store, env, room);
+  if (!custom && !env.GEMINI_API_KEY) return false;
   const reading = await store.call<TarotReading | null>('tarot_ai_claim', {
     p_actor: actor,
     p_room: room,
     p_reading: readingId,
   });
-  return reading ? writeClaimedTarotReading(store, env, room, reading, fetcher) : false;
+  return reading ? writeClaimedTarotReading(store, env, room, reading, fetcher, custom) : false;
 }
