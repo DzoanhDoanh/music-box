@@ -46,6 +46,10 @@ beforeEach(() => {
             { id: other, name: 'Bình', role: 'member' },
           ],
         });
+      if (path.endsWith('/ty_phu_delete')) {
+        committed.push(body);
+        return Response.json({ deleted: true });
+      }
       if (path.endsWith('/ty_phu_commit')) {
         committed.push(body.p_state);
         state = body.p_state;
@@ -109,5 +113,18 @@ describe('Tỷ Phú HTTP boundary', () => {
       (await request('/' + id, { version: state.version - 1, command: { action: 'roll' } })).status,
     ).toBe(409);
     expect(committed).toEqual([]);
+  });
+  it('deletes a table by its confirmed name with the request key', async () => {
+    const response = await request(`/${id}/delete`, { name: 'Bàn API' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ deleted: true });
+    expect(committed).toEqual([
+      expect.objectContaining({ p_room: room, p_game: id, p_actor: actor, p_name: 'Bàn API' }),
+    ]);
+    expect((await request(`/${id}/delete`, {})).status).toBe(400);
+    expect(
+      (await request(`/${id}/delete`, { name: 'Bàn API' }, { ...env, ENABLE_TY_PHU: 'false' }))
+        .status,
+    ).toBe(404);
   });
 });

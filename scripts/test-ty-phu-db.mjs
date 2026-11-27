@@ -281,6 +281,49 @@ export async function testTyPhu({ sql, owner, check }) {
     assert.equal(await errorCode(create(owner, 'Bàn thừa')), 'TYPHU_TABLE_LIMIT');
   });
 
+  await check('ty phu tables are deleted only by their host or the room owner', async () => {
+    const remove = (u, game, name, key = randomUUID()) =>
+      service(u).delete(room.id, game, key, name);
+    // The room owner deletes any table, which frees a slot under the table limit.
+    const full = (
+      await sql`select id,state->>'name' name from public.ty_phu_matches where room_id=${room.id} and status='WAITING' order by created_at desc limit 1`
+    )[0];
+    assert.deepEqual(await remove(owner, full.id, full.name), { deleted: true });
+    await resetCreateLimit();
+    const createKey = randomUUID();
+    const command = { name: 'Bàn của Bạn 1', rules };
+    const table = (await service(users[1]).create(room.id, createKey, command)).state;
+    assert.equal(await errorCode(remove(users[2], table.id, table.name)), 'PERMISSION_DENIED');
+    assert.equal(await errorCode(remove(outsider, table.id, table.name)), 'PERMISSION_DENIED');
+    assert.equal(await errorCode(remove(users[1], table.id, 'Tên khác')), 'DELETE_NAME_MISMATCH');
+    const key = randomUUID();
+    assert.deepEqual(await remove(users[1], table.id, table.name, key), { deleted: true });
+    // A lost response may be retried with the same key; a different request under it may not.
+    assert.deepEqual(await remove(users[1], table.id, table.name, key), { deleted: true });
+    assert.equal(await errorCode(remove(users[1], table.id, 'Khác', key)), 'IDEMPOTENCY_CONFLICT');
+    assert.equal(
+      (await sql`select count(*)::int n from public.ty_phu_matches where id=${table.id}`)[0].n,
+      0,
+    );
+    assert.equal(
+      (await sql`select count(*)::int n from private.ty_phu_decks where match_id=${table.id}`)[0].n,
+      0,
+    );
+    assert.equal(await errorCode(service(users[1]).read(room.id, table.id)), 'NOT_FOUND');
+    // A delayed retry of the original create must not bring the table back.
+    await resetCreateLimit();
+    assert.equal(
+      await errorCode(service(users[1]).create(room.id, createKey, command)),
+      'NOT_FOUND',
+    );
+    assert.equal(
+      (
+        await sql`select count(*)::int n from public.audit_logs where room_id=${room.id} and action='ty_phu.delete'`
+      )[0].n,
+      2,
+    );
+  });
+
   function bot(state) {
     const p = state.players.find((x) => x.id === state.turn);
     switch (state.phase) {

@@ -263,3 +263,28 @@ test('the 2.5D table seats players in the corners and pauses for everyone', asyn
   await expect(page.locator('.typhu-stage.view-flat')).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem('roomtune:typhu:view'))).toBe('2d');
 });
+
+test('the host deletes a table after typing its name and returns to the lobby', async ({
+  page,
+  context,
+}) => {
+  const fixture = await tyPhuFixture(context);
+  await openNewTable(page);
+  const id = fixture.match!.id;
+  await page.getByRole('button', { name: 'Xóa bàn', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: /Xóa bàn “/ });
+  const confirm = dialog.getByRole('button', { name: 'Xác nhận', exact: true });
+  await expect(confirm).toBeDisabled();
+  await dialog.getByRole('textbox').fill('sai tên');
+  await expect(confirm).toBeDisabled();
+  await dialog.getByRole('textbox').fill(fixture.match!.name);
+  await noHorizontalScroll(page);
+  await page.screenshot({ path: `test-results/typhu/delete-${test.info().project.name}.png` });
+  await confirm.click();
+  await expect(page).toHaveURL(new RegExp(`/room/${roomId}/games/ty-phu$`));
+  await expect(page.getByText('Chưa có bàn nào.', { exact: false })).toBeVisible();
+  expect(fixture.deleted).toEqual([id]);
+  // Someone still on the old link is told the table is gone.
+  await page.goto(`/room/${roomId}/games/ty-phu/${id}`);
+  await expect(page.getByRole('heading', { name: 'Bàn này không còn nữa' })).toBeVisible();
+});

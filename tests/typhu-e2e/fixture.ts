@@ -113,6 +113,7 @@ export async function tyPhuFixture(context: BrowserContext) {
       }),
     );
   }, me);
+  const deleted: string[] = [];
   await context.routeWebSocket('**/realtime/**', (ws) => ws.close());
   await context.route('**/api/v1/**', async (route) => {
     const request = route.request();
@@ -155,6 +156,13 @@ export async function tyPhuFixture(context: BrowserContext) {
         match = transition(match, bot, 'Bình', { action: 'ready', ready: true }, now(), random);
         return json(view(), 201);
       }
+      if (match && path === `/rooms/${roomId}/ty-phu/${match.id}/delete`) {
+        if (request.postDataJSON().name !== match.name)
+          return json({ error: { code: 'DELETE_NAME_MISMATCH' } }, 409);
+        deleted.push(match.id);
+        match = null;
+        return json({ deleted: true });
+      }
       const previous = older.get(path.split('/').at(-1) ?? '');
       if (previous) {
         if (request.method() === 'POST') {
@@ -194,5 +202,6 @@ export async function tyPhuFixture(context: BrowserContext) {
     },
     nextDice,
     older,
+    deleted,
   };
 }

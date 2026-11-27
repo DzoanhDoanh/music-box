@@ -44,6 +44,17 @@ export class TyPhuService {
     });
   }
 
+  /** The host or the room owner deletes a table, with its history. Retries return the same receipt. */
+  delete(room: string, game: string, key: string, name: string) {
+    return this.store.call<{ deleted: true }>('ty_phu_delete', {
+      p_actor: this.actor,
+      p_room: room,
+      p_game: game,
+      p_request: key,
+      p_name: name,
+    });
+  }
+
   async create(room: string, key: string, command: { name: string; rules: TyPhuRules }) {
     await this.store.consume('ty_phu:create:' + this.actor, 6, 3600);
     // The SQL function replaces this placeholder with the profile name.

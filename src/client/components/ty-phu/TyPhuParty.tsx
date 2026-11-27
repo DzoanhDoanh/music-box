@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Bot,
@@ -46,6 +47,8 @@ import {
   winProgress,
 } from '../../../shared/ty-phu/engine';
 import { asEngineState, openRematch, useTyPhu, useTyPhuList } from '../../lib/ty-phu';
+import { AppError } from '../../../shared/domain';
+import DeleteResource from '../DeleteResource';
 import { AsyncButton, Button, Confirm, ErrorState, Loading } from '../ui';
 import TyPhuBoard, {
   colorNames,
@@ -251,6 +254,8 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
   const room = snapshot.room.id,
     me = snapshot.me;
   const { query, send, pending, connection, offset } = useTyPhu(room, me, game);
+  const client = useQueryClient();
+  const navigate = useNavigate();
   const now = useNow();
   const [detail, setDetail] = useState<number | null>(null);
   const [giftTile, setGiftTile] = useState<number | null>(null);
@@ -265,6 +270,21 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
   useEffect(() => setDetail(null), [turnKey]);
   const engine = useMemo(() => (state ? asEngineState(state) : null), [state]);
   if (!state || !engine) {
+    // The host or room owner deleted this table while it was open.
+    if (query.error instanceof AppError && query.error.code === 'NOT_FOUND')
+      return (
+        <section className="typhu-party typhu-match" aria-label="Ván Tỷ Phú Phố Nhạc">
+          <div className="typhu-card typhu-gone" role="status">
+            <h2>Bàn này không còn nữa</h2>
+            <p className="muted">Chủ bàn hoặc chủ phòng đã xóa bàn này.</p>
+            <Button asChild variant="primary">
+              <Link to={`/room/${room}/games/ty-phu`}>
+                <ArrowLeft size={16} /> Về danh sách bàn
+              </Link>
+            </Button>
+          </div>
+        </section>
+      );
     return query.error ? (
       <ErrorState error={query.error} retry={() => void query.refetch()} />
     ) : (
@@ -464,6 +484,26 @@ function TyPhuMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) {
         <aside className="typhu-side">
           <ActionPanel state={state} me={me} send={send} pending={pending} />
           <Players state={state} me={me} send={send} pending={pending} />
+          {(state.host === me || snapshot.role === 'owner') && (
+            <div className="delete-zone">
+              <DeleteResource
+                key={state.id}
+                path={`/rooms/${room}/ty-phu/${state.id}/delete`}
+                actor={me}
+                name={state.name}
+                label="Xóa bàn"
+                disabled={pending}
+                description="Xóa vĩnh viễn bàn này cùng diễn biến và kết quả. Ván đang chơi sẽ dừng với mọi người. Phòng nhạc và các bàn khác vẫn hoạt động."
+                onDeleted={() => {
+                  const key = ['ty-phu', room, me, state.id];
+                  void client.cancelQueries({ queryKey: key });
+                  client.removeQueries({ queryKey: key });
+                  void client.invalidateQueries({ queryKey: ['ty-phu', room, me, 'list'] });
+                  navigate(`/room/${room}/games/ty-phu`);
+                }}
+              />
+            </div>
+          )}
           <section className="typhu-card typhu-log" aria-label="Diễn biến ván">
             <h2>Diễn biến</h2>
             <ol>

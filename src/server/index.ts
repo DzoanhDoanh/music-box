@@ -199,6 +199,18 @@ app.get('/api/v1/rooms/:id/ty-phu/:game', async (c) =>
       .tyPhu.read(uuid.parse(c.req.param('id')), uuid.parse(c.req.param('game'))),
   ),
 );
+app.post('/api/v1/rooms/:id/ty-phu/:game/delete', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .tyPhu.delete(
+        uuid.parse(c.req.param('id')),
+        uuid.parse(c.req.param('game')),
+        requestKey(c.req.header('Idempotency-Key')),
+        deleteResourceSchema.parse(await c.req.json()).name,
+      ),
+  ),
+);
 app.post('/api/v1/rooms/:id/ty-phu/:game', async (c) =>
   c.json(
     await c
