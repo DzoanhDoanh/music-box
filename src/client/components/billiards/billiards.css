@@ -1,0 +1,346 @@
+.bi-party {
+  container: bi / inline-size;
+  --bi-accent: #2fbf71;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.bi-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--bi-accent);
+}
+.bi-hero h1 {
+  font-size: clamp(26px, 3.4vw, 38px);
+  margin: 6px 0;
+}
+.bi-hero p {
+  color: var(--muted);
+  max-width: 720px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.bi-card {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.bi-card h2 {
+  font-size: 15px;
+}
+.bi-card > label,
+.bi-bot-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.bi-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.bi-choice legend {
+  width: 100%;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.bi-choice label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.bi-choice label:has(input:checked) {
+  border-color: var(--bi-accent);
+  background: color-mix(in srgb, var(--bi-accent) 14%, transparent);
+}
+.bi-choice input {
+  accent-color: var(--bi-accent);
+}
+.bi-lobby-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+  align-items: start;
+}
+.bi-table-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bi-table-list a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--text);
+  text-decoration: none;
+}
+.bi-table-list a:hover,
+.bi-table-list a:focus-visible {
+  border-color: var(--bi-accent);
+}
+.bi-table-list small {
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.bi-enter {
+  grid-row: 1 / span 3;
+  grid-column: 2;
+  align-self: center;
+  font-size: 12px;
+  color: var(--bi-accent);
+}
+.bi-gone {
+  display: grid;
+  justify-items: start;
+  max-width: 420px;
+  margin: 24px auto;
+}
+
+/* ---------------------------------------------------------------- match */
+.bi-match-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.bi-match-head > div {
+  /* Wraps onto its own line on phones instead of squeezing the table name. */
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.bi-match-head h1 {
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+.bi-match-head small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.bi-help {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.bi-players {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.bi-player {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  min-width: 0;
+}
+.bi-player strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.bi-player small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.bi-player.turn {
+  border-color: var(--bi-accent);
+  box-shadow: 0 0 0 1px var(--bi-accent);
+}
+.bi-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.bi-mini-ball {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 700;
+  color: #111;
+  background: radial-gradient(circle, #fbfaf5 0 38%, var(--ball) 40%);
+}
+.bi-mini-ball.n1 {
+  --ball: #f2c418;
+}
+.bi-mini-ball.n2 {
+  --ball: #1d4fd8;
+}
+.bi-mini-ball.n3 {
+  --ball: #d62828;
+}
+.bi-mini-ball.n4 {
+  --ball: #6b2fa8;
+}
+.bi-mini-ball.n5 {
+  --ball: #f07818;
+}
+.bi-mini-ball.n6 {
+  --ball: #16823c;
+}
+.bi-mini-ball.n7 {
+  --ball: #7a1f1f;
+}
+.bi-mini-ball.n8 {
+  --ball: #121212;
+}
+.bi-mini-ball.n9 {
+  --ball: #f2c418;
+}
+.bi-mini-ball.n10 {
+  --ball: #1d4fd8;
+}
+.bi-mini-ball.n11 {
+  --ball: #d62828;
+}
+.bi-mini-ball.n12 {
+  --ball: #6b2fa8;
+}
+.bi-mini-ball.n13 {
+  --ball: #f07818;
+}
+.bi-mini-ball.n14 {
+  --ball: #16823c;
+}
+.bi-mini-ball.n15 {
+  --ball: #7a1f1f;
+}
+.bi-mini-ball.n9,
+.bi-mini-ball.n10,
+.bi-mini-ball.n11,
+.bi-mini-ball.n12,
+.bi-mini-ball.n13,
+.bi-mini-ball.n14,
+.bi-mini-ball.n15 {
+  background:
+    radial-gradient(circle, #fbfaf5 0 38%, transparent 40%),
+    linear-gradient(var(--ball) 0 0) center / 100% 56% no-repeat,
+    #f8f6ee;
+}
+.bi-table-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+.bi-canvas {
+  display: block;
+  max-width: 100%;
+  border-radius: 18px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+  touch-action: none;
+}
+.bi-canvas.active {
+  cursor: crosshair;
+}
+.bi-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bi-hint {
+  font-size: 12px;
+}
+.bi-warning {
+  color: #ff5a4f;
+  font-size: 12px;
+}
+.bi-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.bi-power {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.bi-power input {
+  accent-color: var(--bi-accent);
+  width: 100%;
+}
+.bi-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.bi-turn {
+  font-size: 16px;
+  font-weight: 700;
+}
+.bi-turn.mine {
+  color: var(--bi-accent);
+}
+.bi-note {
+  font-size: 12px;
+}
+.bi-actions,
+.bi-bot-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+.bi-bot-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.bi-log ol {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 12px;
+}
+.bi-log li {
+  color: var(--muted);
+}
+.bi-log li:first-child {
+  color: var(--text);
+  font-weight: 600;
+}
+@container bi (max-width: 760px) {
+  .bi-layout,
+  .bi-lobby-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

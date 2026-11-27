@@ -54,6 +54,9 @@
 .game-picker-card.is-cotuong {
   --tint: #e0553f;
 }
+.game-picker-card.is-billiards {
+  --tint: #2fbf71;
+}
 .game-picker-card.is-ludo {
   --tint: #b49af7;
 }

@@ -160,6 +160,7 @@ export default function AdminPanel({
                     'game.delete': 'Xóa bàn cờ',
                     'ty_phu.delete': 'Xóa bàn Tỷ Phú',
                     'co_tuong.delete': 'Xóa bàn Cờ Tướng',
+                    'billiards.delete': 'Xóa bàn bi-a',
                   } as Record<string, string>
                 )[event.action] ?? event.action}
               </strong>

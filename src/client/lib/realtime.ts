@@ -14,6 +14,8 @@ export interface RoomSubscription {
   onDuckReaction?(reaction: { id: string; emoji: string }): void;
   /** A Cờ Tướng table in the room changed (or was created or deleted). */
   onCoTuong?(game: string, version: number): void;
+  /** A Bi-a table in the room changed (or was created or deleted). */
+  onBilliards?(game: string, version: number): void;
 }
 type Observer = { callbacks: Partial<RoomSubscription>; presence: boolean };
 type SharedChannel = {
@@ -222,6 +224,15 @@ export class RealtimeService {
           )
             for (const { callbacks } of entry.observers)
               callbacks.onCoTuong?.(payload.game, payload.version);
+        })
+        .on('broadcast', { event: 'billiards.updated' }, ({ payload }) => {
+          if (
+            !entry.stopped &&
+            typeof payload?.game === 'string' &&
+            typeof payload.version === 'number'
+          )
+            for (const { callbacks } of entry.observers)
+              callbacks.onBilliards?.(payload.game, payload.version);
         })
         .on('broadcast', { event: 'ty_phu.list' }, () => {
           if (!entry.stopped) for (const { callbacks } of entry.observers) callbacks.onGames?.();

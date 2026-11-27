@@ -58,6 +58,8 @@ import { TyPhuService, settleDueTyPhu } from './services/ty-phu';
 import { createTyPhuSchema, tyPhuRequestSchema } from '../shared/ty-phu/contracts';
 import { CoTuongService } from './services/co-tuong';
 import { coTuongRequestSchema, createCoTuongSchema } from '../shared/co-tuong/contracts';
+import { BilliardsService } from './services/billiards';
+import { billiardsRequestSchema, createBilliardsSchema } from '../shared/billiards/contracts';
 
 type Services = {
   auth: AuthService;
@@ -72,6 +74,7 @@ type Services = {
   duck: DuckRaceService;
   tyPhu: TyPhuService;
   coTuong: CoTuongService;
+  billiards: BilliardsService;
   store: SupabaseRepository;
 };
 type Context = {
@@ -130,6 +133,7 @@ app.get('/api/v1/system/health', (c) =>
     duckRaceEnabled: c.env.ENABLE_DUCK_RACE === 'true',
     tyPhuEnabled: c.env.ENABLE_TY_PHU === 'true',
     coTuongEnabled: c.env.ENABLE_CO_TUONG === 'true',
+    billiardsEnabled: c.env.ENABLE_BILLIARDS === 'true',
     tarotEnabled: c.env.ENABLE_TAROT === 'true',
     tarotAi: c.env.ENABLE_TAROT === 'true' && Boolean(c.env.GEMINI_API_KEY),
     version: '0.1.0',
@@ -161,6 +165,7 @@ app.use('/api/v1/*', async (c, next) => {
     duck: new DuckRaceService(store, actor),
     tyPhu: new TyPhuService(store, actor),
     coTuong: new CoTuongService(store, actor),
+    billiards: new BilliardsService(store, actor),
     store,
   });
   await next();
@@ -173,6 +178,58 @@ const pageNumber = (value?: string) =>
     .max(10000)
     .parse(value ?? 0);
 const requestKey = (value?: string) => uuid.parse(value);
+// Bi-a stays behind its own flag until the migration is applied on the target.
+for (const path of ['/api/v1/rooms/:id/billiards', '/api/v1/rooms/:id/billiards/*'])
+  app.use(path, async (c, next) => {
+    if (c.env.ENABLE_BILLIARDS !== 'true') throw new AppError('NOT_FOUND', 404);
+    await next();
+  });
+app.get('/api/v1/rooms/:id/billiards', async (c) =>
+  c.json(await c.get('services').billiards.list(uuid.parse(c.req.param('id')))),
+);
+app.post('/api/v1/rooms/:id/billiards', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .billiards.create(
+        uuid.parse(c.req.param('id')),
+        requestKey(c.req.header('Idempotency-Key')),
+        createBilliardsSchema.parse(await c.req.json()),
+      ),
+    201,
+  ),
+);
+app.get('/api/v1/rooms/:id/billiards/:game', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .billiards.read(uuid.parse(c.req.param('id')), uuid.parse(c.req.param('game'))),
+  ),
+);
+app.post('/api/v1/rooms/:id/billiards/:game/delete', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .billiards.delete(
+        uuid.parse(c.req.param('id')),
+        uuid.parse(c.req.param('game')),
+        requestKey(c.req.header('Idempotency-Key')),
+        deleteResourceSchema.parse(await c.req.json()).name,
+      ),
+  ),
+);
+app.post('/api/v1/rooms/:id/billiards/:game', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .billiards.execute(
+        uuid.parse(c.req.param('id')),
+        uuid.parse(c.req.param('game')),
+        requestKey(c.req.header('Idempotency-Key')),
+        billiardsRequestSchema.parse(await c.req.json()),
+      ),
+  ),
+);
 // Cờ Tướng stays behind its own flag until the migration is applied on the target.
 for (const path of ['/api/v1/rooms/:id/co-tuong', '/api/v1/rooms/:id/co-tuong/*'])
   app.use(path, async (c, next) => {

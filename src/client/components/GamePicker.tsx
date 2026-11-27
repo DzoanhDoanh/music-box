@@ -23,6 +23,7 @@ export default function GamePicker({
   duck,
   tyPhu = false,
   coTuong = false,
+  billiards = false,
 }: {
   room: string;
   ludo: boolean;
@@ -30,8 +31,24 @@ export default function GamePicker({
   duck: boolean;
   tyPhu?: boolean;
   coTuong?: boolean;
+  billiards?: boolean;
 }) {
   const games: Game[] = [
+    ...(billiards
+      ? [
+          {
+            key: 'billiards',
+            name: 'Bi-a',
+            art: '🎱',
+            tag: '8 bi · 9 bi · phăng',
+            pitch: 'Ngắm, chỉnh lực rồi đánh. Đấu với người trong phòng hoặc với máy ba mức.',
+            players: '2 người hoặc với máy',
+            length: '5–20 phút',
+            cta: 'Vào sảnh',
+            to: `/room/${room}/games/bi-a`,
+          },
+        ]
+      : []),
     ...(coTuong
       ? [
           {

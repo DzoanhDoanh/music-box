@@ -16,6 +16,8 @@ ENABLE_DUCK_RACE=false
 ENABLE_TY_PHU=false
 # Requires 202611270002_co_tuong.sql and VITE_ENABLE_CO_TUONG=true at build time.
 ENABLE_CO_TUONG=false
+# Requires 202611270003_billiards.sql and VITE_ENABLE_BILLIARDS=true at build time.
+ENABLE_BILLIARDS=false
 # Requires 202611260002_tarot.sql and VITE_ENABLE_TAROT=true at build time.
 ENABLE_TAROT=false
 # Optional: Google AI Studio key (https://aistudio.google.com/apikey). When set, every Tarot

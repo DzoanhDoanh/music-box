@@ -19,6 +19,7 @@ describe('Hono boundary', () => {
       duckRaceEnabled: false,
       tyPhuEnabled: false,
       coTuongEnabled: false,
+      billiardsEnabled: false,
       tarotEnabled: false,
       tarotAi: false,
       version: '0.1.0',

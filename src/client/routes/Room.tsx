@@ -58,6 +58,7 @@ const HostPlayer = lazy(() => import('../components/HostPlayer')),
   DuckParty = lazy(() => import('../components/duck-race/DuckParty')),
   TyPhuParty = lazy(() => import('../components/ty-phu/TyPhuParty')),
   CoTuongParty = lazy(() => import('../components/co-tuong/CoTuongParty')),
+  BilliardsParty = lazy(() => import('../components/billiards/BilliardsParty')),
   BauNotifications = lazy(() => import('../components/bau-cua/BauNotifications')),
   LuckyWheel = lazy(() => import('../components/LuckyWheel')),
   TarotReading = lazy(() => import('../components/tarot/TarotReading')),
@@ -71,6 +72,9 @@ const bauEnabled = import.meta.env.VITE_ENABLE_BAU_CUA === 'true';
 const duckEnabled = import.meta.env.VITE_ENABLE_DUCK_RACE === 'true';
 const tyPhuEnabled = import.meta.env.VITE_ENABLE_TY_PHU === 'true';
 const coTuongEnabled = import.meta.env.VITE_ENABLE_CO_TUONG === 'true';
+const billiardsEnabled = import.meta.env.VITE_ENABLE_BILLIARDS === 'true';
+const anyGame =
+  ludoEnabled || bauEnabled || duckEnabled || tyPhuEnabled || coTuongEnabled || billiardsEnabled;
 const wheelEnabled = import.meta.env.VITE_ENABLE_WHEEL === 'true';
 const tarotEnabled = import.meta.env.VITE_ENABLE_TAROT === 'true';
 export default function RoomPage() {
@@ -94,15 +98,15 @@ export default function RoomPage() {
     enabled: !!room.data,
   });
   const [roomCode, setRoomCode] = useState('');
-  const gamePage =
-    (ludoEnabled || bauEnabled || duckEnabled || tyPhuEnabled || coTuongEnabled) &&
-    route.pathname.startsWith(`/room/${id}/games`);
+  const gamePage = anyGame && route.pathname.startsWith(`/room/${id}/games`);
   const duckRoute = matchPath('/room/:id/games/duck-race/:race?', route.pathname);
   const duckPage = duckEnabled && !!duckRoute;
   const tyPhuRoute = matchPath('/room/:id/games/ty-phu/:game?', route.pathname);
   const tyPhuPage = tyPhuEnabled && !!tyPhuRoute;
   const coTuongRoute = matchPath('/room/:id/games/co-tuong/:game?', route.pathname);
   const coTuongPage = coTuongEnabled && !!coTuongRoute;
+  const billiardsRoute = matchPath('/room/:id/games/bi-a/:game?', route.pathname);
+  const billiardsPage = billiardsEnabled && !!billiardsRoute;
   const bauRoute = matchPath('/room/:id/games/bau-cua/:table?', route.pathname);
   const bauPage = bauEnabled && !!bauRoute;
   const gameLobby = gamePage && route.pathname.replace(/\/$/, '') === `/room/${id}/games`;
@@ -188,9 +192,7 @@ export default function RoomPage() {
     { id: 'search', label: 'Tìm & thêm bài', icon: Search },
     { id: 'library', label: 'Thư viện của tôi', icon: Heart },
     { id: 'history', label: 'Lịch sử phát', icon: History },
-    ...(ludoEnabled || bauEnabled || duckEnabled || tyPhuEnabled || coTuongEnabled
-      ? [{ id: 'games' as const, label: 'Trò chơi', icon: Gamepad2 }]
-      : []),
+    ...(anyGame ? [{ id: 'games' as const, label: 'Trò chơi', icon: Gamepad2 }] : []),
     ...(wheelEnabled
       ? [{ id: 'wheel' as const, label: 'Vòng quay may mắn', icon: CircleDot }]
       : []),
@@ -613,7 +615,13 @@ export default function RoomPage() {
                   duck={duckEnabled}
                   tyPhu={tyPhuEnabled}
                   coTuong={coTuongEnabled}
+                  billiards={billiardsEnabled}
                 />
+              )}
+              {billiardsPage && (
+                <Suspense fallback={<Loading />}>
+                  <BilliardsParty snapshot={snapshot} game={billiardsRoute.params.game ?? null} />
+                </Suspense>
               )}
               {coTuongPage && (
                 <Suspense fallback={<Loading />}>
@@ -648,7 +656,14 @@ export default function RoomPage() {
                   <GameHub
                     key={playerKey}
                     snapshot={snapshot}
-                    visible={tab === 'games' && !bauPage && !duckPage && !tyPhuPage && !coTuongPage}
+                    visible={
+                      tab === 'games' &&
+                      !bauPage &&
+                      !duckPage &&
+                      !tyPhuPage &&
+                      !coTuongPage &&
+                      !billiardsPage
+                    }
                     onShow={() => setTab('games')}
                   />
                 </Suspense>

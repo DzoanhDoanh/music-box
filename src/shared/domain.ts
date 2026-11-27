@@ -123,6 +123,13 @@ export const errorMessages: Record<string, string> = {
   COTUONG_STALE: 'Bàn cờ vừa thay đổi. Đã đồng bộ lại; hãy đi lại nước của bạn.',
   COTUONG_TABLE_LIMIT:
     'Phòng đã có 10 bàn Cờ Tướng chưa kết thúc. Hãy vào bàn có sẵn hoặc kết thúc bàn cũ.',
+  BILLIARDS_ACTION_INVALID: 'Thao tác chưa phù hợp với ván bi-a hiện tại.',
+  BILLIARDS_NOT_YOUR_TURN: 'Chưa đến lượt bạn. Hãy chờ đối thủ đánh.',
+  BILLIARDS_BAD_SPOT: 'Không đặt bi cái ở đó được: chạm bi khác hoặc ngoài vùng cho phép.',
+  BILLIARDS_SEAT_TAKEN: 'Bàn đã đủ hai người hoặc bạn đã ngồi trong bàn.',
+  BILLIARDS_STALE: 'Bàn vừa thay đổi. Đã đồng bộ lại; hãy ngắm lại cú đánh.',
+  BILLIARDS_TABLE_LIMIT:
+    'Phòng đã có 10 bàn bi-a chưa kết thúc. Hãy vào bàn có sẵn hoặc kết thúc bàn cũ.',
   REORDER_VOTING_DISABLED: 'Phòng chưa bật biểu quyết đổi vị trí bài.',
   REORDER_REQUIRES_APPROVAL: 'Cần biểu quyết đồng ý trước khi đổi vị trí bài.',
   PROPOSAL_EXISTS: 'Phòng đang có một đề xuất chờ biểu quyết. Hãy xử lý đề xuất đó trước.',

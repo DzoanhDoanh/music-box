@@ -21,6 +21,7 @@ export interface Env {
   ENABLE_DUCK_RACE?: string;
   ENABLE_TY_PHU?: string;
   ENABLE_CO_TUONG?: string;
+  ENABLE_BILLIARDS?: string;
   ENABLE_TAROT?: string;
   /** Google AI Studio key; when set, Tarot readings get a long AI-written interpretation. */
   GEMINI_API_KEY?: string;
