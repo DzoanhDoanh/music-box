@@ -56,6 +56,8 @@ import { DuckRaceService } from './services/duck-race';
 import { duckCommandSchema } from '../shared/duck-race/contracts';
 import { TyPhuService, settleDueTyPhu } from './services/ty-phu';
 import { createTyPhuSchema, tyPhuRequestSchema } from '../shared/ty-phu/contracts';
+import { CoTuongService } from './services/co-tuong';
+import { coTuongRequestSchema, createCoTuongSchema } from '../shared/co-tuong/contracts';
 
 type Services = {
   auth: AuthService;
@@ -69,6 +71,7 @@ type Services = {
   bau: BauCuaService;
   duck: DuckRaceService;
   tyPhu: TyPhuService;
+  coTuong: CoTuongService;
   store: SupabaseRepository;
 };
 type Context = {
@@ -126,6 +129,7 @@ app.get('/api/v1/system/health', (c) =>
     bauCuaEnabled: c.env.ENABLE_BAU_CUA === 'true',
     duckRaceEnabled: c.env.ENABLE_DUCK_RACE === 'true',
     tyPhuEnabled: c.env.ENABLE_TY_PHU === 'true',
+    coTuongEnabled: c.env.ENABLE_CO_TUONG === 'true',
     tarotEnabled: c.env.ENABLE_TAROT === 'true',
     tarotAi: c.env.ENABLE_TAROT === 'true' && Boolean(c.env.GEMINI_API_KEY),
     version: '0.1.0',
@@ -156,6 +160,7 @@ app.use('/api/v1/*', async (c, next) => {
     bau: new BauCuaService(store, actor),
     duck: new DuckRaceService(store, actor),
     tyPhu: new TyPhuService(store, actor),
+    coTuong: new CoTuongService(store, actor),
     store,
   });
   await next();
@@ -168,6 +173,58 @@ const pageNumber = (value?: string) =>
     .max(10000)
     .parse(value ?? 0);
 const requestKey = (value?: string) => uuid.parse(value);
+// Cờ Tướng stays behind its own flag until the migration is applied on the target.
+for (const path of ['/api/v1/rooms/:id/co-tuong', '/api/v1/rooms/:id/co-tuong/*'])
+  app.use(path, async (c, next) => {
+    if (c.env.ENABLE_CO_TUONG !== 'true') throw new AppError('NOT_FOUND', 404);
+    await next();
+  });
+app.get('/api/v1/rooms/:id/co-tuong', async (c) =>
+  c.json(await c.get('services').coTuong.list(uuid.parse(c.req.param('id')))),
+);
+app.post('/api/v1/rooms/:id/co-tuong', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .coTuong.create(
+        uuid.parse(c.req.param('id')),
+        requestKey(c.req.header('Idempotency-Key')),
+        createCoTuongSchema.parse(await c.req.json()),
+      ),
+    201,
+  ),
+);
+app.get('/api/v1/rooms/:id/co-tuong/:game', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .coTuong.read(uuid.parse(c.req.param('id')), uuid.parse(c.req.param('game'))),
+  ),
+);
+app.post('/api/v1/rooms/:id/co-tuong/:game/delete', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .coTuong.delete(
+        uuid.parse(c.req.param('id')),
+        uuid.parse(c.req.param('game')),
+        requestKey(c.req.header('Idempotency-Key')),
+        deleteResourceSchema.parse(await c.req.json()).name,
+      ),
+  ),
+);
+app.post('/api/v1/rooms/:id/co-tuong/:game', async (c) =>
+  c.json(
+    await c
+      .get('services')
+      .coTuong.execute(
+        uuid.parse(c.req.param('id')),
+        uuid.parse(c.req.param('game')),
+        requestKey(c.req.header('Idempotency-Key')),
+        coTuongRequestSchema.parse(await c.req.json()),
+      ),
+  ),
+);
 // Tỷ Phú stays behind its own flag until the migration is applied on the target.
 app.use('/api/v1/rooms/:id/ty-phu', async (c, next) => {
   if (c.env.ENABLE_TY_PHU !== 'true') throw new AppError('NOT_FOUND', 404);

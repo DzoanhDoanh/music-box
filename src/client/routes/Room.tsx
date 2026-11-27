@@ -57,6 +57,7 @@ const HostPlayer = lazy(() => import('../components/HostPlayer')),
   BauParty = lazy(() => import('../components/bau-cua/BauParty')),
   DuckParty = lazy(() => import('../components/duck-race/DuckParty')),
   TyPhuParty = lazy(() => import('../components/ty-phu/TyPhuParty')),
+  CoTuongParty = lazy(() => import('../components/co-tuong/CoTuongParty')),
   BauNotifications = lazy(() => import('../components/bau-cua/BauNotifications')),
   LuckyWheel = lazy(() => import('../components/LuckyWheel')),
   TarotReading = lazy(() => import('../components/tarot/TarotReading')),
@@ -69,6 +70,7 @@ const ludoEnabled = import.meta.env.VITE_ENABLE_LUDO === 'true';
 const bauEnabled = import.meta.env.VITE_ENABLE_BAU_CUA === 'true';
 const duckEnabled = import.meta.env.VITE_ENABLE_DUCK_RACE === 'true';
 const tyPhuEnabled = import.meta.env.VITE_ENABLE_TY_PHU === 'true';
+const coTuongEnabled = import.meta.env.VITE_ENABLE_CO_TUONG === 'true';
 const wheelEnabled = import.meta.env.VITE_ENABLE_WHEEL === 'true';
 const tarotEnabled = import.meta.env.VITE_ENABLE_TAROT === 'true';
 export default function RoomPage() {
@@ -93,12 +95,14 @@ export default function RoomPage() {
   });
   const [roomCode, setRoomCode] = useState('');
   const gamePage =
-    (ludoEnabled || bauEnabled || duckEnabled || tyPhuEnabled) &&
+    (ludoEnabled || bauEnabled || duckEnabled || tyPhuEnabled || coTuongEnabled) &&
     route.pathname.startsWith(`/room/${id}/games`);
   const duckRoute = matchPath('/room/:id/games/duck-race/:race?', route.pathname);
   const duckPage = duckEnabled && !!duckRoute;
   const tyPhuRoute = matchPath('/room/:id/games/ty-phu/:game?', route.pathname);
   const tyPhuPage = tyPhuEnabled && !!tyPhuRoute;
+  const coTuongRoute = matchPath('/room/:id/games/co-tuong/:game?', route.pathname);
+  const coTuongPage = coTuongEnabled && !!coTuongRoute;
   const bauRoute = matchPath('/room/:id/games/bau-cua/:table?', route.pathname);
   const bauPage = bauEnabled && !!bauRoute;
   const gameLobby = gamePage && route.pathname.replace(/\/$/, '') === `/room/${id}/games`;
@@ -184,7 +188,7 @@ export default function RoomPage() {
     { id: 'search', label: 'Tìm & thêm bài', icon: Search },
     { id: 'library', label: 'Thư viện của tôi', icon: Heart },
     { id: 'history', label: 'Lịch sử phát', icon: History },
-    ...(ludoEnabled || bauEnabled || duckEnabled || tyPhuEnabled
+    ...(ludoEnabled || bauEnabled || duckEnabled || tyPhuEnabled || coTuongEnabled
       ? [{ id: 'games' as const, label: 'Trò chơi', icon: Gamepad2 }]
       : []),
     ...(wheelEnabled
@@ -608,7 +612,13 @@ export default function RoomPage() {
                   bau={bauEnabled}
                   duck={duckEnabled}
                   tyPhu={tyPhuEnabled}
+                  coTuong={coTuongEnabled}
                 />
+              )}
+              {coTuongPage && (
+                <Suspense fallback={<Loading />}>
+                  <CoTuongParty snapshot={snapshot} game={coTuongRoute.params.game ?? null} />
+                </Suspense>
               )}
               {tyPhuPage && (
                 <Suspense fallback={<Loading />}>
@@ -638,7 +648,7 @@ export default function RoomPage() {
                   <GameHub
                     key={playerKey}
                     snapshot={snapshot}
-                    visible={tab === 'games' && !bauPage && !duckPage && !tyPhuPage}
+                    visible={tab === 'games' && !bauPage && !duckPage && !tyPhuPage && !coTuongPage}
                     onShow={() => setTab('games')}
                   />
                 </Suspense>

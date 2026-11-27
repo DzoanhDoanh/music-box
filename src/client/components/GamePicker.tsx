@@ -22,14 +22,31 @@ export default function GamePicker({
   bau,
   duck,
   tyPhu = false,
+  coTuong = false,
 }: {
   room: string;
   ludo: boolean;
   bau: boolean;
   duck: boolean;
   tyPhu?: boolean;
+  coTuong?: boolean;
 }) {
   const games: Game[] = [
+    ...(coTuong
+      ? [
+          {
+            key: 'cotuong',
+            name: 'Cờ Tướng',
+            art: '帥',
+            tag: 'Đấu trí 1–1',
+            pitch: 'Thách đấu một người trong phòng hoặc đánh với máy ở mức Dễ, Vừa hay Khó.',
+            players: '2 người hoặc với máy',
+            length: '10–30 phút',
+            cta: 'Vào sảnh',
+            to: `/room/${room}/games/co-tuong`,
+          },
+        ]
+      : []),
     ...(tyPhu
       ? [
           {

@@ -159,6 +159,7 @@ export default function AdminPanel({
                     demote: 'Thu hồi điều hành',
                     'game.delete': 'Xóa bàn cờ',
                     'ty_phu.delete': 'Xóa bàn Tỷ Phú',
+                    'co_tuong.delete': 'Xóa bàn Cờ Tướng',
                   } as Record<string, string>
                 )[event.action] ?? event.action}
               </strong>

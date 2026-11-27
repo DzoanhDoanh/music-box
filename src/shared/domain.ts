@@ -116,6 +116,13 @@ export const errorMessages: Record<string, string> = {
   TYPHU_TABLE_LIMIT:
     'Phòng đã có 6 bàn Tỷ Phú chưa kết thúc. Hãy vào bàn có sẵn hoặc kết thúc bàn cũ.',
   TYPHU_NOT_READY: 'Cần ít nhất 2 người và mọi người bấm sẵn sàng trước khi bắt đầu.',
+  COTUONG_ACTION_INVALID: 'Thao tác chưa phù hợp với ván Cờ Tướng hiện tại.',
+  COTUONG_NOT_YOUR_TURN: 'Chưa đến lượt bạn. Hãy chờ đối thủ đi.',
+  COTUONG_ILLEGAL_MOVE: 'Nước đi này không hợp lệ.',
+  COTUONG_SEAT_TAKEN: 'Bàn đã đủ hai người hoặc bạn đã ngồi trong bàn.',
+  COTUONG_STALE: 'Bàn cờ vừa thay đổi. Đã đồng bộ lại; hãy đi lại nước của bạn.',
+  COTUONG_TABLE_LIMIT:
+    'Phòng đã có 10 bàn Cờ Tướng chưa kết thúc. Hãy vào bàn có sẵn hoặc kết thúc bàn cũ.',
   REORDER_VOTING_DISABLED: 'Phòng chưa bật biểu quyết đổi vị trí bài.',
   REORDER_REQUIRES_APPROVAL: 'Cần biểu quyết đồng ý trước khi đổi vị trí bài.',
   PROPOSAL_EXISTS: 'Phòng đang có một đề xuất chờ biểu quyết. Hãy xử lý đề xuất đó trước.',
