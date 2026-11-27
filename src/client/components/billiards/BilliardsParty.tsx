@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Bot, Flag, Plus, RotateCcw, Users, Volume2, VolumeX } from 'lucide-react';
@@ -230,6 +230,12 @@ function BilliardsMatch({ snapshot, game }: { snapshot: Snapshot; game: string }
   const [level, setLevel] = useState<Level>(2);
   const [sound, setSound] = useState(tableSoundOn);
   const [animating, setAnimating] = useState(false);
+  // Opening a table brings the players and the whole table into view, so play needs no scrolling.
+  const stage = useRef<HTMLDivElement>(null);
+  const ready = Boolean(query.data);
+  useEffect(() => {
+    if (ready) stage.current?.scrollIntoView({ block: 'start' });
+  }, [ready]);
   const state = query.data?.state;
   // Shot results stay hidden until their balls have finished rolling on screen.
   const [settled, setSettled] = useState<number | null>(null);
@@ -314,27 +320,29 @@ function BilliardsMatch({ snapshot, game }: { snapshot: Snapshot; game: string }
           {sound ? <Volume2 size={16} /> : <VolumeX size={16} />} Âm thanh {sound ? 'bật' : 'tắt'}
         </Button>
       </header>
-      <div className="bi-players">
-        {(['a', 'b'] as const).map((side) => (
-          <PlayerCard
-            key={side}
-            state={state}
-            side={side}
-            me={me}
-            active={state.status === 'PLAYING' && state.turn === side && !animating}
-          />
-        ))}
+      <div className="bi-stage" ref={stage}>
+        <div className="bi-players">
+          {(['a', 'b'] as const).map((side) => (
+            <PlayerCard
+              key={side}
+              state={state}
+              side={side}
+              me={me}
+              active={state.status === 'PLAYING' && state.turn === side && !animating}
+            />
+          ))}
+        </div>
+        <BilliardsTable
+          state={state}
+          side={mine}
+          canShoot={myTurn && !pending}
+          onAnimating={(running) => {
+            setAnimating(running);
+            setSettled(running ? shownSeq : null);
+          }}
+          onShoot={async (shot, place) => Boolean(await send({ action: 'shoot', ...shot, place }))}
+        />
       </div>
-      <BilliardsTable
-        state={state}
-        side={mine}
-        canShoot={myTurn && !pending}
-        onAnimating={(running) => {
-          setAnimating(running);
-          setSettled(running ? shownSeq : null);
-        }}
-        onShoot={async (shot, place) => Boolean(await send({ action: 'shoot', ...shot, place }))}
-      />
       <div className="bi-layout">
         <section className="bi-card" aria-label="Trạng thái ván">
           <p className={'bi-turn' + (myTurn && !animating ? ' mine' : '')} role="status">

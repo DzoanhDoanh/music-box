@@ -33,6 +33,33 @@ async function point(page: Page, x: number, y: number) {
     ? { x: box.x + (y + RAIL) * scale, y: box.y + (RAIL + W - x) * scale }
     : { x: box.x + (x + RAIL) * scale, y: box.y + (y + RAIL) * scale };
 }
+/**
+ * Aims by tapping the table in front of the cue ball, then grips the cue behind the ball and
+ * draws it back before letting go: a longer pull is a harder shot.
+ */
+async function shoot(
+  page: Page,
+  cue: { x: number; y: number },
+  toward: { x: number; y: number },
+  power: number,
+) {
+  const aim = await point(page, toward.x, toward.y);
+  await page.mouse.click(aim.x, aim.y);
+  const len = Math.hypot(toward.x - cue.x, toward.y - cue.y);
+  const ux = (toward.x - cue.x) / len,
+    uy = (toward.y - cue.y) / len;
+  const grip = await point(page, cue.x - ux * 40, cue.y - uy * 40);
+  const end = await point(page, cue.x - ux * (40 + power * 170), cue.y - uy * (40 + power * 170));
+  await page.mouse.move(grip.x, grip.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 8 });
+  await expect(page.getByRole('status').filter({ hasText: /^Lực \d+%$/ })).toBeVisible();
+  await page.mouse.up();
+  // The cue snaps forward, then the balls start rolling.
+  await expect(status(page, 'Bi đang lăn')).toBeVisible();
+}
+const BREAK_SPOT = { x: W / 4, y: H / 2 },
+  APEX = { x: 750, y: H / 2 };
 async function noHorizontalScroll(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 }
@@ -62,9 +89,14 @@ test('8 bi against the computer: break, the balls roll with sound, then the comp
     fullPage: true,
   });
 
-  await page.getByRole('slider').fill('100');
-  await page.getByRole('button', { name: 'Đánh' }).click();
-  await expect(status(page, 'Bi đang lăn')).toBeVisible();
+  // The whole table is on screen without scrolling.
+  await expect
+    .poll(async () => {
+      const b = (await table(page).boundingBox())!;
+      return b.y >= 0 && b.y + b.height <= page.viewportSize()!.height;
+    })
+    .toBe(true);
+  await shoot(page, BREAK_SPOT, APEX, 1);
   await page.waitForTimeout(350);
   await page.screenshot({ path: `test-results/billiards/rolling-${test.info().project.name}.png` });
   await expect(status(page, 'Bi đang lăn')).toBeHidden({ timeout: 30_000 });
@@ -94,10 +126,17 @@ test('ball in hand: dragging the cue ball places it before the break', async ({
   await page.mouse.down();
   await page.mouse.move(to.x, to.y, { steps: 6 });
   await page.mouse.up();
-  await page.getByRole('button', { name: 'Đánh' }).click();
+  // Hit with back spin: tap the bottom of the small cue ball.
+  const spin = page.getByRole('group', { name: /Điểm chạm cơ/ });
+  const sb = (await spin.boundingBox())!;
+  await page.mouse.click(sb.x + sb.width / 2, sb.y + sb.height * 0.85);
+  await expect(spin).toHaveAccessibleName(/Xoáy về/);
+  await shoot(page, { x: 180, y: 160 }, { x: 750, y: 250 }, 0.6);
   await expect(status(page, 'Bi đang lăn')).toBeHidden({ timeout: 30_000 });
   const id = [...fixture.tables.keys()][0];
-  const cue = fixture.tables.get(id)!.shots[0].start.find((b) => b.n === 0)!;
+  const first = fixture.tables.get(id)!.shots[0];
+  expect(first.spin?.y).toBeLessThan(-0.5);
+  const cue = first.start.find((b) => b.n === 0)!;
   expect(cue.x).toBeGreaterThan(170);
   expect(cue.x).toBeLessThan(190);
   expect(cue.y).toBeGreaterThan(150);
@@ -117,7 +156,7 @@ test('phăng between two room members keeps score', async ({ page, context }) =>
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await expect(status(page, 'Lượt của bạn')).toBeVisible();
   await expect(page.getByText('Bi trắng · 0/5 điểm')).toBeVisible();
-  await page.getByRole('button', { name: 'Đánh' }).click();
+  await shoot(page, { x: W / 4, y: H / 2 + 75 }, { x: 750, y: 250 }, 0.5);
   await expect(status(page, 'Bi đang lăn')).toBeHidden({ timeout: 30_000 });
   await page.screenshot({
     path: `test-results/billiards/carom-${test.info().project.name}.png`,

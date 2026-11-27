@@ -16,6 +16,9 @@ export const levelNames: Record<1 | 2 | 3, string> = { 1: 'Dễ', 2: 'Vừa', 3:
 const seatSide = z.enum(['a', 'b']);
 const level = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 const coord = z.number().finite();
+const spinSchema = z
+  .object({ x: z.number().min(-1).max(1), y: z.number().min(-1).max(1) })
+  .strict();
 
 export const createBilliardsSchema = z
   .object({
@@ -40,6 +43,8 @@ export const billiardsCommandSchema = z.discriminatedUnion('action', [
       dx: z.number().min(-1.01).max(1.01),
       dy: z.number().min(-1.01).max(1.01),
       power: z.number().min(0).max(1),
+      /** Where the tip strikes the cue ball: side (x) and top/back (y) spin, each −1..1. */
+      spin: spinSchema.optional(),
       /** Where the cue ball is placed first, when the shooter has ball in hand. */
       place: z.object({ x: coord, y: coord }).strict().nullable().default(null),
     })
@@ -76,6 +81,7 @@ const shotRecordSchema = z
     dx: z.number(),
     dy: z.number(),
     power: z.number(),
+    spin: spinSchema.optional(),
     text: z.string().max(160),
   })
   .strict();

@@ -84,6 +84,29 @@ describe('Bi-a physics', () => {
     expect(r.balls[0].on).toBe(true);
   });
 
+  it('back spin draws the cue ball back, top spin follows through', () => {
+    // A straight shot that sinks the object ball, so nothing comes back to meet the cue ball.
+    const balls = () => [ball(0, 600, 360), ball(1, 800, 430)];
+    const end = (y: number) => {
+      const r = simulate(balls(), 0, { dx: 200, dy: 70, power: 0.55, spin: { x: 0, y } }, POCKETS);
+      expect(r.pocketed).toContain(1);
+      return r.balls.find((b) => b.n === 0)!.x;
+    };
+    const plain = end(0);
+    expect(end(-0.9)).toBeLessThan(plain - 60);
+    expect(end(0.9)).toBeGreaterThan(plain + 60);
+  });
+
+  it('side spin bends the rebound off a cushion and replays identically', () => {
+    const shot = (x: number) =>
+      simulate([ball(0, 500, 250)], 0, { dx: 0, dy: -1, power: 0.35, spin: { x, y: 0 } }, []);
+    const plain = shot(0).balls[0].x;
+    // Right-hand spin throws the ball to its right: here toward +x after the top cushion.
+    expect(shot(0.9).balls[0].x).toBeGreaterThan(plain + 20);
+    expect(shot(-0.9).balls[0].x).toBeLessThan(plain - 20);
+    expect(shot(0.9).balls).toEqual(shot(0.9).balls);
+  });
+
   it('finds the first ball on the aiming line', () => {
     const hit = firstContact([ball(0, 100, 250), ball(5, 400, 250), ball(6, 700, 250)], 0, 1, 0);
     expect(hit.ball?.n).toBe(5);

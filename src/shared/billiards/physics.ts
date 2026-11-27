@@ -1,6 +1,6 @@
 // Bi-a physics, shared by the Worker (which decides every shot) and the browser (which replays
-// the same shot to animate it). Only + - * / and sqrt are used, so every JavaScript engine computes
-// exactly the same result from the same input.
+// the same shot to animate it). Only + - * /, sqrt and sign are used, so every JavaScript engine
+// computes exactly the same result from the same input.
 //
 // The table is 1000 × 500 units seen from above; x grows to the right (foot of the table), y down.
 
@@ -16,9 +16,18 @@ const BALL_E = 0.94; // ball-on-ball restitution
 const RAIL_E = 0.76; // cushion restitution
 const STOP = 4;
 const MAX_STEPS = 480 * 25;
+/** How strongly top/back spin carries the cue ball on (or back) after it hits a ball. */
+const FOLLOW = 0.85;
+/** How much side spin bends the cue ball's rebound off a cushion. */
+const ENGLISH = 0.32;
+/** Spin fades as the ball slides into a natural roll (per step: about half per second). */
+const TOP_FADE = 0.9986;
+const SIDE_FADE = 0.9994;
 
 export type Ball = { n: number; x: number; y: number; on: boolean };
-export type Shot = { dx: number; dy: number; power: number };
+/** Where the cue tip meets the cue ball: x is side spin (right +), y is top (+) or back (−) spin. */
+export type Spin = { x: number; y: number };
+export type Shot = { dx: number; dy: number; power: number; spin?: Spin };
 export type Pocket = { x: number; y: number; r: number };
 
 /** Corner and side pockets of a pool table; carom tables have none. */
@@ -53,14 +62,24 @@ export type SimResult = {
 };
 
 /** The shot direction as a unit vector, rounded so client and server agree on the input. */
-export function normalShot(dx: number, dy: number, power: number): Shot {
+export function normalShot(dx: number, dy: number, power: number, spin?: Spin): Shot {
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
   const round = (v: number) => Math.round(v * 1e6) / 1e6;
-  return {
+  const shot: Shot = {
     dx: round(dx / len),
     dy: round(dy / len),
     power: Math.min(1, Math.max(0.02, round(power))),
   };
+  if (spin && (spin.x || spin.y)) {
+    // The tip must stay on the ball: keep the point inside the unit circle.
+    const r = Math.sqrt(spin.x * spin.x + spin.y * spin.y);
+    const k = r > 1 ? 1 / r : 1;
+    shot.spin = {
+      x: Math.round(spin.x * k * 100) / 100,
+      y: Math.round(spin.y * k * 100) / 100,
+    };
+  }
+  return shot;
 }
 
 /**
@@ -85,7 +104,10 @@ export function simulate(
     y[i] = b.y;
   });
   const ci = start.findIndex((b) => b.n === cue);
-  const s = normalShot(shot.dx, shot.dy, shot.power);
+  const s = normalShot(shot.dx, shot.dy, shot.power, shot.spin);
+  let top = s.spin?.y ?? 0,
+    side = s.spin?.x ?? 0,
+    spun = false;
   // Power feels better on a curve: fine control for soft shots, still room for a hard break.
   const speed = MAX_SPEED * (0.08 + 0.92 * s.power * s.power);
   vx[ci] = s.dx * speed;
@@ -125,6 +147,10 @@ export function simulate(
         continue;
       }
       moving = true;
+      if (i === ci) {
+        top *= TOP_FADE;
+        side *= SIDE_FADE;
+      }
       const k = next / sp;
       vx[i] *= k;
       vy[i] *= k;
@@ -146,30 +172,23 @@ export function simulate(
         }
       }
       if (sunk) continue;
-      // Cushions.
+      // Cushions. Side spin on the cue ball throws its rebound to the side it was struck.
       let rail = 0;
-      if (x[i] < R) {
-        x[i] = R + (R - x[i]);
+      const english = i === ci ? side * ENGLISH : 0;
+      if (x[i] < R || x[i] > W - R) {
+        x[i] = x[i] < R ? R + (R - x[i]) : W - R - (x[i] - (W - R));
         rail = Math.abs(vx[i]);
+        vy[i] = vy[i] * 0.96 + english * rail * Math.sign(vx[i]);
         vx[i] = -vx[i] * RAIL_E;
-        vy[i] *= 0.96;
-      } else if (x[i] > W - R) {
-        x[i] = W - R - (x[i] - (W - R));
-        rail = Math.abs(vx[i]);
-        vx[i] = -vx[i] * RAIL_E;
-        vy[i] *= 0.96;
       }
-      if (y[i] < R) {
-        y[i] = R + (R - y[i]);
-        rail = Math.max(rail, Math.abs(vy[i]));
+      if (y[i] < R || y[i] > H - R) {
+        y[i] = y[i] < R ? R + (R - y[i]) : H - R - (y[i] - (H - R));
+        const hit = Math.abs(vy[i]);
+        rail = Math.max(rail, hit);
+        vx[i] = vx[i] * 0.96 - english * hit * Math.sign(vy[i]);
         vy[i] = -vy[i] * RAIL_E;
-        vx[i] *= 0.96;
-      } else if (y[i] > H - R) {
-        y[i] = H - R - (y[i] - (H - R));
-        rail = Math.max(rail, Math.abs(vy[i]));
-        vy[i] = -vy[i] * RAIL_E;
-        vx[i] *= 0.96;
       }
+      if (rail && i === ci) side *= 0.6;
       if (rail) {
         events.push({ t, kind: 'rail', n: start[i].n, speed: rail });
         if (firstHit !== null) railAfterHit = true;
@@ -196,11 +215,23 @@ export function simulate(
         x[j] += nx * push;
         y[j] += ny * push;
         if (rel <= 0) continue;
+        const cueHit = !spun && (i === ci || j === ci);
+        const bx = vx[ci],
+          by = vy[ci];
         const jmp = ((1 + BALL_E) / 2) * rel;
         vx[i] -= jmp * nx;
         vy[i] -= jmp * ny;
         vx[j] += jmp * nx;
         vy[j] += jmp * ny;
+        // Top spin carries the cue ball on along its old line; back spin draws it back.
+        if (cueHit) {
+          spun = true;
+          const bs = Math.sqrt(bx * bx + by * by);
+          if (bs > 0 && top !== 0) {
+            vx[ci] += (bx / bs) * top * FOLLOW * bs;
+            vy[ci] += (by / bs) * top * FOLLOW * bs;
+          }
+        }
         moving = true;
         events.push({ t, kind: 'hit', a: start[i].n, b: start[j].n, speed: rel });
         const other = i === ci ? j : j === ci ? i : -1;

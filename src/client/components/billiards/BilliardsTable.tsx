@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RotateCcw, RotateCw, Target } from 'lucide-react';
+import { RotateCcw, RotateCw } from 'lucide-react';
 import type { BilliardsState } from '../../../shared/billiards/contracts';
 import { HEAD_STRING, cueOf, targets, type Side } from '../../../shared/billiards/engine';
 import {
@@ -14,11 +14,16 @@ import {
   type Ball,
   type Shot,
   type SimEvent,
+  type Spin,
 } from '../../../shared/billiards/physics';
 import { playTableSound } from '../../lib/billiards-sound';
 import { Button } from '../ui';
 
 const RAIL = 44;
+/** How far the cue can be drawn back, in table units: the full pull is full power. */
+const MAX_PULL = 170;
+/** Room kept on screen for the players bar and the controls around the table. */
+const RESERVE = 210;
 const COLORS: Record<number, string> = {
   1: '#f2c418',
   2: '#1d4fd8',
@@ -54,9 +59,14 @@ export default function BilliardsTable({
   const canvas = useRef<HTMLCanvasElement>(null);
   const [layout, setLayout] = useState<Layout>({ width: 0, height: 0, scale: 1, vertical: false });
   const [aim, setAim] = useState({ dx: 1, dy: 0 });
-  const [power, setPower] = useState(55);
+  /** Power while the cue is being drawn back (0..1), or null. */
+  const [pull, setPull] = useState<number | null>(null);
+  const [keyPower, setKeyPower] = useState(50);
+  const [spin, setSpin] = useState<Spin>({ x: 0, y: 0 });
   const [place, setPlace] = useState<Place | null>(null);
   const [running, setRunning] = useState(false);
+  /** While the cue snaps forward on release: how far behind the ball it still is. */
+  const stroke = useRef<number | null>(null);
 
   // ---------------------------------------------------------------- layout
   useEffect(() => {
@@ -66,14 +76,26 @@ export default function BilliardsTable({
       const width = box.clientWidth;
       // Narrow screens turn the table upright so the balls stay a usable size.
       const vertical = width < 600;
-      const scale = width / (vertical ? H + 2 * RAIL : W + 2 * RAIL);
-      const height = (vertical ? W + 2 * RAIL : H + 2 * RAIL) * scale;
-      setLayout({ width, height, scale, vertical });
+      const long = W + 2 * RAIL,
+        short = H + 2 * RAIL;
+      // The whole table fits on screen: limited by the width and by the window's height.
+      const room = Math.max(240, window.innerHeight - RESERVE);
+      const scale = Math.min(width / (vertical ? short : long), room / (vertical ? long : short));
+      setLayout({
+        width: (vertical ? short : long) * scale,
+        height: (vertical ? long : short) * scale,
+        scale,
+        vertical,
+      });
     };
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(box);
-    return () => observer.disconnect();
+    window.addEventListener('resize', fit);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', fit);
+    };
   }, []);
 
   // ---------------------------------------------------------------- what is shown
@@ -108,9 +130,9 @@ export default function BilliardsTable({
       drawTable(ctx, carom, latest.current.kitchen && overlay);
       for (const b of balls) if (b.on) drawShadow(ctx, b);
       for (const b of balls) if (b.on) drawBall(ctx, b, carom, layout.vertical);
-      if (!overlay) return;
+      if (!overlay && stroke.current === null) return;
       const cue = cueAt(balls);
-      if (latest.current.ballInHand && place !== undefined) {
+      if (overlay && latest.current.ballInHand) {
         ctx.save();
         ctx.setLineDash([5, 4]);
         ctx.lineWidth = 2;
@@ -120,10 +142,11 @@ export default function BilliardsTable({
         ctx.stroke();
         ctx.restore();
       }
-      drawAim(ctx, withPlace(balls), cue, aim, power / 100);
+      const back = stroke.current ?? (pull ?? 0) * MAX_PULL;
+      drawAim(ctx, withPlace(balls), cue, aim, back, stroke.current === null);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [layout, carom, aim, power, place, placeOk],
+    [layout, carom, aim, pull, place, placeOk],
   );
 
   // ---------------------------------------------------------------- animation
@@ -187,15 +210,16 @@ export default function BilliardsTable({
       queue.current.push({
         start: s.start,
         cue: s.cue,
-        shot: { dx: s.dx, dy: s.dy, power: s.power },
+        shot: { dx: s.dx, dy: s.dy, power: s.power, spin: s.spin },
       });
     if (!busy.current) run();
   }, [state.seq, state.shots, state.balls, run]);
 
-  // Each new turn starts aimed at a legal ball, and with the cue ball where it lies.
+  // Each new turn starts aimed at a legal ball, with no spin and the cue ball where it lies.
   const turnKey = `${state.version}|${state.turn}|${state.status}`;
   useEffect(() => {
     setPlace(null);
+    setSpin({ x: 0, y: 0 });
     if (!canShoot) return;
     const balls = latest.current.balls;
     const cue = balls.find((b) => b.n === cueN)!;
@@ -213,6 +237,36 @@ export default function BilliardsTable({
     if (!busy.current) draw(shown.current, overlayOn);
   }, [draw, overlayOn, state.balls]);
 
+  // ---------------------------------------------------------------- shooting
+  const strike = (power: number) => {
+    if (!overlayOn || !placeOk || power < 0.03) return;
+    const shot = normalShot(aim.dx, aim.dy, power, spin);
+    const where = place && state.ballInHand ? place : null;
+    const start = withPlace(state.balls);
+    // The cue snaps forward to the ball, then our own shot plays at once; the server's answer
+    // (and any computer reply) follows it.
+    const from = power * MAX_PULL;
+    const t0 = performance.now();
+    setRunning(true);
+    const thrust = () => {
+      const t = Math.min(1, (performance.now() - t0) / 90);
+      stroke.current = from * (1 - t * t);
+      drawRef.current(start, false);
+      if (t < 1) {
+        requestAnimationFrame(thrust);
+        return;
+      }
+      stroke.current = null;
+      local.current = state.seq + 1;
+      queue.current.push({ start, cue: cueN, shot });
+      run();
+      void onShoot(shot, where).then((ok) => {
+        if (!ok) local.current = null;
+      });
+    };
+    requestAnimationFrame(thrust);
+  };
+
   // ---------------------------------------------------------------- input
   const toTable = (e: React.PointerEvent) => {
     const rect = canvas.current!.getBoundingClientRect();
@@ -220,26 +274,47 @@ export default function BilliardsTable({
       sy = (e.clientY - rect.top) / layout.scale;
     return layout.vertical ? { x: RAIL + W - sy, y: sx - RAIL } : { x: sx - RAIL, y: sy - RAIL };
   };
-  const drag = useRef<'cue' | 'aim' | null>(null);
+  const drag = useRef<{ mode: 'cue' | 'aim' | 'pull'; grip: number } | null>(null);
   const pointer = (e: React.PointerEvent, phase: 'down' | 'move') => {
     if (!overlayOn) return;
     const p = toTable(e);
     const cue = cueAt(state.balls);
+    const len = Math.sqrt(aim.dx * aim.dx + aim.dy * aim.dy) || 1;
+    const ux = aim.dx / len,
+      uy = aim.dy / len;
+    // Position along the aiming line (negative is behind the ball, where the cue lies).
+    const along = (p.x - cue.x) * ux + (p.y - cue.y) * uy;
+    const across = Math.abs((p.x - cue.x) * uy - (p.y - cue.y) * ux);
     if (phase === 'down') {
       const near = (p.x - cue.x) ** 2 + (p.y - cue.y) ** 2 < (2.4 * R) ** 2;
-      drag.current = state.ballInHand && near ? 'cue' : 'aim';
+      if (state.ballInHand && near) drag.current = { mode: 'cue', grip: 0 };
+      else if (along < -R && along > -(R + MAX_PULL + 340) && across < 45)
+        drag.current = { mode: 'pull', grip: along };
+      else drag.current = { mode: 'aim', grip: 0 };
       canvas.current!.setPointerCapture(e.pointerId);
     }
-    if (!drag.current) return;
-    if (drag.current === 'cue') {
+    const d = drag.current;
+    if (!d) return;
+    if (d.mode === 'cue') {
       const maxX = state.kitchen ? HEAD_STRING : W - R;
       setPlace({
         x: Math.min(maxX, Math.max(R, p.x)),
         y: Math.min(H - R, Math.max(R, p.y)),
       });
+    } else if (d.mode === 'pull') {
+      // Drawing the cue further back means a harder shot.
+      setPull(Math.min(1, Math.max(0, (d.grip - along) / MAX_PULL)));
     } else if ((p.x - cue.x) ** 2 + (p.y - cue.y) ** 2 > 4) {
       setAim({ dx: p.x - cue.x, dy: p.y - cue.y });
     }
+  };
+  const release = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (d?.mode !== 'pull') return;
+    const power = pull ?? 0;
+    setPull(null);
+    strike(power);
   };
   const turnAim = (degrees: number) => {
     const a = (degrees * Math.PI) / 180;
@@ -248,16 +323,16 @@ export default function BilliardsTable({
       dy: dx * Math.sin(a) + dy * Math.cos(a),
     }));
   };
-  const strike = async () => {
-    if (!overlayOn || !placeOk) return;
-    const shot = normalShot(aim.dx, aim.dy, power / 100);
-    const where = place && state.ballInHand ? place : null;
-    // Play our own shot at once; the server's answer (and any computer reply) follows it.
-    local.current = state.seq + 1;
-    queue.current.push({ start: withPlace(state.balls), cue: cueN, shot });
-    run();
-    const ok = await onShoot(shot, where);
-    if (!ok) local.current = null;
+  const keys = (e: React.KeyboardEvent) => {
+    if (!overlayOn) return;
+    const fine = e.shiftKey ? 0.2 : 1;
+    if (e.key === 'ArrowLeft') turnAim(-fine);
+    else if (e.key === 'ArrowRight') turnAim(fine);
+    else if (e.key === 'ArrowUp') setKeyPower((v) => Math.min(100, v + 5));
+    else if (e.key === 'ArrowDown') setKeyPower((v) => Math.max(5, v - 5));
+    else if (e.key === 'Enter' || e.key === ' ') strike(keyPower / 100);
+    else return;
+    e.preventDefault();
   };
 
   const remaining = useMemo(
@@ -271,28 +346,40 @@ export default function BilliardsTable({
 
   return (
     <div className="bi-table-wrap" ref={wrap}>
-      <canvas
-        ref={canvas}
-        className={'bi-canvas' + (overlayOn ? ' active' : '')}
-        width={Math.round(layout.width * (window.devicePixelRatio || 1))}
-        height={Math.round(layout.height * (window.devicePixelRatio || 1))}
-        style={{ width: layout.width, height: layout.height }}
-        role="img"
-        aria-label={
-          carom ? 'Bàn bi-a phăng với bi trắng, vàng và đỏ' : `Bàn bi-a, còn bi ${remaining}`
-        }
-        onPointerDown={(e) => pointer(e, 'down')}
-        onPointerMove={(e) => pointer(e, 'move')}
-        onPointerUp={() => (drag.current = null)}
-        onPointerCancel={() => (drag.current = null)}
-      />
+      <div className="bi-canvas-box" style={{ width: layout.width, height: layout.height }}>
+        <canvas
+          ref={canvas}
+          className={'bi-canvas' + (overlayOn ? ' active' : '')}
+          width={Math.round(layout.width * (window.devicePixelRatio || 1))}
+          height={Math.round(layout.height * (window.devicePixelRatio || 1))}
+          style={{ width: layout.width, height: layout.height }}
+          role="application"
+          tabIndex={overlayOn ? 0 : -1}
+          aria-label={
+            (carom
+              ? 'Bàn bi-a phăng với bi trắng, vàng và đỏ.'
+              : `Bàn bi-a, còn bi ${remaining}.`) +
+            (overlayOn
+              ? ` Mũi tên trái, phải để ngắm; lên, xuống chọn lực (${keyPower}%); Enter để đánh.`
+              : '')
+          }
+          onKeyDown={keys}
+          onPointerDown={(e) => pointer(e, 'down')}
+          onPointerMove={(e) => pointer(e, 'move')}
+          onPointerUp={release}
+          onPointerCancel={() => {
+            drag.current = null;
+            setPull(null);
+          }}
+        />
+        {pull !== null && (
+          <span className="bi-pull" role="status">
+            Lực {Math.round(pull * 100)}%
+          </span>
+        )}
+      </div>
       {canShoot && (
         <div className="bi-controls" aria-label="Điều khiển cú đánh" role="group">
-          <p className="muted bi-hint">
-            {state.ballInHand
-              ? 'Bạn được đặt bi cái: kéo bi trắng tới chỗ muốn đặt, rồi chạm bàn để ngắm.'
-              : 'Chạm hoặc kéo trên bàn để ngắm; dùng nút xoay để chỉnh tinh.'}
-          </p>
           <div className="bi-row">
             <Button
               variant="ghost"
@@ -310,24 +397,98 @@ export default function BilliardsTable({
             >
               <RotateCw size={16} />
             </Button>
-            <label className="bi-power">
-              Lực {power}%
-              <input
-                type="range"
-                min={5}
-                max={100}
-                value={power}
-                disabled={running}
-                onChange={(e) => setPower(Number(e.target.value))}
-              />
-            </label>
-            <Button variant="primary" onClick={() => void strike()} disabled={running || !placeOk}>
-              <Target size={16} /> Đánh
-            </Button>
+            <SpinPicker spin={spin} onChange={setSpin} disabled={running} carom={carom} />
+            <p className="muted bi-hint">
+              {state.ballInHand
+                ? 'Kéo bi trắng để đặt. Kéo trên bàn để ngắm, nắm cây cơ kéo ra sau rồi thả để đánh.'
+                : 'Kéo trên bàn để ngắm. Nắm cây cơ kéo ra sau, càng xa càng mạnh, rồi thả tay để đánh.'}
+            </p>
           </div>
           {!placeOk && <p className="bi-warning">Không đặt bi cái ở đó được.</p>}
         </div>
       )}
+    </div>
+  );
+}
+
+const spinText = (spin: Spin) => {
+  const parts: string[] = [];
+  if (spin.y > 0.05) parts.push(`lên ${Math.round(spin.y * 100)}%`);
+  if (spin.y < -0.05) parts.push(`về ${Math.round(-spin.y * 100)}%`);
+  if (spin.x > 0.05) parts.push(`phải ${Math.round(spin.x * 100)}%`);
+  if (spin.x < -0.05) parts.push(`trái ${Math.round(-spin.x * 100)}%`);
+  return parts.length ? `Xoáy ${parts.join(', ')}` : 'Không xoáy';
+};
+
+/** Where the cue tip strikes the cue ball: top for follow, bottom for draw, sides for english. */
+function SpinPicker({
+  spin,
+  onChange,
+  disabled,
+  carom,
+}: {
+  spin: Spin;
+  onChange: (spin: Spin) => void;
+  disabled: boolean;
+  carom: boolean;
+}) {
+  const ball = useRef<HTMLDivElement>(null);
+  const set = (e: React.PointerEvent) => {
+    const r = ball.current!.getBoundingClientRect();
+    let x = ((e.clientX - r.left) / r.width) * 2 - 1,
+      y = -(((e.clientY - r.top) / r.height) * 2 - 1);
+    const len = Math.sqrt(x * x + y * y);
+    // The tip has to stay on the ball.
+    if (len > 0.85) {
+      x = (x / len) * 0.85;
+      y = (y / len) * 0.85;
+    }
+    onChange({ x: x / 0.85, y: y / 0.85 });
+  };
+  const step = (dx: number, dy: number) => {
+    const x = Math.max(-1, Math.min(1, spin.x + dx)),
+      y = Math.max(-1, Math.min(1, spin.y + dy));
+    const len = Math.sqrt(x * x + y * y);
+    onChange(len > 1 ? { x: x / len, y: y / len } : { x, y });
+  };
+  return (
+    <div className="bi-spin">
+      <div
+        ref={ball}
+        className={'bi-spin-ball' + (carom ? ' carom' : '')}
+        role="group"
+        tabIndex={disabled ? -1 : 0}
+        aria-label={`Điểm chạm cơ. ${spinText(spin)}. Dùng phím mũi tên để chỉnh, số 0 để bỏ xoáy.`}
+        aria-disabled={disabled}
+        onPointerDown={(e) => {
+          if (disabled) return;
+          ball.current!.setPointerCapture(e.pointerId);
+          set(e);
+        }}
+        onPointerMove={(e) => {
+          if (!disabled && e.buttons) set(e);
+        }}
+        onDoubleClick={() => onChange({ x: 0, y: 0 })}
+        onKeyDown={(e) => {
+          if (disabled) return;
+          const moves: Record<string, [number, number]> = {
+            ArrowUp: [0, 0.1],
+            ArrowDown: [0, -0.1],
+            ArrowLeft: [-0.1, 0],
+            ArrowRight: [0.1, 0],
+          };
+          if (moves[e.key]) step(...moves[e.key]);
+          else if (e.key === '0') onChange({ x: 0, y: 0 });
+          else return;
+          e.preventDefault();
+        }}
+      >
+        <i
+          className="bi-spin-dot"
+          style={{ left: `${50 + spin.x * 42.5}%`, top: `${50 - spin.y * 42.5}%` }}
+        />
+      </div>
+      <small aria-hidden="true">{spinText(spin)}</small>
     </div>
   );
 }
@@ -484,13 +645,40 @@ function drawAim(
   balls: Ball[],
   cue: Ball,
   aim: { dx: number; dy: number },
-  power: number,
+  /** How far the cue is drawn back behind the ball, in table units. */
+  pulled: number,
+  guide: boolean,
 ) {
   const len = Math.sqrt(aim.dx * aim.dx + aim.dy * aim.dy) || 1;
   const ux = aim.dx / len,
     uy = aim.dy / len;
-  const hit = firstContact(balls, cue.n, ux, uy);
   ctx.save();
+  if (guide) aimGuide(ctx, balls, cue, ux, uy);
+  // The cue stick, further back the harder the shot will be.
+  const back = R + 4 + pulled;
+  const sx = cue.x - ux * back,
+    sy = cue.y - uy * back;
+  const ex = sx - ux * 320,
+    ey = sy - uy * 320;
+  const stick = ctx.createLinearGradient(sx, sy, ex, ey);
+  stick.addColorStop(0, '#e9e4d8');
+  stick.addColorStop(0.04, '#3a6fd1');
+  stick.addColorStop(0.06, '#e8c78f');
+  stick.addColorStop(0.7, '#b07a3c');
+  stick.addColorStop(1, '#2b1708');
+  ctx.strokeStyle = stick;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** The dashed line to the first ball, the ghost ball, and where both balls go after contact. */
+function aimGuide(ctx: CanvasRenderingContext2D, balls: Ball[], cue: Ball, ux: number, uy: number) {
+  const hit = firstContact(balls, cue.n, ux, uy);
   ctx.lineWidth = 1.8;
   ctx.strokeStyle = 'rgba(255,255,255,0.8)';
   ctx.setLineDash([7, 6]);
@@ -529,24 +717,4 @@ function drawAim(
       ctx.stroke();
     }
   }
-  // The cue stick, drawn back further for a harder shot.
-  const back = R + 6 + power * 45;
-  const sx = cue.x - ux * back,
-    sy = cue.y - uy * back;
-  const ex = sx - ux * 320,
-    ey = sy - uy * 320;
-  const stick = ctx.createLinearGradient(sx, sy, ex, ey);
-  stick.addColorStop(0, '#e9e4d8');
-  stick.addColorStop(0.04, '#3a6fd1');
-  stick.addColorStop(0.06, '#e8c78f');
-  stick.addColorStop(0.7, '#b07a3c');
-  stick.addColorStop(1, '#2b1708');
-  ctx.strokeStyle = stick;
-  ctx.lineCap = 'round';
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(sx, sy);
-  ctx.lineTo(ex, ey);
-  ctx.stroke();
-  ctx.restore();
 }

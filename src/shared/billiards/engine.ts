@@ -302,7 +302,7 @@ function shoot(s: BilliardsState, side: Side, shot: Shot, place: { x: number; y:
     ball.on = true;
   }
   const start = structuredClone(s.balls);
-  const normal = normalShot(shot.dx, shot.dy, shot.power);
+  const normal = normalShot(shot.dx, shot.dy, shot.power, shot.spin);
   const r = simulate(start, cue, normal, s.mode === 'CAROM' ? [] : POCKETS);
   const v = judge(s, side, r);
   const name = s.seats[side]!.name;
@@ -310,7 +310,17 @@ function shoot(s: BilliardsState, side: Side, shot: Shot, place: { x: number; y:
   const text = shotText(name, s, v, r);
   s.shots = [
     ...s.shots,
-    { seq: s.seq, by: side, start, cue, dx: normal.dx, dy: normal.dy, power: normal.power, text },
+    {
+      seq: s.seq,
+      by: side,
+      start,
+      cue,
+      dx: normal.dx,
+      dy: normal.dy,
+      power: normal.power,
+      ...(normal.spin ? { spin: normal.spin } : {}),
+      text,
+    },
   ].slice(-BILLIARDS_SHOTS_KEPT);
   s.balls = r.balls;
   s.note = text;
@@ -355,7 +365,13 @@ export function targets(s: BilliardsState, side: Side) {
   return own.length ? own : on.filter((b) => b.n === 8);
 }
 
-function candidates(s: BilliardsState, side: Side, from: Ball, random: Random): Shot[] {
+function candidates(
+  s: BilliardsState,
+  side: Side,
+  from: Ball,
+  random: Random,
+  level: Level,
+): Shot[] {
   const list: Shot[] = [];
   const aim = (tx: number, ty: number, power: number) => {
     const dx = tx - from.x,
@@ -397,6 +413,13 @@ function candidates(s: BilliardsState, side: Side, from: Ball, random: Random): 
       const clen = Math.sqrt(cx * cx + cy * cy);
       if ((cx * px + cy * py) / (clen * len) < 0.25) continue;
       for (const power of [0.3, 0.5, 0.75]) aim(gx, gy, power);
+      // Stronger players also try drawing the cue ball back or following through.
+      if (level > 1) {
+        const dx = gx - from.x,
+          dy = gy - from.y;
+        if (dx * dx + dy * dy > 1)
+          for (const y of [-0.6, 0.5]) list.push(normalShot(dx, dy, 0.5, { x: 0, y }));
+      }
     }
     for (const power of [0.4, 0.7]) aim(t.x, t.y, power);
   }
@@ -443,7 +466,7 @@ export function chooseShot(s: BilliardsState, side: Side, level: Level, random: 
   const plans: Plan[] = [];
   for (const place of spots.slice(0, 6)) {
     const from = place ? { ...current, ...place } : current;
-    for (const shot of candidates(s, side, from, random)) plans.push({ shot, place });
+    for (const shot of candidates(s, side, from, random, level)) plans.push({ shot, place });
   }
   // Keep within the level's budget, sampling evenly.
   const budget = BUDGET[level];
@@ -452,7 +475,7 @@ export function chooseShot(s: BilliardsState, side: Side, level: Level, random: 
       ? plans
       : Array.from({ length: budget }, (_, i) => plans[Math.floor((i * plans.length) / budget)]);
   const turn = (shot: Shot, e: number) =>
-    normalShot(shot.dx - shot.dy * e, shot.dy + shot.dx * e, shot.power);
+    normalShot(shot.dx - shot.dy * e, shot.dy + shot.dx * e, shot.power, shot.spin);
   const value = (plan: Plan, shot = plan.shot) => {
     const balls = structuredClone(s.balls);
     if (plan.place) Object.assign(balls.find((b) => b.n === cue)!, plan.place, { on: true });
