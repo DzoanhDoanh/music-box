@@ -17,7 +17,7 @@ import { useBilliards, useBilliardsList } from '../../lib/billiards';
 import { setTableSoundOn, tableSoundOn } from '../../lib/billiards-sound';
 import DeleteResource from '../DeleteResource';
 import { AsyncButton, Button, Confirm, ErrorState, Loading } from '../ui';
-import BilliardsTable from './BilliardsTable';
+import BilliardsTable, { type Playing } from './BilliardsTable';
 import './billiards.css';
 
 const statusNames: Record<BilliardsState['status'], string> = {
@@ -229,7 +229,8 @@ function BilliardsMatch({ snapshot, game }: { snapshot: Snapshot; game: string }
   const navigate = useNavigate();
   const [level, setLevel] = useState<Level>(2);
   const [sound, setSound] = useState(tableSoundOn);
-  const [animating, setAnimating] = useState(false);
+  const [playing, setPlaying] = useState<Playing>(null);
+  const animating = playing !== null;
   // Opening a table brings the players and the whole table into view, so play needs no scrolling.
   const stage = useRef<HTMLDivElement>(null);
   const ready = Boolean(query.data);
@@ -281,8 +282,10 @@ function BilliardsMatch({ snapshot, game }: { snapshot: Snapshot; game: string }
         ? resultText(state)
         : state.status === 'CANCELLED'
           ? 'Bàn đã hủy'
-          : animating
-            ? 'Bi đang lăn…'
+          : playing
+            ? playing.remote
+              ? `${state.seats[playing.by]?.name ?? 'Đối thủ'} đang đánh…`
+              : 'Bi đang lăn…'
             : pending
               ? rival?.bot
                 ? 'Máy đang đánh…'
@@ -336,9 +339,9 @@ function BilliardsMatch({ snapshot, game }: { snapshot: Snapshot; game: string }
           state={state}
           side={mine}
           canShoot={myTurn && !pending}
-          onAnimating={(running) => {
-            setAnimating(running);
-            setSettled(running ? shownSeq : null);
+          onAnimating={(next) => {
+            setPlaying(next);
+            setSettled(next ? (settled ?? shownSeq) : null);
           }}
           onShoot={async (shot, place) => Boolean(await send({ action: 'shoot', ...shot, place }))}
         />

@@ -20,6 +20,10 @@ import { playTableSound } from '../../lib/billiards-sound';
 import { Button } from '../ui';
 
 const RAIL = 44;
+/** Timing of someone else's shot on screen, in ms: their cue lines up, draws back, strikes. */
+const LINE_UP = 550;
+const DRAW_BACK = 450;
+const THRUST = 90;
 /** How far the cue can be drawn back, in table units: the full pull is full power. */
 const MAX_PULL = 170;
 /** Room kept on screen for the players bar and the controls around the table. */
@@ -37,7 +41,11 @@ const COLORS: Record<number, string> = {
 const CAROM_COLORS = ['#f8f6ee', '#f2c418', '#d62828'];
 
 type Place = { x: number; y: number };
-type Job = { start: Ball[]; cue: number; shot: Shot };
+/** A shot to play on screen. `remote` shots (the computer's or the opponent's) are lined up first. */
+type Job = { start: Ball[]; cue: number; shot: Shot; by: Side; remote: boolean };
+/** The cue drawn without the aiming guide, `back` units behind the ball. */
+type Stick = { cue: number; dx: number; dy: number; back: number };
+export type Playing = { by: Side; remote: boolean } | null;
 type Layout = { width: number; height: number; scale: number; vertical: boolean };
 
 export default function BilliardsTable({
@@ -52,7 +60,8 @@ export default function BilliardsTable({
   side: Side | null;
   canShoot: boolean;
   onShoot: (shot: Shot, place: Place | null) => Promise<boolean>;
-  onAnimating: (running: boolean) => void;
+  /** The shot being played on screen, or null when the table is still. */
+  onAnimating: (playing: Playing) => void;
 }) {
   const carom = state.mode === 'CAROM';
   const wrap = useRef<HTMLDivElement>(null);
@@ -65,8 +74,6 @@ export default function BilliardsTable({
   const [spin, setSpin] = useState<Spin>({ x: 0, y: 0 });
   const [place, setPlace] = useState<Place | null>(null);
   const [running, setRunning] = useState(false);
-  /** While the cue snaps forward on release: how far behind the ball it still is. */
-  const stroke = useRef<number | null>(null);
 
   // ---------------------------------------------------------------- layout
   useEffect(() => {
@@ -117,7 +124,7 @@ export default function BilliardsTable({
 
   // ---------------------------------------------------------------- drawing
   const draw = useCallback(
-    (balls: Ball[], overlay: boolean) => {
+    (balls: Ball[], overlay: boolean, stick?: Stick) => {
       const el = canvas.current;
       if (!el || !layout.width) return;
       const dpr = window.devicePixelRatio || 1;
@@ -130,7 +137,12 @@ export default function BilliardsTable({
       drawTable(ctx, carom, latest.current.kitchen && overlay);
       for (const b of balls) if (b.on) drawShadow(ctx, b);
       for (const b of balls) if (b.on) drawBall(ctx, b, carom, layout.vertical);
-      if (!overlay && stroke.current === null) return;
+      if (stick) {
+        const ball = balls.find((b) => b.n === stick.cue);
+        if (ball) drawAim(ctx, balls, ball, stick, stick.back, false);
+        return;
+      }
+      if (!overlay) return;
       const cue = cueAt(balls);
       if (overlay && latest.current.ballInHand) {
         ctx.save();
@@ -142,8 +154,7 @@ export default function BilliardsTable({
         ctx.stroke();
         ctx.restore();
       }
-      const back = stroke.current ?? (pull ?? 0) * MAX_PULL;
-      drawAim(ctx, withPlace(balls), cue, aim, back, stroke.current === null);
+      drawAim(ctx, withPlace(balls), cue, aim, (pull ?? 0) * MAX_PULL, true);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [layout, carom, aim, pull, place, placeOk],
@@ -166,36 +177,56 @@ export default function BilliardsTable({
     if (!job) {
       shown.current = latest.current.balls;
       setRunning(false);
-      onAnimating(false);
+      onAnimating(null);
       drawRef.current(shown.current, overlayRef.current);
       return;
     }
     busy.current = true;
     setRunning(true);
-    onAnimating(true);
+    onAnimating({ by: job.by, remote: job.remote });
     const result = simulate(job.start, job.cue, job.shot, carom ? [] : POCKETS, 8);
     const frames = result.frames!;
     const events = result.events.slice();
-    playTableSound('cue', job.shot.power);
-    const t0 = performance.now();
-    const frame = () => {
-      const t = (performance.now() - t0) / 1000;
-      while (events.length && events[0].t <= t) sound(events.shift()!);
-      const f = frames[Math.min(frames.length - 1, Math.floor(t * 60))];
-      const balls = job.start.map((b, i) => ({
-        n: b.n,
-        x: f[i * 3],
-        y: f[i * 3 + 1],
-        on: f[i * 3 + 2] === 1,
-      }));
-      drawRef.current(balls, false);
-      if (t * 60 < frames.length) requestAnimationFrame(frame);
-      else {
-        busy.current = false;
-        run();
-      }
+    const roll = () => {
+      playTableSound('cue', job.shot.power);
+      const t0 = performance.now();
+      requestAnimationFrame(function frame() {
+        const t = (performance.now() - t0) / 1000;
+        while (events.length && events[0].t <= t) sound(events.shift()!);
+        const f = frames[Math.min(frames.length - 1, Math.floor(t * 60))];
+        drawRef.current(
+          job.start.map((b, i) => ({
+            n: b.n,
+            x: f[i * 3],
+            y: f[i * 3 + 1],
+            on: f[i * 3 + 2] === 1,
+          })),
+          false,
+        );
+        if (t * 60 < frames.length) requestAnimationFrame(frame);
+        else {
+          busy.current = false;
+          run();
+        }
+      });
     };
-    requestAnimationFrame(frame);
+    // Our own cue already struck on screen. Anyone else's shot is shown as it would be seen at the
+    // table: a pause, their cue lining up, drawing back and striking, then the balls roll.
+    if (!job.remote) return roll();
+    const t0 = performance.now(),
+      pullTo = job.shot.power * MAX_PULL;
+    requestAnimationFrame(function line() {
+      const t = performance.now() - t0;
+      if (t >= LINE_UP + DRAW_BACK + THRUST) return roll();
+      const back =
+        t < LINE_UP
+          ? 0
+          : t < LINE_UP + DRAW_BACK
+            ? pullTo * Math.sin((((t - LINE_UP) / DRAW_BACK) * Math.PI) / 2)
+            : pullTo * (1 - ((t - LINE_UP - DRAW_BACK) / THRUST) ** 2);
+      drawRef.current(job.start, false, { cue: job.cue, dx: job.shot.dx, dy: job.shot.dy, back });
+      requestAnimationFrame(line);
+    });
   }, [carom, onAnimating]);
 
   useEffect(() => {
@@ -211,6 +242,8 @@ export default function BilliardsTable({
         start: s.start,
         cue: s.cue,
         shot: { dx: s.dx, dy: s.dy, power: s.power, spin: s.spin },
+        by: s.by,
+        remote: true,
       });
     if (!busy.current) run();
   }, [state.seq, state.shots, state.balls, run]);
@@ -250,15 +283,18 @@ export default function BilliardsTable({
     setRunning(true);
     const thrust = () => {
       const t = Math.min(1, (performance.now() - t0) / 90);
-      stroke.current = from * (1 - t * t);
-      drawRef.current(start, false);
+      drawRef.current(start, false, {
+        cue: cueN,
+        dx: shot.dx,
+        dy: shot.dy,
+        back: from * (1 - t * t),
+      });
       if (t < 1) {
         requestAnimationFrame(thrust);
         return;
       }
-      stroke.current = null;
       local.current = state.seq + 1;
-      queue.current.push({ start, cue: cueN, shot });
+      queue.current.push({ start, cue: cueN, shot, by: side!, remote: false });
       run();
       void onShoot(shot, where).then((ok) => {
         if (!ok) local.current = null;
@@ -378,7 +414,7 @@ export default function BilliardsTable({
           </span>
         )}
       </div>
-      {canShoot && (
+      {canShoot && !running && (
         <div className="bi-controls" aria-label="Điều khiển cú đánh" role="group">
           <div className="bi-row">
             <Button

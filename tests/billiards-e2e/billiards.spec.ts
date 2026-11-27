@@ -60,6 +60,9 @@ async function shoot(
 }
 const BREAK_SPOT = { x: W / 4, y: H / 2 },
   APEX = { x: 750, y: H / 2 };
+/** Waits until every shot (ours and any reply) has finished playing on screen. */
+const settle = (page: Page) =>
+  expect(status(page, /Bi đang lăn|đang đánh…/)).toBeHidden({ timeout: 60_000 });
 async function noHorizontalScroll(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 }
@@ -99,7 +102,7 @@ test('8 bi against the computer: break, the balls roll with sound, then the comp
   await shoot(page, BREAK_SPOT, APEX, 1);
   await page.waitForTimeout(350);
   await page.screenshot({ path: `test-results/billiards/rolling-${test.info().project.name}.png` });
-  await expect(status(page, 'Bi đang lăn')).toBeHidden({ timeout: 30_000 });
+  await settle(page);
   const played = await sounds(page);
   expect(played[0]).toBe('cue');
   expect(played).toContain('ball');
@@ -132,7 +135,7 @@ test('ball in hand: dragging the cue ball places it before the break', async ({
   await page.mouse.click(sb.x + sb.width / 2, sb.y + sb.height * 0.85);
   await expect(spin).toHaveAccessibleName(/Xoáy về/);
   await shoot(page, { x: 180, y: 160 }, { x: 750, y: 250 }, 0.6);
-  await expect(status(page, 'Bi đang lăn')).toBeHidden({ timeout: 30_000 });
+  await settle(page);
   const id = [...fixture.tables.keys()][0];
   const first = fixture.tables.get(id)!.shots[0];
   expect(first.spin?.y).toBeLessThan(-0.5);
@@ -157,7 +160,7 @@ test('phăng between two room members keeps score', async ({ page, context }) =>
   await expect(status(page, 'Lượt của bạn')).toBeVisible();
   await expect(page.getByText('Bi trắng · 0/5 điểm')).toBeVisible();
   await shoot(page, { x: W / 4, y: H / 2 + 75 }, { x: 750, y: 250 }, 0.5);
-  await expect(status(page, 'Bi đang lăn')).toBeHidden({ timeout: 30_000 });
+  await settle(page);
   await page.screenshot({
     path: `test-results/billiards/carom-${test.info().project.name}.png`,
     fullPage: true,
@@ -178,4 +181,30 @@ test('the host deletes a table after typing its name', async ({ page, context })
   await dialog.getByRole('button', { name: 'Xác nhận', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/room/${roomId}/games/bi-a$`));
   expect(fixture.deleted).toEqual([id]);
+});
+
+test('the computer’s reply waits and shows its cue instead of rolling straight after ours', async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(90_000);
+  await listenForSounds(page);
+  const fixture = await billiardsFixture(context);
+  await openLobby(page);
+  await page.getByRole('radio', { name: '9 bi' }).check();
+  await page.getByRole('radio', { name: 'Dễ' }).check();
+  await page.getByRole('button', { name: /Mở bàn/ }).click();
+  await expect(table(page)).toBeVisible();
+  // A soft break that pots nothing, so the computer takes the table.
+  await shoot(page, BREAK_SPOT, APEX, 0.47);
+  const id = [...fixture.tables.keys()][0];
+  await expect.poll(() => fixture.tables.get(id)!.shots.some((s) => s.by === 'b')).toBe(true);
+  // Once our balls stop, the computer is named and lines up before anything moves.
+  await expect(status(page, 'Máy · Dễ đang đánh…')).toBeVisible({ timeout: 30_000 });
+  const cues = async () => (await sounds(page)).filter((x) => x === 'cue').length;
+  expect(await cues()).toBe(1);
+  await page.screenshot({ path: `test-results/billiards/reply-${test.info().project.name}.png` });
+  await settle(page);
+  // Every shot on the server was played on screen exactly once.
+  expect(await cues()).toBe(fixture.tables.get(id)!.seq);
 });
