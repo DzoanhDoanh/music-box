@@ -14,6 +14,8 @@ export async function coTuongFixture(context: BrowserContext) {
   const random = { index: () => 0 };
   const tables = new Map<string, CoTuongState>();
   const deleted: string[] = [];
+  /** Milliseconds each move takes to answer, to watch the board while the computer thinks. */
+  const timing = { delay: 0 };
   const at = new Date().toISOString();
   const room = {
     room: {
@@ -129,6 +131,7 @@ export async function coTuongFixture(context: BrowserContext) {
           const body = request.postDataJSON();
           if (body.version !== table.version)
             return json({ error: { code: 'COTUONG_STALE' } }, 409);
+          if (timing.delay) await new Promise((done) => setTimeout(done, timing.delay));
           tables.set(id, transition(table, me, 'An', body.command, now(), random));
         }
         return json({ state: tables.get(id), serverNow: now() });
@@ -142,6 +145,7 @@ export async function coTuongFixture(context: BrowserContext) {
   return {
     tables,
     deleted,
+    timing,
     /** A friend in the room takes the free seat of a table. */
     join(id: string) {
       tables.set(

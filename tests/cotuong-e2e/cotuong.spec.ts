@@ -11,6 +11,8 @@ const board = (page: Page) => page.getByRole('group', { name: 'Bàn Cờ Tướn
 async function noHorizontalScroll(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 }
+const opacity = (locator: import('@playwright/test').Locator) =>
+  locator.evaluate((el) => getComputedStyle(el).opacity);
 const refresh = (page: Page) =>
   page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
 
@@ -25,12 +27,19 @@ test('a player opens a table against the computer, moves, gets a reply and takes
   await expect(board(page).getByRole('button', { name: /Đỏ ở|Đen ở/ })).toHaveCount(32);
   await expect(page.getByRole('status').filter({ hasText: 'Lượt của bạn' })).toBeVisible();
 
-  await board(page).getByRole('button', { name: 'Pháo Đỏ ở cột 8, hàng 8' }).click();
+  const cannon = board(page).getByRole('button', { name: 'Pháo Đỏ ở cột 8, hàng 8' });
+  // Mark the element: after the move the same element must stand on the new square (it slides).
+  await cannon.evaluate((el) => el.setAttribute('data-follow', 'cannon'));
+  expect(await cannon.evaluate((el) => getComputedStyle(el).transitionProperty)).toContain('left');
+  await cannon.click();
   const target = board(page).getByRole('button', { name: 'Đi tới cột 5, hàng 8' });
   await expect(target).toBeVisible();
   await target.click();
   const record = page.getByRole('region', { name: 'Biên bản ván cờ' });
   await expect(record).toContainText('Pháo 2 bình 5');
+  await expect(
+    board(page).getByRole('button', { name: 'Pháo Đỏ ở cột 5, hàng 8' }),
+  ).toHaveAttribute('data-follow', 'cannon');
   // The computer answered in the same request; it is our turn again.
   await expect(record.getByRole('listitem').first().locator('span').nth(1)).not.toBeEmpty();
   await expect(page.getByRole('status').filter({ hasText: 'Lượt của bạn' })).toBeVisible();
@@ -89,10 +98,18 @@ test('two room members play, a check is shown and resigning ends the game', asyn
   await board(page).getByRole('button', { name: 'Pháo Đỏ ở cột 8, hàng 8' }).click();
   await board(page).getByRole('button', { name: 'Đi tới cột 5, hàng 8' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Bình đang đi' })).toBeVisible();
+  // Waiting for the opponent does not dim the board.
+  await expect
+    .poll(() => opacity(board(page).getByRole('button', { name: 'Xe Đỏ ở cột 1, hàng 10' })))
+    .toBe('1');
   fixture.play(id, 3, 13); // Sĩ 4 tiến 5
   await refresh(page);
   await board(page).getByRole('button', { name: 'Pháo Đỏ ở cột 5, hàng 8' }).click();
   await board(page).getByRole('button', { name: 'Ăn Tốt Đen ở cột 5, hàng 4' }).click();
+  // The captured soldier fades out under the cannon instead of vanishing.
+  const taken = page.locator('.xq-taken');
+  await expect(taken).toHaveCount(1);
+  await expect.poll(() => opacity(taken)).toBe('0');
   await expect(page.getByRole('alert').filter({ hasText: 'Chiếu tướng!' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Đầu hàng' }).click();
@@ -114,4 +131,28 @@ test('the host deletes a table after typing its name', async ({ page, context })
   await expect(page).toHaveURL(new RegExp(`/room/${roomId}/games/co-tuong$`));
   expect(fixture.deleted).toEqual([id]);
   await expect(page.getByText('Chưa có bàn nào.', { exact: false })).toBeVisible();
+});
+
+test('while the computer thinks the board stays clear and its seat says so', async ({
+  page,
+  context,
+}) => {
+  const fixture = await coTuongFixture(context);
+  await openLobby(page);
+  await page.getByRole('button', { name: /Mở bàn/ }).click();
+  fixture.timing.delay = 1500;
+  await board(page).getByRole('button', { name: 'Pháo Đỏ ở cột 8, hàng 8' }).click();
+  await board(page).getByRole('button', { name: 'Đi tới cột 5, hàng 8' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Máy đang nghĩ' })).toBeVisible();
+  await expect(page.locator('.xq-seat.thinking')).toContainText('đang nghĩ…');
+  // The move already shows where it went, and nothing on the board is faded.
+  const moved = board(page).getByRole('button', { name: 'Pháo Đỏ ở cột 5, hàng 8' });
+  await expect(moved).toBeDisabled();
+  await expect.poll(() => opacity(moved)).toBe('1');
+  await expect
+    .poll(() => opacity(board(page).getByRole('button', { name: 'Xe Đen ở cột 1, hàng 1' })))
+    .toBe('1');
+  await page.screenshot({ path: `test-results/cotuong/thinking-${test.info().project.name}.png` });
+  await expect(page.getByRole('status').filter({ hasText: 'Lượt của bạn' })).toBeVisible();
+  await expect(page.locator('.xq-seat.thinking')).toHaveCount(0);
 });

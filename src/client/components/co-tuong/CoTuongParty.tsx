@@ -12,6 +12,7 @@ import {
   type CreateCoTuong,
 } from '../../../shared/co-tuong/contracts';
 import {
+  START_BOARD,
   apply,
   inCheck,
   legalMoves,
@@ -263,7 +264,14 @@ function CoTuongMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) 
 
   // While a move is on its way, show it at once; the computer's reply arrives with the answer.
   const board = pending && sent ? apply(state.board, sent) : state.board;
-  const last = pending && sent ? sent : state.moves.at(-1);
+  const shown: Move[] = pending && sent ? [...state.moves, sent] : state.moves;
+  const last = shown.at(-1);
+  const taken =
+    pending && sent
+      ? state.board[sent.to] === '.'
+        ? null
+        : state.board[sent.to]
+      : (state.moves.at(-1)?.captured ?? null);
   const toMove = pending && sent ? opposite(state.turn) : state.turn;
   const checked =
     state.status === 'PLAYING' && inCheck(board, toMove)
@@ -317,9 +325,11 @@ function CoTuongMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) 
       </header>
       <div className="xq-layout">
         <div className="xq-board-col">
-          <SeatBar state={state} side={top} me={me} />
+          <SeatBar state={state} side={top} me={me} toMove={toMove} />
           <XiangqiBoard
             board={board}
+            moves={shown}
+            taken={taken}
             flipped={flipped}
             selected={selected}
             targets={targets}
@@ -328,7 +338,7 @@ function CoTuongMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) 
             interactive={myTurn && !pending}
             onSquare={(sq) => void choose(sq)}
           />
-          <SeatBar state={state} side={opposite(top)} me={me} />
+          <SeatBar state={state} side={opposite(top)} me={me} toMove={toMove} />
         </div>
         <aside className="xq-side">
           <section className="xq-card" aria-label="Trạng thái ván">
@@ -498,11 +508,23 @@ function CoTuongMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) 
   );
 }
 
-function SeatBar({ state, side, me }: { state: CoTuongState; side: Side; me: string }) {
+function SeatBar({
+  state,
+  side,
+  me,
+  toMove,
+}: {
+  state: CoTuongState;
+  side: Side;
+  me: string;
+  /** Whose move it is on screen, counting a move still on its way to the server. */
+  toMove: Side;
+}) {
   const seat = state.seats[side];
-  const turn = state.status === 'PLAYING' && state.turn === side;
+  const turn = state.status === 'PLAYING' && toMove === side;
+  const thinking = turn && seat?.bot && state.turn !== side;
   return (
-    <div className={'xq-seat' + (turn ? ' turn' : '')}>
+    <div className={'xq-seat' + (turn ? ' turn' : '') + (thinking ? ' thinking' : '')}>
       <i className={`xq-dot ${side}`} aria-hidden="true" />
       <strong>
         {seat ? seat.name : 'Ghế trống'}
@@ -511,7 +533,7 @@ function SeatBar({ state, side, me }: { state: CoTuongState; side: Side; me: str
       <small>
         Quân {sideNames[side]}
         {seat && state.score[seat.id] ? ` · thắng ${state.score[seat.id]}` : ''}
-        {turn ? ' · đến lượt' : ''}
+        {thinking ? ' · đang nghĩ…' : turn ? ' · đến lượt' : ''}
       </small>
     </div>
   );
@@ -524,8 +546,23 @@ const GAP = 60,
   WIDTH = PAD * 2 + GAP * 8,
   HEIGHT = PAD * 2 + GAP * 9;
 
+/**
+ * Which piece stands on each square, by the square it started on (-1 when empty). Replaying the
+ * moves keeps each piece the same element on screen, so it slides instead of jumping.
+ */
+function pieceIds(moves: Move[]) {
+  const ids = Array.from({ length: 90 }, (_, sq) => (START_BOARD[sq] === '.' ? -1 : sq));
+  for (const m of moves) {
+    ids[m.to] = ids[m.from];
+    ids[m.from] = -1;
+  }
+  return ids;
+}
+
 function XiangqiBoard({
   board,
+  moves,
+  taken,
   flipped,
   selected,
   targets,
@@ -535,6 +572,9 @@ function XiangqiBoard({
   onSquare,
 }: {
   board: string;
+  moves: Move[];
+  /** The piece the last move captured, faded out where it stood. */
+  taken: string | null;
   flipped: boolean;
   selected: number | null;
   targets: number[];
@@ -573,7 +613,16 @@ function XiangqiBoard({
     line(7, 3, 9, 5, 'p3'),
     line(7, 5, 9, 3, 'p4'),
   ];
-  const squares = [...board].map((piece, sq) => ({ piece, sq }));
+  const ids = pieceIds(moves);
+  // Pieces in a fixed order (by identity), so moving one never reorders the others in the DOM.
+  const pieces = ids
+    .map((id, sq) => ({ id, sq }))
+    .filter((p) => p.id >= 0)
+    .sort((a, b) => a.id - b.id);
+  const at = (sq: number) => {
+    const p = place(sq);
+    return { left: `${(p.x / WIDTH) * 100}%`, top: `${(p.y / HEIGHT) * 100}%` };
+  };
   const label = (sq: number, piece: string) => {
     const r = Math.floor(sq / 9),
       c = sq % 9;
@@ -609,36 +658,54 @@ function XiangqiBoard({
             );
           })}
       </svg>
-      {squares.map(({ piece, sq }) => {
+      {last && taken && (
+        <span
+          key={'taken' + moves.length}
+          className={`xq-point xq-piece xq-taken ${sideOf(taken)}`}
+          style={at(last.to)}
+          aria-hidden="true"
+        >
+          <span>{pieceGlyphs[taken]}</span>
+        </span>
+      )}
+      {targets
+        .filter((sq) => board[sq] === '.')
+        .map((sq) => (
+          <button
+            key={'to' + sq}
+            type="button"
+            className="xq-point xq-empty target"
+            style={at(sq)}
+            aria-label={label(sq, '.')}
+            disabled={!interactive}
+            onClick={() => onSquare(sq)}
+          />
+        ))}
+      {pieces.map(({ id, sq }) => {
+        const piece = board[sq];
         const target = targets.includes(sq);
-        if (piece === '.' && !target) return null;
-        const p = place(sq);
-        const style = {
-          left: `${(p.x / WIDTH) * 100}%`,
-          top: `${(p.y / HEIGHT) * 100}%`,
-        };
-        const side = sideOf(piece);
         const classes = [
-          'xq-point',
-          piece !== '.' ? `xq-piece ${side}` : 'xq-empty',
+          'xq-point xq-piece',
+          sideOf(piece),
           selected === sq ? 'selected' : '',
           target ? 'target' : '',
           checked === sq ? 'checked' : '',
+          last?.to === sq ? 'landed' : '',
         ]
           .filter(Boolean)
           .join(' ');
         return (
           <button
-            key={sq}
+            key={'p' + id}
             type="button"
             className={classes}
-            style={style}
-            aria-label={target && piece !== '.' ? `Ăn ${label(sq, piece)}` : label(sq, piece)}
+            style={at(sq)}
+            aria-label={target ? `Ăn ${label(sq, piece)}` : label(sq, piece)}
             aria-pressed={selected === sq ? true : undefined}
             disabled={!interactive}
             onClick={() => onSquare(sq)}
           >
-            {piece !== '.' && <span>{pieceGlyphs[piece]}</span>}
+            <span>{pieceGlyphs[piece]}</span>
           </button>
         );
       })}

@@ -188,6 +188,15 @@
   border-color: var(--xq-accent);
   box-shadow: 0 0 0 1px var(--xq-accent);
 }
+.xq-seat.thinking .xq-dot {
+  animation: xq-think 0.9s ease-in-out infinite;
+}
+@keyframes xq-think {
+  50% {
+    transform: scale(1.35);
+    opacity: 0.6;
+  }
+}
 
 .xq-board {
   position: relative;
@@ -239,18 +248,70 @@
 .xq-point:not(:disabled) {
   cursor: pointer;
 }
+/* Pieces stay fully visible while it is not your turn (the app dims disabled buttons). */
+.xq-point:disabled {
+  opacity: 1;
+  cursor: default;
+}
 .xq-point:focus-visible {
   outline: 3px solid #2f7de1;
   outline-offset: 2px;
 }
 .xq-piece {
+  z-index: 1;
   background: radial-gradient(circle at 35% 30%, #fff6e0, #f0d9a8 60%, #d9b77a);
   box-shadow:
     0 2px 0 #9b7440,
     0 4px 8px rgba(0, 0, 0, 0.35);
+  /* Pieces slide from square to square; the same element follows each piece. */
   transition:
+    left 0.38s cubic-bezier(0.22, 0.8, 0.24, 1),
+    top 0.38s cubic-bezier(0.22, 0.8, 0.24, 1),
     transform 0.15s ease,
     box-shadow 0.15s ease;
+}
+/* The piece just moved rides above the others and hops: lifted mid-way, set down at the end. */
+.xq-piece.landed {
+  z-index: 3;
+  animation: xq-hop 0.42s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+@keyframes xq-hop {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  45% {
+    transform: translate(-50%, -58%) scale(1.14);
+    box-shadow:
+      0 2px 0 #9b7440,
+      0 14px 18px rgba(0, 0, 0, 0.35);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+/* A captured piece stays a moment under the capturer, then fades and shrinks away. */
+.xq-piece.xq-taken {
+  z-index: 0;
+  pointer-events: none;
+  animation: xq-taken 0.5s ease-in 0.12s forwards;
+}
+@keyframes xq-taken {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6) rotate(-12deg);
+  }
+}
+/* Pieces brought back by "Đi lại", and the board being set up, appear softly. */
+@starting-style {
+  .xq-piece {
+    opacity: 0;
+  }
+}
+.xq-piece:not(.xq-taken) {
+  transition-property: left, top, transform, box-shadow, opacity;
+}
+.xq-empty.target {
+  z-index: 2;
 }
 .xq-piece span {
   display: grid;
@@ -366,8 +427,15 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .xq-piece,
-  .xq-piece.checked {
+  .xq-piece.checked,
+  .xq-piece.landed,
+  .xq-piece.xq-taken,
+  .xq-seat.thinking .xq-dot {
     transition: none;
     animation: none;
+  }
+  /* Without its fade the captured piece would linger, so it leaves at once. */
+  .xq-piece.xq-taken {
+    display: none;
   }
 }
