@@ -613,6 +613,32 @@ function XiangqiBoard({
     line(7, 3, 9, 5, 'p3'),
     line(7, 5, 9, 3, 'p4'),
   ];
+  // Small corner ticks where cannons and soldiers start, as printed on real boards.
+  const marks = [
+    [2, 1],
+    [2, 7],
+    [7, 1],
+    [7, 7],
+    ...[0, 2, 4, 6, 8].flatMap((c) => [
+      [3, c],
+      [6, c],
+    ]),
+  ].flatMap(([r, c]) => {
+    const x = PAD + c * GAP,
+      y = PAD + r * GAP,
+      g = 5,
+      l = 12;
+    return ([-1, 1] as const).flatMap((dx) =>
+      c + dx < 0 || c + dx > 8
+        ? []
+        : ([-1, 1] as const).map((dy) => (
+            <path
+              key={`${r}-${c}-${dx}-${dy}`}
+              d={`M${x + dx * g} ${y + dy * (g + l)}V${y + dy * g}H${x + dx * (g + l)}`}
+            />
+          )),
+    );
+  });
   const ids = pieceIds(moves);
   // Pieces in a fixed order (by identity), so moving one never reorders the others in the DOM.
   const pieces = ids
@@ -634,8 +660,43 @@ function XiangqiBoard({
   return (
     <div className="xq-board" role="group" aria-label="Bàn Cờ Tướng">
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} aria-hidden="true">
-        <rect className="xq-wood" x="4" y="4" width={WIDTH - 8} height={HEIGHT - 8} rx="14" />
+        <defs>
+          {/* Warm wood with long grain streaks, like a real board. */}
+          <linearGradient id="xq-wood" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#d9a35c" />
+            <stop offset="0.5" stopColor="#c98d45" />
+            <stop offset="1" stopColor="#b97935" />
+          </linearGradient>
+          <linearGradient id="xq-frame" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#6e3b16" />
+            <stop offset="1" stopColor="#3f1f0a" />
+          </linearGradient>
+          <filter id="xq-grain" x="0" y="0" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.006 0.09" numOctaves="3" seed="7" />
+            <feColorMatrix values="0 0 0 0 0.35  0 0 0 0 0.18  0 0 0 0 0.05  0 0 0 0.55 -0.12" />
+            <feComposite in2="SourceGraphic" operator="in" />
+          </filter>
+        </defs>
+        <rect className="xq-frame" x="0" y="0" width={WIDTH} height={HEIGHT} rx="18" />
+        <rect className="xq-wood" x="12" y="12" width={WIDTH - 24} height={HEIGHT - 24} rx="8" />
+        <rect
+          className="xq-grain"
+          x="12"
+          y="12"
+          width={WIDTH - 24}
+          height={HEIGHT - 24}
+          rx="8"
+          filter="url(#xq-grain)"
+        />
+        <rect
+          className="xq-border"
+          x={PAD - 8}
+          y={PAD - 8}
+          width={GAP * 8 + 16}
+          height={GAP * 9 + 16}
+        />
         <g className="xq-lines">{grid}</g>
+        <g className="xq-marks">{marks}</g>
         <text className="xq-river" x={PAD + GAP * 2} y={PAD + GAP * 4.5}>
           楚 河
         </text>
