@@ -38,7 +38,7 @@ import GamePicker from '../components/GamePicker';
 import RoomNavigation, { type RoomTab as Tab } from '../components/RoomNavigation';
 import { ReorderProposalDialog, ReorderVotePanel } from '../components/ReorderVoting';
 import { api } from '../lib/api';
-import { hostIsAvailable } from '../lib/playback-sync';
+import { hostIsAvailable, musicPlayer } from '../lib/playback-sync';
 import { AppError, orderQueue, formatTime } from '../../shared/domain';
 import { isConnectionError } from '../../shared/auth-errors';
 import type { Library as LibraryData, Song } from '../../shared/contracts';
@@ -328,6 +328,7 @@ export default function RoomPage() {
               members={snapshot.members}
               me={snapshot.me}
               onlineMembers={room.onlineMembers}
+              player={musicPlayer(snapshot.playback, Date.now() + (snapshot.clock_offset_ms ?? 0))}
             />
           </div>
           <div className="room-actions">

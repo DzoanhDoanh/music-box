@@ -209,6 +209,8 @@ export interface Member {
 }
 export interface Playback {
   controller_id: string | null;
+  /** The member whose device holds the playback lease (the room's music player). */
+  controller_user?: string | null;
   fence: number;
   lease_until: string | null;
   run_id: string | null;

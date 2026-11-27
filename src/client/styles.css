@@ -2254,6 +2254,34 @@ body:has(.host-player, .listener-player .youtube-container) .theme-switch {
 .member-row strong {
   font-size: 13px;
 }
+/* Who holds the room's music player, in the member list. */
+.member-player {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  font-size: 13px;
+}
+.member-playing {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--muted);
+  vertical-align: middle;
+}
+.member-playing.live {
+  border-color: var(--accent);
+  color: var(--text);
+}
 .member-row small {
   display: block;
   color: var(--muted);

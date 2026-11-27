@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { RoomCommand, Snapshot } from '../../shared/contracts';
 import { api } from '../lib/api';
+import { musicPlayer } from '../lib/playback-sync';
+import { Headphones } from 'lucide-react';
 import { AsyncButton, Button, Confirm, ErrorState, Loading } from './ui';
 export default function AdminPanel({
   snapshot,
@@ -27,12 +29,37 @@ export default function AdminPanel({
       }>(`/rooms/${snapshot.room.id}/admin?page=${page}`),
   });
   const send = (command: RoomCommand) => execute(command);
+  // The member whose device plays the room's music, while their lease is alive.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, []);
+  const playback = snapshot.playback;
+  const serverNow = now + (snapshot.clock_offset_ms ?? 0);
+  const holder = musicPlayer(playback, serverNow);
+  const player = holder?.user ?? null;
+  const playerName = snapshot.members.find((m) => m.user_id === player)?.name;
+  const playing = holder?.playing ?? false;
+  const song = snapshot.queue.find((entry) => entry.id === playback.entry_id)?.song.title;
+  const playerStatus = playing ? 'Đang phát nhạc' : 'Giữ máy phát · đang dừng';
   return (
     <div>
       <div className="section-heading">
         <h2>Thành viên trong phòng</h2>
         <span className="badge">{snapshot.members.length} người</span>
       </div>
+      <p className="member-player" role="status">
+        <Headphones size={16} aria-hidden="true" />
+        {player && playerName ? (
+          <span>
+            <b>{playerName}</b> {playing ? 'đang phát nhạc' : 'đang giữ máy phát (tạm dừng)'}
+            {song && playing && <> · {song}</>}
+          </span>
+        ) : (
+          <span>Chưa ai giữ máy phát nhạc.</span>
+        )}
+      </p>
       <p className="muted">
         Mời khỏi phòng để kết thúc quyền truy cập hiện tại. Chọn Chặn nếu muốn ngăn người đó vào lại
         bằng mã phòng.
@@ -42,6 +69,11 @@ export default function AdminPanel({
           <span className="avatar">{member.name.slice(0, 2).toUpperCase()}</span>
           <div>
             <strong>{member.name}</strong>
+            {member.user_id === player && (
+              <span className={'member-playing' + (playing ? ' live' : '')}>
+                <Headphones size={12} aria-hidden="true" /> {playerStatus}
+              </span>
+            )}
             <small>
               {member.role === 'owner'
                 ? 'Chủ phòng'

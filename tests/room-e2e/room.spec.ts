@@ -2221,3 +2221,59 @@ test('members opt in to listening; mode changes and leave destroy their player',
   await expect(page.locator('[data-test-player]')).toHaveCount(0);
   expect(f.commands).toHaveLength(0);
 });
+
+test('member lists show who holds the music player and whether it is playing', async ({
+  page,
+}, info) => {
+  const f = await fixture(page, 'owner');
+  const other = '20000000-0000-4000-8000-000000000002';
+  f.state.members.push({ user_id: other, name: 'Minh phát nhạc', role: 'member', joined_at: '' });
+  await page.goto(`/room/${roomId}`);
+  await tab(page, 'Quản lý thành viên');
+  const status = page.locator('.member-player');
+  await expect(status).toHaveText('Chưa ai giữ máy phát nhạc.');
+  // Minh's device takes the player lease and plays the queued song.
+  f.state.playback = {
+    ...f.state.playback,
+    controller_id: '40000000-0000-4000-8000-000000000001',
+    controller_user: other,
+    lease_until: new Date(Date.now() + 60_000).toISOString(),
+    entry_id: entryId,
+    state: 'PAUSED',
+    intent: 'PAUSED',
+  };
+  f.state.version++;
+  await refreshSnapshot(page);
+  await expect(status).toHaveText('Minh phát nhạc đang giữ máy phát (tạm dừng)');
+  const row = page.locator('.member-row', { hasText: 'Minh phát nhạc' });
+  await expect(row.locator('.member-playing')).toHaveText('Giữ máy phát · đang dừng');
+  await expect(
+    page.locator('.member-row', { hasText: 'Người thử' }).locator('.member-playing'),
+  ).toHaveCount(0);
+  f.state.playback = { ...f.state.playback, state: 'PLAYING', intent: 'PLAYING' };
+  f.state.version++;
+  await refreshSnapshot(page);
+  await expect(status).toHaveText('Minh phát nhạc đang phát nhạc · Bài hát kiểm thử');
+  await expect(row.locator('.member-playing')).toHaveText('Đang phát nhạc');
+  await page.screenshot({ path: info.outputPath('member-player-admin.png') });
+  // The room's member dialog marks the same person.
+  await page.getByRole('button', { name: /^Xem thành viên/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Thành viên trong phòng' });
+  await expect(
+    dialog.locator(`.room-member-item[data-member-id="${other}"] .room-member-playing`),
+  ).toHaveText('Đang phát nhạc');
+  await expect(
+    dialog.locator(`.room-member-item[data-member-id="${userId}"] .room-member-playing`),
+  ).toHaveCount(0);
+  await dialog.screenshot({ path: info.outputPath('member-player-dialog.png') });
+  await page.keyboard.press('Escape');
+  // An expired lease means nobody holds the player any more.
+  f.state.playback = {
+    ...f.state.playback,
+    lease_until: new Date(Date.now() - 1000).toISOString(),
+  };
+  f.state.version++;
+  await refreshSnapshot(page);
+  await expect(status).toHaveText('Chưa ai giữ máy phát nhạc.');
+  await expect(page.locator('.member-playing')).toHaveCount(0);
+});

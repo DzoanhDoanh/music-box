@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, Search, Users, WifiOff } from 'lucide-react';
+import { ChevronDown, Headphones, Search, Users, WifiOff } from 'lucide-react';
 import type { Member } from '../../shared/contracts';
 import { Button, Modal } from './ui';
 import './room-members.css';
@@ -18,11 +18,14 @@ export default function RoomMembers({
   me,
   onlineMembers,
   onManage,
+  player = null,
 }: {
   members: Member[];
   me: string;
   onlineMembers: string[] | null;
   onManage?: () => void;
+  /** Who holds the room's music player right now, and whether it is playing. */
+  player?: { user: string; playing: boolean } | null;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -139,6 +142,12 @@ export default function RoomMembers({
                   <div>
                     <strong>{member.name}</strong>
                     {member.user_id === me && <span className="room-member-self">Bạn</span>}
+                    {member.user_id === player?.user && (
+                      <span className={'room-member-playing' + (player.playing ? ' live' : '')}>
+                        <Headphones size={11} aria-hidden="true" />
+                        {player.playing ? 'Đang phát nhạc' : 'Giữ máy phát'}
+                      </span>
+                    )}
                   </div>
                   <small>{roles[member.role]}</small>
                 </div>
