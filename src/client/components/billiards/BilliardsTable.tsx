@@ -18,8 +18,16 @@ import {
 } from '../../../shared/billiards/physics';
 import { playTableSound } from '../../lib/billiards-sound';
 import { Button } from '../ui';
+import {
+  RAIL,
+  lightFor,
+  paintBall,
+  paintCue,
+  paintKitchen,
+  paintShadow,
+  paintTable,
+} from './tablePaint';
 
-const RAIL = 44;
 /** Timing of someone else's shot on screen, in ms: their cue lines up, draws back, strikes. */
 const LINE_UP = 550;
 const DRAW_BACK = 450;
@@ -28,17 +36,6 @@ const THRUST = 90;
 const MAX_PULL = 170;
 /** Room kept on screen for the players bar and the controls around the table. */
 const RESERVE = 210;
-const COLORS: Record<number, string> = {
-  1: '#f2c418',
-  2: '#1d4fd8',
-  3: '#d62828',
-  4: '#6b2fa8',
-  5: '#f07818',
-  6: '#16823c',
-  7: '#7a1f1f',
-  8: '#121212',
-};
-const CAROM_COLORS = ['#f8f6ee', '#f2c418', '#d62828'];
 
 type Place = { x: number; y: number };
 /** A shot to play on screen. `remote` shots (the computer's or the opponent's) are lined up first. */
@@ -123,23 +120,40 @@ export default function BilliardsTable({
     (freeSpot(state.balls, place.x, place.y, cueN) && (!state.kitchen || place.x <= HEAD_STRING));
 
   // ---------------------------------------------------------------- drawing
+  const cache = useRef<{ key: string; sheet: HTMLCanvasElement } | null>(null);
   const draw = useCallback(
     (balls: Ball[], overlay: boolean, stick?: Stick) => {
       const el = canvas.current;
       if (!el || !layout.width) return;
       const dpr = window.devicePixelRatio || 1;
       const ctx = el.getContext('2d')!;
+      const k = layout.scale * dpr;
+      const orient = (c: CanvasRenderingContext2D) => {
+        if (layout.vertical) c.setTransform(0, -k, k, 0, k * RAIL, k * (RAIL + W));
+        else c.setTransform(k, 0, 0, k, k * RAIL, k * RAIL);
+      };
+      // The table itself never changes during play: paint it once per size and reuse it.
+      const key = `${el.width}x${el.height}|${layout.vertical}|${carom}`;
+      if (cache.current?.key !== key) {
+        const sheet = document.createElement('canvas');
+        sheet.width = el.width;
+        sheet.height = el.height;
+        const c = sheet.getContext('2d')!;
+        orient(c);
+        paintTable(c, carom);
+        cache.current = { key, sheet };
+      }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, el.width, el.height);
-      const k = layout.scale * dpr;
-      if (layout.vertical) ctx.setTransform(0, -k, k, 0, k * RAIL, k * (RAIL + W));
-      else ctx.setTransform(k, 0, 0, k, k * RAIL, k * RAIL);
-      drawTable(ctx, carom, latest.current.kitchen && overlay);
-      for (const b of balls) if (b.on) drawShadow(ctx, b);
-      for (const b of balls) if (b.on) drawBall(ctx, b, carom, layout.vertical);
+      ctx.drawImage(cache.current.sheet, 0, 0);
+      orient(ctx);
+      const light = lightFor(layout.vertical);
+      if (latest.current.kitchen && overlay) paintKitchen(ctx);
+      for (const b of balls) if (b.on) paintShadow(ctx, b, light);
+      for (const b of balls) if (b.on) paintBall(ctx, b, carom, layout.vertical);
       if (stick) {
         const ball = balls.find((b) => b.n === stick.cue);
-        if (ball) drawAim(ctx, balls, ball, stick, stick.back, false);
+        if (ball) drawAim(ctx, balls, ball, stick, stick.back, false, light);
         return;
       }
       if (!overlay) return;
@@ -154,7 +168,7 @@ export default function BilliardsTable({
         ctx.stroke();
         ctx.restore();
       }
-      drawAim(ctx, withPlace(balls), cue, aim, (pull ?? 0) * MAX_PULL, true);
+      drawAim(ctx, withPlace(balls), cue, aim, (pull ?? 0) * MAX_PULL, true, light);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [layout, carom, aim, pull, place, placeOk],
@@ -535,147 +549,6 @@ function sound(e: SimEvent) {
   else if (e.speed > 120) playTableSound('rail', e.speed / 2200);
 }
 
-// ---------------------------------------------------------------- canvas painting (table units)
-
-function drawTable(ctx: CanvasRenderingContext2D, carom: boolean, kitchen: boolean) {
-  // Wooden rails.
-  const wood = ctx.createLinearGradient(-RAIL, -RAIL, W + RAIL, H + RAIL);
-  wood.addColorStop(0, '#6b3a17');
-  wood.addColorStop(0.5, '#8a4f22');
-  wood.addColorStop(1, '#5a2f12');
-  ctx.fillStyle = wood;
-  roundRect(ctx, -RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 22);
-  ctx.fill();
-  // Cushions, a darker cloth strip inside the wood.
-  ctx.fillStyle = carom ? '#174a85' : '#145c37';
-  ctx.fillRect(-14, -14, W + 28, H + 28);
-  // Cloth with a soft light over the middle.
-  const cloth = ctx.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, W * 0.65);
-  cloth.addColorStop(0, carom ? '#2f78c4' : '#2a9a5c');
-  cloth.addColorStop(1, carom ? '#1d5aa0' : '#1c7444');
-  ctx.fillStyle = cloth;
-  ctx.fillRect(0, 0, W, H);
-  // Diamonds on the rails.
-  ctx.fillStyle = '#f3e3c3';
-  for (let i = 1; i < 8; i++) {
-    if (i === 4 && !carom) continue;
-    for (const y of [-29, H + 29]) diamond(ctx, (W * i) / 8, y);
-  }
-  for (let i = 1; i < 4; i++) for (const x of [-29, W + 29]) diamond(ctx, x, (H * i) / 4);
-  // Head string and spots.
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  for (const x of [W / 4, (W * 3) / 4]) {
-    ctx.beginPath();
-    ctx.arc(x, H / 2, 2.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  if (kitchen) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.setLineDash([6, 6]);
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(HEAD_STRING, 0);
-    ctx.lineTo(HEAD_STRING, H);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-  if (carom) return;
-  for (const p of POCKETS) {
-    const side = p.x === W / 2;
-    const cx = side ? p.x : p.x === 0 ? -5 : W + 5,
-      cy = p.y <= 0 ? (side ? -12 : -5) : side ? H + 12 : H + 5;
-    const hole = ctx.createRadialGradient(cx, cy, 4, cx, cy, side ? 20 : 24);
-    hole.addColorStop(0, '#000');
-    hole.addColorStop(1, '#1b1b1b');
-    ctx.fillStyle = hole;
-    ctx.beginPath();
-    ctx.arc(cx, cy, side ? 20 : 24, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function diamond(ctx: CanvasRenderingContext2D, x: number, y: number) {
-  ctx.beginPath();
-  ctx.moveTo(x, y - 4);
-  ctx.lineTo(x + 3, y);
-  ctx.lineTo(x, y + 4);
-  ctx.lineTo(x - 3, y);
-  ctx.closePath();
-  ctx.fill();
-}
-
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function drawShadow(ctx: CanvasRenderingContext2D, b: Ball) {
-  ctx.fillStyle = 'rgba(0,0,0,0.28)';
-  ctx.beginPath();
-  ctx.ellipse(b.x + 3, b.y + 4, R, R * 0.9, 0, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function drawBall(ctx: CanvasRenderingContext2D, b: Ball, carom: boolean, vertical: boolean) {
-  const color = carom ? CAROM_COLORS[b.n] : b.n === 0 ? '#f8f6ee' : COLORS[b.n > 8 ? b.n - 8 : b.n];
-  const stripe = !carom && b.n > 8;
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(b.x, b.y, R, 0, Math.PI * 2);
-  ctx.clip();
-  ctx.fillStyle = stripe ? '#f8f6ee' : color;
-  ctx.fillRect(b.x - R, b.y - R, 2 * R, 2 * R);
-  if (stripe) {
-    ctx.fillStyle = color;
-    // The stripe runs across the screen whichever way the table is turned.
-    if (vertical) ctx.fillRect(b.x - R * 0.55, b.y - R, R * 1.1, 2 * R);
-    else ctx.fillRect(b.x - R, b.y - R * 0.55, 2 * R, R * 1.1);
-  }
-  if (!carom && b.n > 0) {
-    ctx.fillStyle = '#fbfaf5';
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, R * 0.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.save();
-    ctx.translate(b.x, b.y);
-    if (vertical) ctx.rotate(Math.PI / 2);
-    ctx.fillStyle = '#111';
-    ctx.font = `700 ${R * 0.62}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(b.n), 0, 0.5);
-    ctx.restore();
-  }
-  // Light from the top left, darker edge: a glossy sphere.
-  const shade = ctx.createRadialGradient(
-    b.x - R * 0.35,
-    b.y - R * 0.4,
-    R * 0.1,
-    b.x,
-    b.y,
-    R * 1.05,
-  );
-  shade.addColorStop(0, 'rgba(255,255,255,0.75)');
-  shade.addColorStop(0.25, 'rgba(255,255,255,0.08)');
-  shade.addColorStop(0.75, 'rgba(0,0,0,0)');
-  shade.addColorStop(1, 'rgba(0,0,0,0.42)');
-  ctx.fillStyle = shade;
-  ctx.fillRect(b.x - R, b.y - R, 2 * R, 2 * R);
-  ctx.restore();
-}
-
 function drawAim(
   ctx: CanvasRenderingContext2D,
   balls: Ball[],
@@ -684,31 +557,14 @@ function drawAim(
   /** How far the cue is drawn back behind the ball, in table units. */
   pulled: number,
   guide: boolean,
+  light: { x: number; y: number },
 ) {
   const len = Math.sqrt(aim.dx * aim.dx + aim.dy * aim.dy) || 1;
   const ux = aim.dx / len,
     uy = aim.dy / len;
   ctx.save();
   if (guide) aimGuide(ctx, balls, cue, ux, uy);
-  // The cue stick, further back the harder the shot will be.
-  const back = R + 4 + pulled;
-  const sx = cue.x - ux * back,
-    sy = cue.y - uy * back;
-  const ex = sx - ux * 320,
-    ey = sy - uy * 320;
-  const stick = ctx.createLinearGradient(sx, sy, ex, ey);
-  stick.addColorStop(0, '#e9e4d8');
-  stick.addColorStop(0.04, '#3a6fd1');
-  stick.addColorStop(0.06, '#e8c78f');
-  stick.addColorStop(0.7, '#b07a3c');
-  stick.addColorStop(1, '#2b1708');
-  ctx.strokeStyle = stick;
-  ctx.lineCap = 'round';
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(sx, sy);
-  ctx.lineTo(ex, ey);
-  ctx.stroke();
+  paintCue(ctx, cue, ux, uy, pulled, light);
   ctx.restore();
 }
 
