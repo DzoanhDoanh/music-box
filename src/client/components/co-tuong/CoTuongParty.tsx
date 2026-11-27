@@ -1,7 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Bot, Flag, Handshake, Plus, RotateCcw, Undo2, Users } from 'lucide-react';
+import {
+  ArrowLeft,
+  Bot,
+  Flag,
+  Handshake,
+  Plus,
+  RotateCcw,
+  Undo2,
+  Users,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 import type { Snapshot } from '../../../shared/contracts';
 import { AppError } from '../../../shared/domain';
 import {
@@ -24,6 +35,7 @@ import {
   type Side,
 } from '../../../shared/co-tuong/rules';
 import { useCoTuong, useCoTuongList } from '../../lib/co-tuong';
+import { playBoardSound, setSoundOn, soundOn, type BoardSound } from '../../lib/co-tuong-sound';
 import DeleteResource from '../DeleteResource';
 import { AsyncButton, Button, Confirm, ErrorState, Loading } from '../ui';
 import './co-tuong.css';
@@ -220,7 +232,9 @@ function CoTuongMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) 
   const [selected, setSelected] = useState<number | null>(null);
   const [sent, setSent] = useState<Move | null>(null);
   const [level, setLevel] = useState<Level>(2);
+  const [sound, setSound] = useState(soundOn);
   const state = query.data?.state;
+  useBoardSounds(state, pending ? sent : null);
   const mine: Side | null = !state
     ? null
     : state.seats.r?.id === me && !state.seats.r.bot
@@ -322,6 +336,16 @@ function CoTuongMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) 
           <h1>{state.name}</h1>
           <small>{statusNames[state.status]}</small>
         </div>
+        <Button
+          variant="ghost"
+          aria-pressed={sound}
+          onClick={() => {
+            setSoundOn(!sound);
+            setSound(!sound);
+          }}
+        >
+          {sound ? <Volume2 size={16} /> : <VolumeX size={16} />} Âm thanh {sound ? 'bật' : 'tắt'}
+        </Button>
       </header>
       <div className="xq-layout">
         <div className="xq-board-col">
@@ -506,6 +530,57 @@ function CoTuongMatch({ snapshot, game }: { snapshot: Snapshot; game: string }) 
       </div>
     </section>
   );
+}
+
+// Sounds land with the piece: the slide takes about this long.
+const LANDING_MS = 320;
+
+/**
+ * Plays a sound for every move that appears on the board: your own (as soon as it is sent), the
+ * opponent's and the computer's. Opening a table, or catching up after a reload, stays quiet.
+ */
+function useBoardSounds(state: CoTuongState | undefined, sent: Move | null) {
+  const sounds = useMemo(() => {
+    if (!state) return null;
+    const list: BoardSound[][] = state.moves.map((m) => [
+      m.captured ? 'capture' : 'move',
+      ...(m.check ? (['check'] as const) : []),
+    ]);
+    if (sent) {
+      const after = apply(state.board, sent);
+      list.push([
+        state.board[sent.to] === '.' ? 'move' : 'capture',
+        ...(inCheck(after, opposite(state.turn)) ? (['check'] as const) : []),
+      ]);
+    }
+    return list;
+  }, [state, sent]);
+  const heard = useRef<number | null>(null);
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    if (!sounds) return;
+    const before = heard.current;
+    heard.current = sounds.length;
+    if (before === null || sounds.length === before) return;
+    // Taking moves back slides pieces home: one soft knock.
+    const fresh = sounds.length < before ? [['move' as const]] : sounds.slice(before);
+    fresh.forEach((group, i) =>
+      group.forEach((name, j) => {
+        const timer = setTimeout(
+          () => {
+            timers.current.delete(timer);
+            playBoardSound(name);
+          },
+          LANDING_MS + i * 450 + j * 140,
+        );
+        timers.current.add(timer);
+      }),
+    );
+  }, [sounds]);
+  useEffect(() => {
+    const pending = timers.current;
+    return () => pending.forEach(clearTimeout);
+  }, []);
 }
 
 function SeatBar({

@@ -13,6 +13,18 @@ async function noHorizontalScroll(page: Page) {
 }
 const opacity = (locator: import('@playwright/test').Locator) =>
   locator.evaluate((el) => getComputedStyle(el).opacity);
+/** Records every board sound the page plays. */
+const listenForSounds = (page: Page) =>
+  page.addInitScript(() => {
+    const w = window as unknown as { sounds: string[] };
+    w.sounds = [];
+    window.addEventListener('roomtune:board-sound', (e) => {
+      const { sound, audible } = (e as CustomEvent<{ sound: string; audible: boolean }>).detail;
+      w.sounds.push(audible ? sound : `${sound} (muted)`);
+    });
+  });
+const sounds = (page: Page) =>
+  page.evaluate(() => (window as unknown as { sounds: string[] }).sounds);
 const refresh = (page: Page) =>
   page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
 
@@ -155,4 +167,46 @@ test('while the computer thinks the board stays clear and its seat says so', asy
   await page.screenshot({ path: `test-results/cotuong/thinking-${test.info().project.name}.png` });
   await expect(page.getByRole('status').filter({ hasText: 'Lượt của bạn' })).toBeVisible();
   await expect(page.locator('.xq-seat.thinking')).toHaveCount(0);
+});
+
+test('moves and captures make sounds, and the sound switch is remembered', async ({
+  page,
+  context,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await listenForSounds(page);
+  const fixture = await coTuongFixture(context);
+  await openLobby(page);
+  await page.getByRole('radio', { name: 'Người trong phòng' }).check();
+  await page.getByRole('button', { name: /Mở bàn/ }).click();
+  const id = [...fixture.tables.keys()][0];
+  fixture.join(id);
+  await refresh(page);
+  await expect(page.getByRole('status').filter({ hasText: 'Lượt của bạn' })).toBeVisible();
+  // Opening the table is quiet.
+  expect(await sounds(page)).toEqual([]);
+
+  await board(page).getByRole('button', { name: 'Pháo Đỏ ở cột 8, hàng 8' }).click();
+  await board(page).getByRole('button', { name: 'Đi tới cột 5, hàng 8' }).click();
+  await expect.poll(() => sounds(page)).toEqual(['move']);
+  // The opponent's move is heard too.
+  fixture.play(id, 3, 13);
+  await refresh(page);
+  await expect.poll(() => sounds(page)).toEqual(['move', 'move']);
+  // Capturing with check: a heavier knock, then the check chime.
+  await board(page).getByRole('button', { name: 'Pháo Đỏ ở cột 5, hàng 8' }).click();
+  await board(page).getByRole('button', { name: 'Ăn Tốt Đen ở cột 5, hàng 4' }).click();
+  await expect.poll(() => sounds(page)).toEqual(['move', 'move', 'capture', 'check']);
+
+  const toggle = page.getByRole('button', { name: /Âm thanh/ });
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await page.reload();
+  await expect(page.getByRole('button', { name: /Âm thanh tắt/ })).toBeVisible();
+  fixture.play(id, 13, 3); // Sĩ lui, thoát chiếu
+  await refresh(page);
+  await expect.poll(() => sounds(page)).toEqual(['move (muted)']);
+  expect(errors).toEqual([]);
 });
